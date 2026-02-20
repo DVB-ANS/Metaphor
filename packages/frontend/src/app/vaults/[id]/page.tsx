@@ -3,12 +3,12 @@
 import { use, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { BentoGrid, BentoCard } from '@/components/ui/magic-bento';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -119,7 +119,7 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
   const currentReport = analysisResult || existingReport;
 
   return (
-    <div className="space-y-6">
+    <BentoGrid className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
@@ -159,19 +159,19 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
 
       {/* Key Metrics */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
+        <BentoCard>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Total Value</p>
             <p className="text-2xl font-bold">{formatCurrency(vault.totalValue)}</p>
           </CardContent>
-        </Card>
-        <Card>
+        </BentoCard>
+        <BentoCard>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">YTD Return</p>
             <p className="text-2xl font-bold text-green-500">+{vault.yieldYTD}%</p>
           </CardContent>
-        </Card>
-        <Card>
+        </BentoCard>
+        <BentoCard>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Risk Score</p>
             <div className="flex items-center gap-2">
@@ -181,18 +181,18 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
             </div>
             <Progress value={vault.riskScore} className="mt-2" />
           </CardContent>
-        </Card>
-        <Card>
+        </BentoCard>
+        <BentoCard>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Upcoming Payments</p>
             <p className="text-2xl font-bold">{upcomingPayments.length}</p>
           </CardContent>
-        </Card>
+        </BentoCard>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Asset Composition Table */}
-        <Card className="lg:col-span-2">
+        <BentoCard className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Asset Composition</CardTitle>
             <CardDescription>Breakdown of vault holdings</CardDescription>
@@ -233,10 +233,10 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
               </TableBody>
             </Table>
           </CardContent>
-        </Card>
+        </BentoCard>
 
         {/* Allocation Chart */}
-        <Card>
+        <BentoCard>
           <CardHeader>
             <CardTitle>Allocation</CardTitle>
           </CardHeader>
@@ -281,12 +281,12 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
               ))}
             </div>
           </CardContent>
-        </Card>
+        </BentoCard>
       </div>
 
       {/* Risk Score History */}
       {scoreHistory.length > 0 && (
-        <Card>
+        <BentoCard>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
@@ -319,12 +319,12 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
-        </Card>
+        </BentoCard>
       )}
 
       {/* Payments */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
+        <BentoCard>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CalendarDays className="h-4 w-4" />
@@ -351,8 +351,8 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
               ))
             )}
           </CardContent>
-        </Card>
-        <Card>
+        </BentoCard>
+        <BentoCard>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CalendarDays className="h-4 w-4" />
@@ -379,14 +379,14 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
               ))
             )}
           </CardContent>
-        </Card>
+        </BentoCard>
       </div>
 
       {/* AI Analysis Result */}
       {currentReport && (
         <>
           <Separator />
-          <Card>
+          <BentoCard>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
@@ -472,7 +472,7 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
               )}
             </CardContent>
-          </Card>
+          </BentoCard>
         </>
       )}
 
@@ -508,6 +508,6 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </BentoGrid>
   );
 }
