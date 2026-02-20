@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -11,6 +11,12 @@ import {
   Brain,
   Shield,
 } from 'lucide-react';
+import { motion } from 'motion/react';
+import {
+  Sidebar as AceternitySidebar,
+  SidebarBody,
+  SidebarLink,
+} from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -23,45 +29,89 @@ const navItems = [
   { href: '/admin', label: 'Administration', icon: Shield },
 ];
 
+const Logo = () => (
+  <a
+    href="/"
+    className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal"
+  >
+    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
+      IV
+    </div>
+    <motion.span
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="font-semibold whitespace-pre text-foreground tracking-tight"
+    >
+      InstiVault
+    </motion.span>
+  </a>
+);
+
+const LogoIcon = () => (
+  <a
+    href="/"
+    className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal"
+  >
+    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
+      IV
+    </div>
+  </a>
+);
+
 export function Sidebar() {
+  const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
+  const links = navItems.map((item) => {
+    const isActive = pathname === item.href ||
+      (item.href !== '/' && pathname.startsWith(item.href));
+
+    return {
+      label: item.label,
+      href: item.href,
+      icon: (
+        <item.icon
+          className={cn(
+            'h-5 w-5 shrink-0',
+            isActive
+              ? 'text-primary'
+              : 'text-neutral-700 dark:text-neutral-200'
+          )}
+        />
+      ),
+    };
+  });
+
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-border bg-sidebar">
-      <div className="flex h-16 items-center gap-2 border-b border-border px-6">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">
-          IV
+    <AceternitySidebar open={open} setOpen={setOpen}>
+      <SidebarBody className="justify-between gap-10 border-r border-border bg-sidebar">
+        <div className="flex flex-1 flex-col overflow-x-hidden overflow-y-auto">
+          {open ? <Logo /> : <LogoIcon />}
+          <div className="mt-8 flex flex-col gap-2">
+            {links.map((link, idx) => (
+              <SidebarLink key={idx} link={link} />
+            ))}
+          </div>
         </div>
-        <span className="text-lg font-semibold tracking-tight">InstiVault</span>
-      </div>
-
-      <nav className="flex-1 space-y-1 px-3 py-4">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground',
-              )}
-            >
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="border-t border-border px-3 py-4">
-        <div className="rounded-lg bg-muted/50 px-3 py-3">
-          <p className="text-xs font-medium text-muted-foreground">InstiVault v0.1.0</p>
-          <p className="text-xs text-muted-foreground/70">ETHDenver 2026</p>
+        <div>
+          <div className={cn(
+            'rounded-lg bg-muted/50 px-2 py-2',
+            !open && 'px-0 py-0'
+          )}>
+            {open ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              >
+                <p className="text-xs font-medium text-muted-foreground">InstiVault v0.1.0</p>
+                <p className="text-xs text-muted-foreground/70">ETHDenver 2026</p>
+              </motion.div>
+            ) : (
+              <p className="text-center text-[8px] text-muted-foreground/50">v0.1</p>
+            )}
+          </div>
         </div>
-      </div>
-    </aside>
+      </SidebarBody>
+    </AceternitySidebar>
   );
 }

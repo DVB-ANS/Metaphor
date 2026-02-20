@@ -1,16 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -19,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
 interface AssetForm {
   assetType: string;
@@ -44,6 +37,29 @@ const initialForm: AssetForm = {
   description: '',
 };
 
+const BottomGradient = () => {
+  return (
+    <>
+      <span className="absolute inset-x-0 -bottom-px block h-px w-full bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-0 transition duration-500 group-hover/btn:opacity-100" />
+      <span className="absolute inset-x-10 -bottom-px mx-auto block h-px w-1/2 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-0 blur-sm transition duration-500 group-hover/btn:opacity-100" />
+    </>
+  );
+};
+
+const LabelInputContainer = ({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => {
+  return (
+    <div className={cn('flex w-full flex-col space-y-2', className)}>
+      {children}
+    </div>
+  );
+};
+
 export default function IssueAssetPage() {
   const [form, setForm] = useState<AssetForm>(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,31 +78,26 @@ export default function IssueAssetPage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Issue New Asset</h1>
-        <p className="text-muted-foreground">
-          Tokenize a real-world asset on the ADI chain
+    <div className="mx-auto max-w-2xl">
+      <div className="shadow-input rounded-none bg-white p-4 md:rounded-2xl md:p-8 dark:bg-black">
+        <h2 className="text-xl font-bold text-neutral-800 dark:text-neutral-200">
+          Issue New Asset
+        </h2>
+        <p className="mt-2 max-w-sm text-sm text-neutral-600 dark:text-neutral-300">
+          Tokenize a real-world asset on the ADI chain. Tokens will be minted via
+          RWATokenFactory.
         </p>
-      </div>
 
-      <form onSubmit={handleSubmit}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Asset Details</CardTitle>
-            <CardDescription>
-              Fill in the asset parameters. Tokens will be minted via RWATokenFactory on ADI.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Asset Type */}
-            <div className="space-y-2">
-              <Label htmlFor="assetType">Asset Type</Label>
+        <form className="my-8" onSubmit={handleSubmit}>
+          {/* Asset Type */}
+          <LabelInputContainer className="mb-4">
+            <Label htmlFor="assetType">Asset Type</Label>
+            <div className="group/btn relative">
               <Select
                 value={form.assetType}
                 onValueChange={(v) => handleChange('assetType', v)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]">
                   <SelectValue placeholder="Select asset type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -97,47 +108,62 @@ export default function IssueAssetPage() {
                   <SelectItem value="debt-title">Debt Title</SelectItem>
                 </SelectContent>
               </Select>
+              <BottomGradient />
             </div>
+          </LabelInputContainer>
 
-            {/* Name */}
-            <div className="space-y-2">
-              <Label htmlFor="name">Asset Name</Label>
+          {/* Name */}
+          <LabelInputContainer className="mb-4">
+            <Label htmlFor="name">Asset Name</Label>
+            <div className="group/btn relative">
               <Input
                 id="name"
                 placeholder="e.g. BondToken-ACME-2026"
                 value={form.name}
                 onChange={(e) => handleChange('name', e.target.value)}
+                className="dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]"
               />
+              <BottomGradient />
             </div>
+          </LabelInputContainer>
 
-            {/* Nominal Value + Token Count */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="nominalValue">Nominal Value (USD)</Label>
+          {/* Nominal Value + Token Count */}
+          <div className="mb-4 flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
+            <LabelInputContainer>
+              <Label htmlFor="nominalValue">Nominal Value (USD)</Label>
+              <div className="group/btn relative">
                 <Input
                   id="nominalValue"
                   type="number"
                   placeholder="1000000"
                   value={form.nominalValue}
                   onChange={(e) => handleChange('nominalValue', e.target.value)}
+                  className="dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]"
                 />
+                <BottomGradient />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="tokenCount">Number of Tokens</Label>
+            </LabelInputContainer>
+            <LabelInputContainer>
+              <Label htmlFor="tokenCount">Number of Tokens</Label>
+              <div className="group/btn relative">
                 <Input
                   id="tokenCount"
                   type="number"
                   placeholder="1000"
                   value={form.tokenCount}
                   onChange={(e) => handleChange('tokenCount', e.target.value)}
+                  className="dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]"
                 />
+                <BottomGradient />
               </div>
-            </div>
+            </LabelInputContainer>
+          </div>
 
-            {/* Coupon Rate + Frequency */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="couponRate">Coupon Rate (% annual)</Label>
+          {/* Coupon Rate + Frequency */}
+          <div className="mb-4 flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
+            <LabelInputContainer>
+              <Label htmlFor="couponRate">Coupon Rate (% annual)</Label>
+              <div className="group/btn relative">
                 <Input
                   id="couponRate"
                   type="number"
@@ -145,15 +171,19 @@ export default function IssueAssetPage() {
                   placeholder="5.0"
                   value={form.couponRate}
                   onChange={(e) => handleChange('couponRate', e.target.value)}
+                  className="dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]"
                 />
+                <BottomGradient />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="paymentFrequency">Payment Frequency</Label>
+            </LabelInputContainer>
+            <LabelInputContainer>
+              <Label htmlFor="paymentFrequency">Payment Frequency</Label>
+              <div className="group/btn relative">
                 <Select
                   value={form.paymentFrequency}
                   onValueChange={(v) => handleChange('paymentFrequency', v)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]">
                     <SelectValue placeholder="Select frequency" />
                   </SelectTrigger>
                   <SelectContent>
@@ -163,28 +193,35 @@ export default function IssueAssetPage() {
                     <SelectItem value="annual">Annual</SelectItem>
                   </SelectContent>
                 </Select>
+                <BottomGradient />
               </div>
-            </div>
+            </LabelInputContainer>
+          </div>
 
-            {/* Maturity Date */}
-            <div className="space-y-2">
-              <Label htmlFor="maturityDate">Maturity Date</Label>
+          {/* Maturity Date */}
+          <LabelInputContainer className="mb-4">
+            <Label htmlFor="maturityDate">Maturity Date</Label>
+            <div className="group/btn relative">
               <Input
                 id="maturityDate"
                 type="date"
                 value={form.maturityDate}
                 onChange={(e) => handleChange('maturityDate', e.target.value)}
+                className="dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]"
               />
+              <BottomGradient />
             </div>
+          </LabelInputContainer>
 
-            {/* Jurisdiction */}
-            <div className="space-y-2">
-              <Label htmlFor="jurisdiction">Jurisdiction</Label>
+          {/* Jurisdiction */}
+          <LabelInputContainer className="mb-4">
+            <Label htmlFor="jurisdiction">Jurisdiction</Label>
+            <div className="group/btn relative">
               <Select
                 value={form.jurisdiction}
                 onValueChange={(v) => handleChange('jurisdiction', v)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]">
                   <SelectValue placeholder="Select jurisdiction" />
                 </SelectTrigger>
                 <SelectContent>
@@ -196,39 +233,52 @@ export default function IssueAssetPage() {
                   <SelectItem value="luxembourg">Luxembourg</SelectItem>
                 </SelectContent>
               </Select>
+              <BottomGradient />
             </div>
+          </LabelInputContainer>
 
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description">Description (optional)</Label>
+          {/* Description */}
+          <LabelInputContainer className="mb-8">
+            <Label htmlFor="description">Description (optional)</Label>
+            <div className="group/btn relative">
               <Textarea
                 id="description"
                 placeholder="Additional details about the asset..."
                 value={form.description}
                 onChange={(e) => handleChange('description', e.target.value)}
                 rows={3}
+                className="dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]"
               />
+              <BottomGradient />
             </div>
+          </LabelInputContainer>
 
-            {/* Token value preview */}
-            {form.nominalValue && form.tokenCount && (
-              <div className="rounded-lg border bg-muted/50 p-4">
-                <p className="text-sm text-muted-foreground">Token Value Preview</p>
-                <p className="text-lg font-bold">
+          {/* Token value preview */}
+          {form.nominalValue && form.tokenCount && (
+            <>
+              <div className="my-8 h-[1px] w-full bg-gradient-to-r from-transparent via-neutral-300 to-transparent dark:via-neutral-700" />
+              <div className="mb-8 rounded-lg bg-gray-50 p-4 dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]">
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">Token Value Preview</p>
+                <p className="text-lg font-bold text-neutral-800 dark:text-neutral-200">
                   ${(Number(form.nominalValue) / Number(form.tokenCount)).toLocaleString()} / token
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
                   {form.tokenCount} tokens at {form.nominalValue} USD total
                 </p>
               </div>
-            )}
+            </>
+          )}
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? 'Submitting...' : 'Tokenize Asset'}
-            </Button>
-          </CardContent>
-        </Card>
-      </form>
+          <button
+            className="group/btn relative block h-10 w-full rounded-md bg-gradient-to-br from-black to-neutral-600 font-medium text-white shadow-[0px_1px_0px_0px_#ffffff40_inset,0px_-1px_0px_0px_#ffffff40_inset] disabled:opacity-50 disabled:cursor-not-allowed dark:bg-zinc-800 dark:from-zinc-900 dark:to-zinc-900 dark:shadow-[0px_1px_0px_0px_#27272a_inset,0px_-1px_0px_0px_#27272a_inset]"
+            type="submit"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? 'Submitting...' : 'Tokenize Asset \u2192'}
+            <BottomGradient />
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
