@@ -2,11 +2,11 @@
 
 ## Phase 0 — Project Setup
 
-- [ ] Initialize monorepo structure (`packages/`)
-- [ ] Setup package manager and workspace configuration
-- [ ] Configure shared tooling (TypeScript, linting, formatting)
-- [ ] Setup environment variables template (`.env.example`)
-- [ ] Initialize git repository and `.gitignore`
+- [x] Initialize monorepo structure (`packages/`)
+- [x] Setup package manager and workspace configuration
+- [x] Configure shared tooling (TypeScript, linting, formatting)
+- [x] Setup environment variables template (`.env.example`)
+- [x] Initialize git repository and `.gitignore`
 
 ---
 

@@ -1,0 +1,16 @@
+{
+  "name": "contracts-hedera",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "echo \"TODO: add tests\"",
+    "lint": "echo \"TODO: add linting\""
+  },
+  "dependencies": {
+    "@hashgraph/sdk": "^2.55.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "tsx": "^4.19.0"
+  }
+}

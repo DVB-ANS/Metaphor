@@ -1,0 +1,12 @@
+{
+  "name": "ai-engine",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "echo \"TODO: add tests\"",
+    "lint": "echo \"TODO: add linting\""
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
