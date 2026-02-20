@@ -71,6 +71,12 @@ main      ← version stable, déployable (on ne push JAMAIS directement ici)
 - `CouponScheduler.sol` — Scheduled transactions via Hedera Schedule Service
 - `YieldDistributor.sol` — Pro-rata yield distribution
 
+## Typography
+
+- **Display font**: Space Grotesk (`font-display`) — used for landing page title, subtitle, glass text, and CTA button
+- **Body font**: Geist Sans (`font-sans`) — used for all UI/body text
+- **Mono font**: Geist Mono (`font-mono`) — used for code/data
+
 ## Conventions
 
 - Solidity: Foundry for build/test, OpenZeppelin for base contracts
