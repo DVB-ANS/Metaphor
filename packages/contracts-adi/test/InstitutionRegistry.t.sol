@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { InstiVaultAccessControl } from "../src/InstiVaultAccessControl.sol";
 import { RWATokenFactory } from "../src/RWATokenFactory.sol";
 import { VaultManager } from "../src/VaultManager.sol";
+import { InstitutionDeployer } from "../src/InstitutionDeployer.sol";
 import { InstitutionRegistry } from "../src/InstitutionRegistry.sol";
 
 contract InstitutionRegistryTest is Test {
@@ -19,7 +20,8 @@ contract InstitutionRegistryTest is Test {
     function setUp() public {
         vm.startPrank(admin1);
         platformAC = new InstiVaultAccessControl(admin1);
-        registry = new InstitutionRegistry(address(platformAC));
+        InstitutionDeployer instDeployer = new InstitutionDeployer();
+        registry = new InstitutionRegistry(address(platformAC), address(instDeployer));
 
         // Grant admin2 as a second platform admin
         platformAC.grantRole(platformAC.ADMIN_ROLE(), admin2);

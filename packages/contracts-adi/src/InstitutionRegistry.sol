@@ -2,8 +2,7 @@
 pragma solidity ^0.8.20;
 
 import { InstiVaultAccessControl } from "./InstiVaultAccessControl.sol";
-import { RWATokenFactory } from "./RWATokenFactory.sol";
-import { VaultManager } from "./VaultManager.sol";
+import { InstitutionDeployer } from "./InstitutionDeployer.sol";
 
 /// @title InstitutionRegistry
 /// @notice Multi-tenant white-label registry: each institution gets isolated AccessControl + TokenFactory + VaultManager
@@ -19,6 +18,7 @@ contract InstitutionRegistry {
     }
 
     InstiVaultAccessControl public platformAccessControl;
+    InstitutionDeployer public deployer;
 
     uint256 private _nextInstitutionId;
     mapping(uint256 => Institution) private _institutions;
@@ -77,8 +77,9 @@ contract InstitutionRegistry {
 
     // ─── Constructor ──────────────────────────────────────────────────
 
-    constructor(address platformAccessControl_) {
+    constructor(address platformAccessControl_, address deployer_) {
         platformAccessControl = InstiVaultAccessControl(platformAccessControl_);
+        deployer = InstitutionDeployer(deployer_);
     }
 
     // ─── Multisig Proposal Flow ───────────────────────────────────────
@@ -198,24 +199,22 @@ contract InstitutionRegistry {
     // ─── Internal ─────────────────────────────────────────────────────
 
     function _deployInstitution(string memory name, address admin) internal returns (uint256 institutionId) {
-        // Deploy isolated contracts for this institution
-        InstiVaultAccessControl ac = new InstiVaultAccessControl(admin);
-        RWATokenFactory factory = new RWATokenFactory(address(ac));
-        VaultManager vault = new VaultManager(address(ac), address(factory));
+        // Deploy isolated contracts via external deployer (avoids EIP-170 size limit)
+        (address ac, address factory, address vault) = deployer.deploy(admin);
 
         institutionId = _nextInstitutionId++;
         _institutions[institutionId] = Institution({
             id: institutionId,
             name: name,
             admin: admin,
-            accessControl: address(ac),
-            tokenFactory: address(factory),
-            vaultManager: address(vault),
+            accessControl: ac,
+            tokenFactory: factory,
+            vaultManager: vault,
             active: true
         });
 
         _adminInstitutions[admin].push(institutionId);
 
-        emit InstitutionRegistered(institutionId, name, admin, address(ac), address(factory), address(vault));
+        emit InstitutionRegistered(institutionId, name, admin, ac, factory, vault);
     }
 }
