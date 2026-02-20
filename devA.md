@@ -33,9 +33,9 @@ ETH-Denver/                    ← root (pnpm workspaces)
 │   │   ├── foundry.toml       ← solc 0.8.24, optimizer on (200 runs)
 │   │   ├── remappings.txt     ← @openzeppelin/=lib/openzeppelin-contracts/
 │   │   ├── lib/openzeppelin-contracts/  ← OZ v5.5 (git submodule)
-│   │   ├── src/               ← Solidity source (TO CREATE)
-│   │   ├── test/              ← Forge tests (TO CREATE)
-│   │   └── script/            ← Deployment scripts (TO CREATE)
+│   │   ├── src/               ← Solidity source (DONE — 4 contracts)
+│   │   ├── test/              ← Forge tests (DONE — 57 tests, all passing)
+│   │   └── script/            ← Deployment scripts (Phase 3)
 │   ├── contracts-hedera/      ← Hedera project (Dev A)
 │   │   ├── package.json       ← @hashgraph/sdk ^2.55.0, tsx, typescript
 │   │   ├── tsconfig.json      ← extends ../../tsconfig.base.json
@@ -52,8 +52,8 @@ ETH-Denver/                    ← root (pnpm workspaces)
 
 | What | Tech | Version |
 |------|------|---------|
-| ADI contracts | Foundry + OpenZeppelin | Solidity 0.8.24, OZ v5.5 |
-| Hedera contracts | Solidity + Hedera Smart Contract Service | Solidity 0.8.24 |
+| ADI contracts | Foundry + OpenZeppelin | Solidity ^0.8.20, OZ v5.5 |
+| Hedera contracts | Solidity + Hedera Smart Contract Service | Solidity ^0.8.20 |
 | Hedera SDK scripts | TypeScript + @hashgraph/sdk | ^2.55.0 |
 | Build/test (ADI) | `forge build`, `forge test -vvv` | — |
 | Package manager | pnpm workspaces | — |
@@ -84,7 +84,7 @@ main              ← stable, NEVER push directly
 
 | Phase | Branch | Status | Notes |
 |-------|--------|--------|-------|
-| 1. ADI Core | `feat/adi-core` | NOT STARTED | — |
+| 1. ADI Core | `feat/adi-core` | DONE (2026-02-19) | 4 contracts, 57 tests passing |
 | 2A. Hedera Core | `feat/hedera-core` | NOT STARTED | — |
 | 2B. ADI Token Logic | `feat/adi-token-logic` | NOT STARTED | Needs Phase 1 merged |
 | 3. Hedera Edge Cases + Deploy | `feat/hedera-edge-cases` | NOT STARTED | Needs Phase 2A merged |
@@ -115,14 +115,16 @@ RBAC system with 4 roles for the entire InstiVault platform.
 - `AUDITOR_ROLE` — read-only access (view functions only)
 
 **Features:**
-- [ ] Inherit from OpenZeppelin `AccessControl` (`@openzeppelin/contracts/access/AccessControl.sol`)
-- [ ] Define `bytes32` role constants for each role
-- [ ] KYC whitelist: `mapping(address => bool) public whitelist`
-- [ ] `addToWhitelist(address)` — `ADMIN_ROLE` only
-- [ ] `removeFromWhitelist(address)` — `ADMIN_ROLE` only
-- [ ] `isWhitelisted(address) → bool` — public view
-- [ ] Events: `WhitelistUpdated(address account, bool status)`
-- [ ] Constructor: deployer gets `DEFAULT_ADMIN_ROLE` + `ADMIN_ROLE`
+- [x] Inherit from OpenZeppelin `AccessControl` (`@openzeppelin/contracts/access/AccessControl.sol`)
+- [x] Define `bytes32` role constants for each role
+- [x] KYC whitelist: `mapping(address => bool) private _whitelist`
+- [x] `addToWhitelist(address)` — `ADMIN_ROLE` only
+- [x] `removeFromWhitelist(address)` — `ADMIN_ROLE` only
+- [x] `addToWhitelistBatch(address[])` — `ADMIN_ROLE` only (bonus)
+- [x] `isWhitelisted(address) → bool` — public view
+- [x] `checkWhitelisted(address)` — reverts with custom error if not whitelisted
+- [x] Events: `WhitelistUpdated(address account, bool status)`
+- [x] Constructor: deployer gets `DEFAULT_ADMIN_ROLE` + `ADMIN_ROLE`
 
 ### 1.2 — `RWATokenFactory.sol` → `packages/contracts-adi/src/RWATokenFactory.sol`
 
@@ -141,21 +143,22 @@ struct AssetMetadata {
 ```
 
 **Features:**
-- [ ] `createToken(AssetMetadata, uint256 initialSupply)` — restricted to `ISSUER_ROLE`
-- [ ] Deploys a new `RWAToken` contract (see below)
-- [ ] Registry: `mapping(address => AssetMetadata)` + `address[] public allTokens`
-- [ ] `getTokenCount() → uint256`, `getTokenMetadata(address) → AssetMetadata`
-- [ ] Events: `TokenCreated(address indexed token, string isin, address indexed issuer)`
+- [x] `createToken(TokenParams)` — restricted to `ISSUER_ROLE`
+- [x] Deploys a new `RWAToken` contract
+- [x] Registry: `mapping(string => address) tokenByISIN` + `mapping(address => bool) isRegistered` + `address[] allTokens`
+- [x] `getTokenCount()`, `getTokenAt(index)`, `getAllTokens()`, `tokenByISIN(isin)`
+- [x] ISIN uniqueness enforced
+- [x] Events: `TokenCreated(address indexed token, string isin, address indexed issuer, string name, string symbol)`
 
 ### 1.2b — `RWAToken.sol` → `packages/contracts-adi/src/RWAToken.sol`
 
 Individual ERC-20 token deployed by the factory.
 
-- [ ] Extends OpenZeppelin `ERC20` + `ERC20Burnable`
-- [ ] Stores `AssetMetadata` immutably
-- [ ] `mint(address to, uint256 amount)` — restricted to factory or issuer
-- [ ] Transfer hook (`_update`): check sender & receiver are whitelisted via `AccessControl` contract
-- [ ] Constructor receives: metadata, initialSupply, accessControl address, issuer address
+- [x] Extends OpenZeppelin `ERC20` + `ERC20Burnable`
+- [x] Stores `AssetMetadata` (isin, rate, maturity, issuer)
+- [x] `mint(address to, uint256 amount)` — restricted to factory or issuer
+- [x] Transfer hook (`_update`): check sender & receiver are whitelisted via `AccessControl` contract
+- [x] Constructor receives: ConstructorParams struct (name, symbol, isin, rate, maturity, issuer, initialSupply, accessControl, factory)
 
 ### 1.3 — `VaultManager.sol` → `packages/contracts-adi/src/VaultManager.sol`
 
@@ -174,20 +177,24 @@ struct Vault {
 ```
 
 **Features:**
-- [ ] `createVault()` — restricted to `ISSUER_ROLE`, returns vaultId
-- [ ] `deposit(uint256 vaultId, address token, uint256 amount)` — `INVESTOR_ROLE` + whitelisted
-- [ ] `withdraw(uint256 vaultId, address token, uint256 amount)` — `INVESTOR_ROLE`, checks balance
-- [ ] `allocate(uint256 vaultId, address token, uint256 amount)` — `ISSUER_ROLE`
-- [ ] `getVaultInfo(uint256 vaultId)` — public view
-- [ ] `getVaultBalance(uint256 vaultId, address token) → uint256` — public view
-- [ ] `pauseVault(uint256 vaultId)` / `closeVault(uint256 vaultId)` — `ADMIN_ROLE`
-- [ ] Events: `VaultCreated`, `Deposited`, `Withdrawn`, `Allocated`, `VaultStatusChanged`
+- [x] `createVault()` — restricted to `ISSUER_ROLE`, returns vaultId
+- [x] `deposit(uint256 vaultId, address token, uint256 amount)` — `INVESTOR_ROLE` + whitelisted + token registered
+- [x] `withdraw(uint256 vaultId, address token, uint256 amount)` — `INVESTOR_ROLE`, checks balance
+- [ ] `allocate(uint256 vaultId, address token, uint256 amount)` — `ISSUER_ROLE` (deferred to Phase 2B)
+- [x] `getVaultInfo(uint256 vaultId)` — public view
+- [x] `getVaultBalance(uint256 vaultId, address token)` — public view
+- [x] `getDepositorBalance(uint256 vaultId, address token, address depositor)` — public view
+- [x] `getVaultTokens(uint256 vaultId)` — public view (tracks all deposited tokens per vault)
+- [x] `pauseVault` / `unpauseVault` / `closeVault` — `ADMIN_ROLE`
+- [x] Events: `VaultCreated`, `Deposited`, `Withdrawn`, `VaultStatusChanged`
+- [x] Modifiers: `vaultExists`, `vaultActive`, `onlyIssuer`, `onlyInvestor`, `onlyAdmin`
+- [x] Custom errors: `NotIssuer`, `NotInvestor`, `NotAdmin`, `NotWhitelisted`, `VaultNotActive`, `VaultDoesNotExist`, `InsufficientBalance`, `TokenNotRegistered`, `ZeroAmount`
 
 ### 1.4 — Tests → `packages/contracts-adi/test/`
 
-- [ ] `AccessControl.t.sol` — role assignment, revocation, whitelist add/remove, unauthorized reverts
-- [ ] `RWATokenFactory.t.sol` — create token, verify metadata, KYC transfer enforcement, unauthorized mint
-- [ ] `VaultManager.t.sol` — create → deposit → allocate → withdraw lifecycle, insufficient balance, wrong role
+- [x] `AccessControl.t.sol` — 17 tests: role assignment/revocation, whitelist (single/batch/remove), unauthorized reverts, events
+- [x] `RWATokenFactory.t.sol` — 13 tests: create token, metadata, ISIN uniqueness, KYC transfer enforcement, mint ACL, events
+- [x] `VaultManager.t.sol` — 27 tests: create/deposit/withdraw lifecycle, multi-investor, vault status (pause/unpause/close), token tracking, all error paths, events
 
 ### 1.5 — PR Workflow
 
@@ -448,7 +455,7 @@ develop
 
 ## Conventions
 
-- **Solidity 0.8.24** — do not change compiler version
+- **Solidity ^0.8.20** — do not change compiler version
 - **OpenZeppelin v5.5** — installed at `lib/openzeppelin-contracts/`, import via `@openzeppelin/`
 - **Foundry** — `forge build`, `forge test`, `forge script` for ADI contracts
 - **No secrets** — use `.env` files, never commit them
