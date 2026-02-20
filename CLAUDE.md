@@ -38,10 +38,22 @@ A `packages/backend/` (Express API) will be created in Phase 1.
 
 ## Git Workflow
 
-- `main` — stable, deployable
-- `develop` — integration branch
-- `feat/<scope>-<name>` — feature branches (always branch from `develop`, PR into `develop`)
-- Commit prefixes: `feat:`, `fix:`, `test:`, `docs:`, `chore:`
+```
+main      ← version stable, déployable (on ne push JAMAIS directement ici)
+└── develop   ← branche d'intégration quotidienne (tous les PRs mergent ici)
+    ├── feat/adi-*        ← Dev A
+    ├── feat/hedera-*     ← Dev A
+    ├── feat/canton-*     ← Dev B
+    ├── feat/ai-*         ← Dev B
+    ├── feat/frontend-*   ← Dev C
+    └── feat/backend-*    ← Dev C
+```
+
+### Règles
+1. **Toujours** créer sa feature branch depuis `develop` (`git checkout develop && git checkout -b feat/...`)
+2. **PR vers `develop`**, jamais directement vers `main`
+3. `main` est mis à jour uniquement quand `develop` est stable (avant démo, avant soumission)
+4. Préfixes de commit : `feat:`, `fix:`, `test:`, `docs:`, `chore:`
 
 ## Key Contracts
 
