@@ -1,0 +1,2 @@
+@openzeppelin/=packages/contracts-adi/lib/openzeppelin-contracts/
+forge-std/=packages/contracts-adi/lib/forge-std/src/

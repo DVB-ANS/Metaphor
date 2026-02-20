@@ -18,7 +18,6 @@ main              ← stable, deployable
 - PR into `develop`, never directly into `main`
 - `main` is updated only when `develop` is stable (before demo, before submission)
 - Prefix commits: `feat:`, `fix:`, `test:`, `docs:`, `chore:`
-
 ---
 
 ## Team Split
