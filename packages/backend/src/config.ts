@@ -1,0 +1,53 @@
+import { ethers } from 'ethers';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+import 'dotenv/config';
+
+// ─── ADI Provider + Signer ──────────────────────────────────────────
+
+export function getAdiProvider(): ethers.JsonRpcProvider {
+    const rpcUrl = process.env.ADI_RPC_URL || 'http://localhost:8545';
+    return new ethers.JsonRpcProvider(rpcUrl);
+}
+
+export function getAdiSigner(): ethers.Wallet {
+    const provider = getAdiProvider();
+    const privateKey = process.env.ADI_PRIVATE_KEY;
+    if (!privateKey) throw new Error('Missing ADI_PRIVATE_KEY in .env');
+    return new ethers.Wallet(privateKey, provider);
+}
+
+// ─── Load ABIs ──────────────────────────────────────────────────────
+
+function loadAbi(packageDir: string, contractName: string): any[] {
+    const abiPath = resolve(__dirname, `../../${packageDir}/abi/${contractName}.json`);
+    return JSON.parse(readFileSync(abiPath, 'utf-8'));
+}
+
+export const ABIS = {
+    AccessControl: loadAbi('contracts-adi', 'InstiVaultAccessControl'),
+    TokenFactory: loadAbi('contracts-adi', 'RWATokenFactory'),
+    RWAToken: loadAbi('contracts-adi', 'RWAToken'),
+    VaultManager: loadAbi('contracts-adi', 'VaultManager'),
+    InstitutionRegistry: loadAbi('contracts-adi', 'InstitutionRegistry'),
+    CouponScheduler: loadAbi('contracts-hedera', 'CouponScheduler'),
+    YieldDistributor: loadAbi('contracts-hedera', 'YieldDistributor'),
+};
+
+// ─── Contract Addresses ─────────────────────────────────────────────
+
+export const ADDRESSES = {
+    accessControl: process.env.ADI_ACCESS_CONTROL_ADDRESS || '',
+    tokenFactory: process.env.ADI_TOKEN_FACTORY_ADDRESS || '',
+    vaultManager: process.env.ADI_VAULT_MANAGER_ADDRESS || '',
+    institutionRegistry: process.env.ADI_INSTITUTION_REGISTRY_ADDRESS || '',
+    couponScheduler: process.env.HEDERA_COUPON_SCHEDULER_ADDRESS || '',
+    yieldDistributor: process.env.HEDERA_YIELD_DISTRIBUTOR_ADDRESS || '',
+};
+
+// ─── Contract Instances ─────────────────────────────────────────────
+
+export function getContract(name: keyof typeof ABIS, address: string, signerOrProvider?: ethers.Signer | ethers.Provider) {
+    const sp = signerOrProvider || getAdiProvider();
+    return new ethers.Contract(address, ABIS[name], sp);
+}
