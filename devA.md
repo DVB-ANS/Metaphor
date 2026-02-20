@@ -88,7 +88,7 @@ main              ← stable, NEVER push directly
 | 2A. Hedera Core | `feat/hedera-core` | DONE (2026-02-19) | CouponScheduler + YieldDistributor |
 | 2B. ADI Token Logic | `feat/adi-allocate` | DONE (2026-02-19) | allocate/deallocate, fractionalize, burnAtMaturity, deploy script — 87 tests passing |
 | 3. Hedera Edge Cases + Deploy | `feat/adi-allocate` | DONE (2026-02-19) | Edge cases + deploy + E2E — 73 Hedera tests passing |
-| 4. RBAC + White-Label | `feat/adi-rbac-whitelabel` | NOT STARTED | Needs Phases 1+3, with Dev B |
+| 4. RBAC + White-Label | `feat/etapesuivante` | DONE (2026-02-19) | InstitutionRegistry + 2-of-N multisig — 111 ADI tests |
 | 5. Frontend Integration | `feat/frontend-adi-hedera` | NOT STARTED | With Dev C |
 | 6. E2E + Bounty Compliance | `develop` / `feat/polish` | NOT STARTED | Final phase |
 
@@ -369,13 +369,13 @@ git checkout develop && git pull origin develop && git checkout -b feat/adi-rbac
 ```
 
 ### 4.1 — `InstitutionRegistry.sol` → `packages/contracts-adi/src/InstitutionRegistry.sol`
-- [ ] Multi-tenant: each institution gets its own namespace (own AccessControl + TokenFactory + VaultManager)
-- [ ] `registerInstitution(string name, address admin)` — `ADMIN_ROLE` only
-- [ ] Institution → deployed contracts mapping
+- [x] Multi-tenant: each institution gets its own namespace (own AccessControl + TokenFactory + VaultManager)
+- [x] `registerInstitution(string name, address admin)` — `ADMIN_ROLE` only
+- [x] Institution → deployed contracts mapping
 
 ### 4.2 — Multisig / Admin-Gated
-- [ ] Critical ops require multisig or admin approval
-- [ ] Consider OpenZeppelin `TimelockController` or simple 2-of-N pattern
+- [x] Critical ops require multisig or admin approval (2-of-N proposal pattern)
+- [x] `proposeInstitution` → `approveProposal` → `executeProposal` flow
 
 ### 4.3 — Coordinate with Dev B
 - [ ] Align role names between ADI RBAC and Canton visibility model
