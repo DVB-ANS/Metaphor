@@ -10,7 +10,10 @@ import {
 } from '@/components/ui/card';
 import { BentoGrid, BentoCard } from '@/components/ui/magic-bento';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -18,7 +21,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Vault, Search, ArrowUpRight } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Vault, Search, ArrowUpRight, Plus } from 'lucide-react';
 import {
   formatCurrency,
   getRiskColor,
@@ -28,6 +38,46 @@ import {
   type AssetType,
 } from '@/lib/mock-data';
 import { api } from '@/lib/api';
+import { cn } from '@/lib/utils';
+
+const BottomGradient = () => (
+  <>
+    <span className="absolute inset-x-0 -bottom-px block h-px w-full bg-gradient-to-r from-transparent via-neutral-400 to-transparent opacity-0 transition duration-500 group-hover/btn:opacity-100" />
+    <span className="absolute inset-x-10 -bottom-px mx-auto block h-px w-1/2 bg-gradient-to-r from-transparent via-neutral-500 to-transparent opacity-0 blur-sm transition duration-500 group-hover/btn:opacity-100" />
+  </>
+);
+
+const LabelInputContainer = ({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <div className={cn('flex w-full flex-col space-y-2', className)}>
+    {children}
+  </div>
+);
+
+interface VaultForm {
+  name: string;
+  strategy: string;
+  assetClass: string;
+  initialDeposit: string;
+  riskTolerance: string;
+  investmentHorizon: string;
+  description: string;
+}
+
+const initialVaultForm: VaultForm = {
+  name: '',
+  strategy: '',
+  assetClass: '',
+  initialDeposit: '',
+  riskTolerance: '',
+  investmentHorizon: '',
+  description: '',
+};
 
 export default function VaultsPage() {
   const [search, setSearch] = useState('');
@@ -39,12 +89,51 @@ export default function VaultsPage() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  const [createOpen, setCreateOpen] = useState(false);
+  const [vaultForm, setVaultForm] = useState<VaultForm>(initialVaultForm);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   useEffect(() => {
     api.get<any[]>('/api/demo/vaults')
       .then(setAllVaults)
       .catch((err) => setFetchError(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleFormChange = (field: keyof VaultForm, value: string) => {
+    setVaultForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleCreateVault = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    const riskMap: Record<string, { score: number; level: RiskLevel }> = {
+      low: { score: 18, level: 'low' },
+      moderate: { score: 42, level: 'moderate' },
+      high: { score: 67, level: 'high' },
+    };
+    const risk = riskMap[vaultForm.riskTolerance] || riskMap.moderate;
+
+    const newVault = {
+      id: `vault-new-${Date.now()}`,
+      name: vaultForm.name,
+      totalValue: Number(vaultForm.initialDeposit) || 0,
+      riskScore: risk.score,
+      riskLevel: risk.level,
+      status: 'active',
+      assetCount: 0,
+      yieldYTD: 0,
+      createdAt: new Date().toISOString().slice(0, 10),
+      assets: [],
+    };
+
+    setAllVaults((prev) => [newVault, ...prev]);
+    setVaultForm(initialVaultForm);
+    setIsSubmitting(false);
+    setCreateOpen(false);
+  };
 
   if (loading) return <BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading vaults...</p></div></BentoGrid>;
   if (fetchError) return <BentoGrid className="space-y-6"><div className="flex h-64 flex-col items-center justify-center gap-2"><p className="text-sm text-red-400">Failed to load vaults</p><p className="text-xs text-neutral-600">{fetchError}</p></div></BentoGrid>;
@@ -59,11 +148,199 @@ export default function VaultsPage() {
 
   return (
     <BentoGrid className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">My Vaults</h1>
-        <p className="text-muted-foreground">
-          Manage your institutional vaults and monitor risk
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">My Vaults</h1>
+          <p className="text-muted-foreground">
+            Manage your institutional vaults and monitor risk
+          </p>
+        </div>
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" /> Create Vault
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-neutral-800 dark:text-neutral-200">
+                Create New Vault
+              </DialogTitle>
+              <p className="text-sm text-neutral-600 dark:text-neutral-300">
+                Configure a new institutional vault. Assets can be allocated after creation via VaultManager.
+              </p>
+            </DialogHeader>
+
+            <form className="my-4 space-y-0" onSubmit={handleCreateVault}>
+              {/* Vault Name */}
+              <LabelInputContainer className="mb-4">
+                <Label htmlFor="vaultName">Vault Name</Label>
+                <div className="group/btn relative overflow-hidden">
+                  <Input
+                    id="vaultName"
+                    placeholder="e.g. Fixed Income EU"
+                    value={vaultForm.name}
+                    onChange={(e) => handleFormChange('name', e.target.value)}
+                    required
+                    className="dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]"
+                  />
+                  <BottomGradient />
+                </div>
+              </LabelInputContainer>
+
+              {/* Strategy + Asset Class */}
+              <div className="mb-4 flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
+                <LabelInputContainer>
+                  <Label htmlFor="strategy">Strategy</Label>
+                  <div className="group/btn relative overflow-hidden">
+                    <Select
+                      value={vaultForm.strategy}
+                      onValueChange={(v) => handleFormChange('strategy', v)}
+                    >
+                      <SelectTrigger className="dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]">
+                        <SelectValue placeholder="Select strategy" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="conservative">Conservative</SelectItem>
+                        <SelectItem value="balanced">Balanced</SelectItem>
+                        <SelectItem value="growth">Growth</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <BottomGradient />
+                  </div>
+                </LabelInputContainer>
+                <LabelInputContainer>
+                  <Label htmlFor="assetClass">Primary Asset Class</Label>
+                  <div className="group/btn relative overflow-hidden">
+                    <Select
+                      value={vaultForm.assetClass}
+                      onValueChange={(v) => handleFormChange('assetClass', v)}
+                    >
+                      <SelectTrigger className="dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]">
+                        <SelectValue placeholder="Select asset class" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sovereign-bonds">Sovereign Bonds</SelectItem>
+                        <SelectItem value="corporate-bonds">Corporate Bonds</SelectItem>
+                        <SelectItem value="invoice-factoring">Invoice Factoring</SelectItem>
+                        <SelectItem value="real-estate">Real Estate</SelectItem>
+                        <SelectItem value="mixed">Mixed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <BottomGradient />
+                  </div>
+                </LabelInputContainer>
+              </div>
+
+              {/* Initial Deposit + Risk Tolerance */}
+              <div className="mb-4 flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
+                <LabelInputContainer>
+                  <Label htmlFor="initialDeposit">Initial Deposit (USD)</Label>
+                  <div className="group/btn relative overflow-hidden">
+                    <Input
+                      id="initialDeposit"
+                      type="number"
+                      placeholder="1000000"
+                      value={vaultForm.initialDeposit}
+                      onChange={(e) => handleFormChange('initialDeposit', e.target.value)}
+                      className="dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]"
+                    />
+                    <BottomGradient />
+                  </div>
+                </LabelInputContainer>
+                <LabelInputContainer>
+                  <Label htmlFor="riskTolerance">Risk Tolerance</Label>
+                  <div className="group/btn relative overflow-hidden">
+                    <Select
+                      value={vaultForm.riskTolerance}
+                      onValueChange={(v) => handleFormChange('riskTolerance', v)}
+                    >
+                      <SelectTrigger className="dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]">
+                        <SelectValue placeholder="Select risk level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="moderate">Moderate</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <BottomGradient />
+                  </div>
+                </LabelInputContainer>
+              </div>
+
+              {/* Investment Horizon */}
+              <LabelInputContainer className="mb-4">
+                <Label htmlFor="investmentHorizon">Investment Horizon</Label>
+                <div className="group/btn relative overflow-hidden">
+                  <Select
+                    value={vaultForm.investmentHorizon}
+                    onValueChange={(v) => handleFormChange('investmentHorizon', v)}
+                  >
+                    <SelectTrigger className="dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]">
+                      <SelectValue placeholder="Select time horizon" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="short">Short-term (&lt;2 years)</SelectItem>
+                      <SelectItem value="medium">Medium-term (2-5 years)</SelectItem>
+                      <SelectItem value="long">Long-term (5+ years)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <BottomGradient />
+                </div>
+              </LabelInputContainer>
+
+              {/* Description */}
+              <LabelInputContainer className="mb-8">
+                <Label htmlFor="vaultDescription">Description (optional)</Label>
+                <div className="group/btn relative overflow-hidden">
+                  <Textarea
+                    id="vaultDescription"
+                    placeholder="Investment thesis, target allocations, constraints..."
+                    value={vaultForm.description}
+                    onChange={(e) => handleFormChange('description', e.target.value)}
+                    rows={3}
+                    className="dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]"
+                  />
+                  <BottomGradient />
+                </div>
+              </LabelInputContainer>
+
+              {/* Vault Preview */}
+              {vaultForm.name && vaultForm.initialDeposit && (
+                <>
+                  <div className="my-8 h-[1px] w-full bg-gradient-to-r from-transparent via-neutral-300 to-transparent dark:via-neutral-700" />
+                  <div className="mb-8 rounded-lg bg-gray-50 p-4 dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]">
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Vault Preview</p>
+                    <p className="text-lg font-bold text-neutral-800 dark:text-neutral-200">
+                      {vaultForm.name}
+                    </p>
+                    <div className="mt-1 flex items-center gap-4 text-xs text-neutral-500 dark:text-neutral-400">
+                      <span>
+                        {formatCurrency(Number(vaultForm.initialDeposit))} initial deposit
+                      </span>
+                      {vaultForm.strategy && (
+                        <span className="capitalize">{vaultForm.strategy} strategy</span>
+                      )}
+                      {vaultForm.riskTolerance && (
+                        <span className="capitalize">{vaultForm.riskTolerance} risk</span>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <button
+                className="group/btn relative block h-10 w-full rounded-md bg-gradient-to-br from-black to-neutral-600 font-medium text-white shadow-[0px_1px_0px_0px_#ffffff40_inset,0px_-1px_0px_0px_#ffffff40_inset] disabled:opacity-50 disabled:cursor-not-allowed dark:bg-zinc-800 dark:from-zinc-900 dark:to-zinc-900 dark:shadow-[0px_1px_0px_0px_#27272a_inset,0px_-1px_0px_0px_#27272a_inset]"
+                type="submit"
+                disabled={isSubmitting || !vaultForm.name}
+              >
+                {isSubmitting ? 'Creating Vault...' : 'Create Vault \u2192'}
+                <BottomGradient />
+              </button>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Filters */}

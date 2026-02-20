@@ -72,6 +72,13 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
   const [analysisResult, setAnalysisResult] = useState<AIReport | null>(null);
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [selectedRecId, setSelectedRecId] = useState<string | null>(null);
+  const [rejectedRecs, setRejectedRecs] = useState<Set<string>>(new Set());
+
+  const handleReject = (recId: string) => {
+    if (confirm('Reject this AI recommendation?')) {
+      setRejectedRecs((prev) => new Set(prev).add(recId));
+    }
+  };
 
   const vault = mockVaults.find((v) => v.id === id);
   if (!vault) {
@@ -438,39 +445,48 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
               </div>
 
               {/* Recommendations with Human-in-the-Loop */}
-              {currentReport.recommendations.length > 0 && (
-                <div>
-                  <p className="mb-3 text-sm font-medium">
-                    Recommendations ({currentReport.recommendations.length})
-                  </p>
-                  <div className="space-y-3">
-                    {currentReport.recommendations.map((rec) => (
-                      <div
-                        key={rec.id}
-                        className="flex items-start justify-between rounded-lg border p-4"
-                      >
-                        <div className="flex-1">
-                          <p className="font-medium">{rec.action}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">{rec.detail}</p>
-                          <p className="mt-1 text-xs text-primary">{rec.impact}</p>
+              {(() => {
+                const visibleRecs = currentReport.recommendations.filter(
+                  (r) => !rejectedRecs.has(r.id)
+                );
+                return visibleRecs.length > 0 ? (
+                  <div>
+                    <p className="mb-3 text-sm font-medium">
+                      Recommendations ({visibleRecs.length})
+                    </p>
+                    <div className="space-y-3">
+                      {visibleRecs.map((rec) => (
+                        <div
+                          key={rec.id}
+                          className="flex items-start justify-between rounded-lg border p-4"
+                        >
+                          <div className="flex-1">
+                            <p className="font-medium">{rec.action}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">{rec.detail}</p>
+                            <p className="mt-1 text-xs text-primary">{rec.impact}</p>
+                          </div>
+                          <div className="ml-4 flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => handleApprove(rec.id)}
+                            >
+                              <CheckCircle className="mr-1 h-3 w-3" /> Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleReject(rec.id)}
+                            >
+                              <XCircle className="mr-1 h-3 w-3" /> Reject
+                            </Button>
+                          </div>
                         </div>
-                        <div className="ml-4 flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={() => handleApprove(rec.id)}
-                          >
-                            <CheckCircle className="mr-1 h-3 w-3" /> Approve
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            <XCircle className="mr-1 h-3 w-3" /> Reject
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                ) : null;
+              })()}
             </CardContent>
           </BentoCard>
         </>

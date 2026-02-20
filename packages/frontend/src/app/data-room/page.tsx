@@ -83,6 +83,21 @@ export default function DataRoomPage() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  const updateTradeStatus = (vaultId: string, tradeId: string, status: string) => {
+    setConfidentialVaults((prev) =>
+      prev.map((v: any) =>
+        v.id === vaultId
+          ? {
+              ...v,
+              trades: v.trades.map((t: any) =>
+                t.id === tradeId ? { ...t, status } : t
+              ),
+            }
+          : v
+      )
+    );
+  };
+
   useEffect(() => {
     api.get<any[]>('/api/demo/canton/vaults')
       .then(setConfidentialVaults)
@@ -311,13 +326,29 @@ export default function DataRoomPage() {
                       )}
                       {trade.status === 'pending' && (
                         <div className="mt-3 flex gap-2">
-                          <Button size="sm" variant="default">
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() => updateTradeStatus(cv.id, trade.id, 'accepted')}
+                          >
                             Accept
                           </Button>
-                          <Button size="sm" variant="outline">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => updateTradeStatus(cv.id, trade.id, 'countered')}
+                          >
                             Counter
                           </Button>
-                          <Button size="sm" variant="ghost">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              if (confirm('Reject this trade proposal?')) {
+                                updateTradeStatus(cv.id, trade.id, 'rejected');
+                              }
+                            }}
+                          >
                             Reject
                           </Button>
                         </div>

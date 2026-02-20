@@ -78,6 +78,12 @@ main      ← version stable, déployable (on ne push JAMAIS directement ici)
 - `YieldDistributor.sol` — Snapshot-based pro-rata yield distribution to bond holders
 - `HederaScheduleService.sol` — Abstract base for Hedera precompile interaction (IHRC755 + IHRC1215)
 
+## Typography
+
+- **Display font**: Space Grotesk (`font-display`) — used for landing page title, subtitle, glass text, and CTA button
+- **Body font**: Geist Sans (`font-sans`) — used for all UI/body text
+- **Mono font**: Geist Mono (`font-mono`) — used for code/data
+
 ## Conventions
 
 - Solidity: Foundry for build/test, OpenZeppelin for base contracts
