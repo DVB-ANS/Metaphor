@@ -2,11 +2,26 @@
   "name": "ai-engine",
   "version": "0.1.0",
   "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "test": "echo \"TODO: add tests\"",
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "echo \"TODO: add linting\""
   },
   "devDependencies": {
-    "typescript": "^5.7.0"
+    "@types/crypto-js": "^4.2.2",
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "@0glabs/0g-serving-broker": "^0.7.1",
+    "crypto-js": "^4.2.0",
+    "dotenv": "^17.3.1",
+    "ethers": "^6.16.0",
+    "openai": "^6.22.0",
+    "tsx": "^4.21.0",
+    "zod": "^3.25.76"
   }
 }

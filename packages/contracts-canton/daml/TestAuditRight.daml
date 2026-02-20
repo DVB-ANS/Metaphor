@@ -1,0 +1,355 @@
+-- | Tests for AuditRight — Daml Script
+-- |
+-- | Demonstrates and verifies:
+-- |   1. Audit invitation → accept flow (auditor exercises AcceptAudit)
+-- |   2. Auditor sees limited data, NOT vault details
+-- |   3. Update audit data when vault changes
+-- |   4. Revocation by owner and relinquish by auditor
+-- |   5. Audit invitation decline and withdrawal
+-- |   6. Visibility isolation (auditor cannot see vault, counterparty cannot see audit)
+-- |   7. Self-audit prevention
+-- |   8. Invalid audit data rejection
+module TestAuditRight where
+
+import Daml.Script
+import DA.Date (date, Month(..))
+import DA.List (head)
+import ConfidentialVault
+import AuditRight
+
+-- Helper: create a sample bond
+mkBond : Text -> Decimal -> RWAAsset
+mkBond id value = RWAAsset with
+  assetId = id
+  assetType = Bond
+  name = "Bond-" <> id
+  isin = "FR000000" <> id
+  nominalValue = value
+  couponRate = 0.05
+  maturityDate = date 2028 Feb 15
+  issuerName = "ACME Corp"
+
+------------------------------------------------------------------------
+-- Test 1: Full audit invitation → accept flow
+------------------------------------------------------------------------
+
+testAuditInvitationAccept : Script ()
+testAuditInvitationAccept = script do
+  bnp <- allocateParty "BNP_Paribas"
+  deloitte <- allocateParty "Deloitte"
+
+  -- BNP invites Deloitte as auditor (compliance data provided at invitation)
+  inviteCid <- submit bnp do
+    createCmd AuditInvitation with
+      vaultOwner = bnp
+      auditor = deloitte
+      vaultId = "vault-001"
+      vaultName = "Fixed Income Europe Q1"
+      assetCount = 3
+      totalValue = 5000000.0
+      assetTypes = ["Bond", "Invoice"]
+      earliestMaturity = date 2026 Dec 31
+      latestMaturity = date 2028 Feb 15
+
+  -- Deloitte can see the invitation
+  invitations <- query @AuditInvitation deloitte
+  assertMsg "Deloitte must see 1 invitation" (length invitations == 1)
+
+  -- Deloitte accepts (auditor exercises AcceptAudit)
+  auditCid <- submit deloitte do
+    exerciseCmd inviteCid AcceptAudit
+
+  -- Deloitte can see the audit right
+  auditRights <- query @AuditRight deloitte
+  assertMsg "Deloitte must see 1 audit right" (length auditRights == 1)
+
+  -- Verify compliance data
+  let (_, audit) = head auditRights
+  assertMsg "Asset count must be 3" (audit.assetCount == 3)
+  assertMsg "Total value must be 5M" (audit.totalValue == 5000000.0)
+  assertMsg "Must have 2 asset types" (length audit.assetTypes == 2)
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 2: Visibility isolation — auditor vs counterparty vs outsider
+------------------------------------------------------------------------
+
+testVisibilityIsolation : Script ()
+testVisibilityIsolation = script do
+  bnp <- allocateParty "BNP_Paribas"
+  blackrock <- allocateParty "BlackRock"
+  deloitte <- allocateParty "Deloitte"
+  outsider <- allocateParty "Outsider"
+
+  -- BNP creates a vault with BlackRock as counterparty
+  vaultCid <- submit bnp do
+    createCmd ConfidentialVault with
+      owner = bnp
+      vaultId = "vault-iso"
+      vaultName = "Isolation Test"
+      description = "Testing visibility separation"
+      assets = [mkBond "bond-1" 2000000.0, mkBond "bond-2" 3000000.0]
+      totalValue = 5000000.0
+      status = Active
+      counterparties = [blackrock]
+
+  -- BNP grants Deloitte an audit right (limited view)
+  inviteCid <- submit bnp do
+    createCmd AuditInvitation with
+      vaultOwner = bnp
+      auditor = deloitte
+      vaultId = "vault-iso"
+      vaultName = "Isolation Test"
+      assetCount = 2
+      totalValue = 5000000.0
+      assetTypes = ["Bond"]
+      earliestMaturity = date 2028 Feb 15
+      latestMaturity = date 2028 Feb 15
+
+  auditCid <- submit deloitte do
+    exerciseCmd inviteCid AcceptAudit
+
+  -- BlackRock (counterparty) sees the VAULT (full details)
+  brVaults <- query @ConfidentialVault blackrock
+  assertMsg "BlackRock sees 1 vault" (length brVaults == 1)
+
+  -- BlackRock does NOT see the audit right
+  brAudits <- query @AuditRight blackrock
+  assertMsg "BlackRock sees 0 audit rights" (null brAudits)
+
+  -- Deloitte (auditor) sees the AUDIT RIGHT (limited data)
+  dlAudits <- query @AuditRight deloitte
+  assertMsg "Deloitte sees 1 audit right" (length dlAudits == 1)
+
+  -- Deloitte does NOT see the vault
+  dlVaults <- query @ConfidentialVault deloitte
+  assertMsg "Deloitte sees 0 vaults" (null dlVaults)
+
+  -- Outsider sees nothing at all
+  outsiderVaults <- query @ConfidentialVault outsider
+  assertMsg "Outsider sees 0 vaults" (null outsiderVaults)
+
+  outsiderAudits <- query @AuditRight outsider
+  assertMsg "Outsider sees 0 audit rights" (null outsiderAudits)
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 3: Update audit data
+------------------------------------------------------------------------
+
+testUpdateAuditData : Script ()
+testUpdateAuditData = script do
+  bnp <- allocateParty "BNP_Paribas"
+  deloitte <- allocateParty "Deloitte"
+
+  -- Create audit right
+  inviteCid <- submit bnp do
+    createCmd AuditInvitation with
+      vaultOwner = bnp
+      auditor = deloitte
+      vaultId = "vault-update"
+      vaultName = "Update Test"
+      assetCount = 2
+      totalValue = 3000000.0
+      assetTypes = ["Bond"]
+      earliestMaturity = date 2027 Jun 15
+      latestMaturity = date 2028 Feb 15
+
+  auditCid <- submit deloitte do
+    exerciseCmd inviteCid AcceptAudit
+
+  -- BNP updates after depositing a new asset
+  updatedCid <- submit bnp do
+    exerciseCmd auditCid UpdateAuditData with
+      newAssetCount = 3
+      newTotalValue = 4500000.0
+      newAssetTypes = ["Bond", "Invoice"]
+      newEarliestMaturity = date 2026 Dec 31
+      newLatestMaturity = date 2028 Feb 15
+
+  -- Verify updated data
+  auditRights <- query @AuditRight deloitte
+  assertMsg "Must still have 1 audit right" (length auditRights == 1)
+  let (_, audit) = head auditRights
+  assertMsg "Updated asset count must be 3" (audit.assetCount == 3)
+  assertMsg "Updated total value must be 4.5M" (audit.totalValue == 4500000.0)
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 4: Revocation and relinquish
+------------------------------------------------------------------------
+
+testAuditRevocationAndRelinquish : Script ()
+testAuditRevocationAndRelinquish = script do
+  bnp <- allocateParty "BNP_Paribas"
+  deloitte <- allocateParty "Deloitte"
+  kpmg <- allocateParty "KPMG"
+
+  -- Grant audit to Deloitte
+  invite1 <- submit bnp do
+    createCmd AuditInvitation with
+      vaultOwner = bnp
+      auditor = deloitte
+      vaultId = "vault-revoke"
+      vaultName = "Revoke Test"
+      assetCount = 1
+      totalValue = 1000000.0
+      assetTypes = ["Bond"]
+      earliestMaturity = date 2028 Feb 15
+      latestMaturity = date 2028 Feb 15
+
+  audit1 <- submit deloitte do
+    exerciseCmd invite1 AcceptAudit
+
+  -- Owner revokes Deloitte
+  submit bnp do
+    exerciseCmd audit1 RevokeAuditRight
+
+  dlAudits <- query @AuditRight deloitte
+  assertMsg "Deloitte audit must be revoked" (null dlAudits)
+
+  -- Grant audit to KPMG
+  invite2 <- submit bnp do
+    createCmd AuditInvitation with
+      vaultOwner = bnp
+      auditor = kpmg
+      vaultId = "vault-revoke"
+      vaultName = "Relinquish Test"
+      assetCount = 1
+      totalValue = 1000000.0
+      assetTypes = ["Bond"]
+      earliestMaturity = date 2028 Feb 15
+      latestMaturity = date 2028 Feb 15
+
+  audit2 <- submit kpmg do
+    exerciseCmd invite2 AcceptAudit
+
+  -- KPMG voluntarily relinquishes
+  submit kpmg do
+    exerciseCmd audit2 RelinquishAuditRight
+
+  kpmgAudits <- query @AuditRight kpmg
+  assertMsg "KPMG audit must be relinquished" (null kpmgAudits)
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 5: Invitation decline and withdrawal
+------------------------------------------------------------------------
+
+testAuditDeclineAndWithdraw : Script ()
+testAuditDeclineAndWithdraw = script do
+  bnp <- allocateParty "BNP_Paribas"
+  deloitte <- allocateParty "Deloitte"
+  kpmg <- allocateParty "KPMG"
+
+  -- Deloitte declines
+  invite1 <- submit bnp do
+    createCmd AuditInvitation with
+      vaultOwner = bnp
+      auditor = deloitte
+      vaultId = "vault-decline"
+      vaultName = "Decline Test"
+      assetCount = 1
+      totalValue = 1000000.0
+      assetTypes = ["Bond"]
+      earliestMaturity = date 2028 Feb 15
+      latestMaturity = date 2028 Feb 15
+
+  submit deloitte do
+    exerciseCmd invite1 DeclineAudit
+
+  dlAudits <- query @AuditRight deloitte
+  assertMsg "No audit right after decline" (null dlAudits)
+
+  -- BNP withdraws invitation to KPMG
+  invite2 <- submit bnp do
+    createCmd AuditInvitation with
+      vaultOwner = bnp
+      auditor = kpmg
+      vaultId = "vault-withdraw"
+      vaultName = "Withdraw Test"
+      assetCount = 1
+      totalValue = 1000000.0
+      assetTypes = ["Bond"]
+      earliestMaturity = date 2028 Feb 15
+      latestMaturity = date 2028 Feb 15
+
+  submit bnp do
+    exerciseCmd invite2 WithdrawAuditInvitation
+
+  kpmgAudits <- query @AuditRight kpmg
+  assertMsg "No audit right after withdrawal" (null kpmgAudits)
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 6: Ensure clause — invalid audit data rejected
+------------------------------------------------------------------------
+
+testInvalidAuditData : Script ()
+testInvalidAuditData = script do
+  bnp <- allocateParty "BNP_Paribas"
+  deloitte <- allocateParty "Deloitte"
+
+  -- Create a valid audit right first
+  inviteCid <- submit bnp do
+    createCmd AuditInvitation with
+      vaultOwner = bnp
+      auditor = deloitte
+      vaultId = "vault-invalid"
+      vaultName = "Invalid Test"
+      assetCount = 1
+      totalValue = 1000000.0
+      assetTypes = ["Bond"]
+      earliestMaturity = date 2028 Feb 15
+      latestMaturity = date 2028 Feb 15
+
+  auditCid <- submit deloitte do
+    exerciseCmd inviteCid AcceptAudit
+
+  -- Update with negative asset count must fail
+  submitMustFail bnp do
+    exerciseCmd auditCid UpdateAuditData with
+      newAssetCount = -1
+      newTotalValue = 1000000.0
+      newAssetTypes = ["Bond"]
+      newEarliestMaturity = date 2028 Feb 15
+      newLatestMaturity = date 2028 Feb 15
+
+  -- Update with negative total value must fail
+  submitMustFail bnp do
+    exerciseCmd auditCid UpdateAuditData with
+      newAssetCount = 1
+      newTotalValue = -500.0
+      newAssetTypes = ["Bond"]
+      newEarliestMaturity = date 2028 Feb 15
+      newLatestMaturity = date 2028 Feb 15
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 7: Self-audit prevention
+------------------------------------------------------------------------
+
+testSelfAuditPrevention : Script ()
+testSelfAuditPrevention = script do
+  bnp <- allocateParty "BNP_Paribas"
+
+  -- Owner cannot invite themselves as auditor
+  submitMustFail bnp do
+    createCmd AuditInvitation with
+      vaultOwner = bnp
+      auditor = bnp
+      vaultId = "vault-self"
+      vaultName = "Self Audit"
+      assetCount = 1
+      totalValue = 1000000.0
+      assetTypes = ["Bond"]
+      earliestMaturity = date 2028 Feb 15
+      latestMaturity = date 2028 Feb 15
+
+  pure ()

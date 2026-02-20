@@ -1,0 +1,115 @@
+-- | InstiVault — Private Trade for Canton Network
+-- |
+-- | Bilateral offer/counter-offer negotiation system.
+-- | Each proposal is visible ONLY to the two parties involved.
+-- |
+-- | Visibility model:
+-- |   Proposer (signatory) → created the current offer
+-- |   Receiver (observer)  → can accept, reject, or counter-offer
+-- |   Everyone else        → sees nothing
+module PrivateTrade where
+
+-- No imports needed
+
+------------------------------------------------------------------------
+-- TradeProposal — Bilateral negotiation
+------------------------------------------------------------------------
+
+-- | A bilateral trade proposal between two parties.
+-- Supports a full negotiation lifecycle:
+--   1. Party A proposes → Party B sees the offer
+--   2. Party B can Accept, Reject, or CounterOffer
+--   3. CounterOffer reverses roles: B becomes proposer, A becomes receiver
+--   4. Repeat until Accept or Reject
+--   5. Accept creates a TradeAgreement signed by both parties
+template TradeProposal
+  with
+    proposer      : Party   -- Party making the current offer
+    receiver      : Party   -- Party receiving the offer
+    vaultId       : Text    -- Source vault
+    assetId       : Text    -- Target asset identifier
+    assetName     : Text    -- Human-readable asset name
+    proposedPrice : Decimal -- Offered price (USD)
+    notes         : Text    -- Free-text justification / terms
+    roundNumber   : Int     -- Negotiation round (starts at 1, increments on counter)
+  where
+    signatory proposer
+    observer receiver
+
+    ensure proposedPrice > 0.0 && roundNumber > 0 && proposer /= receiver
+
+    -- | Receiver accepts the proposal — creates a binding TradeAgreement
+    choice AcceptProposal : ContractId TradeAgreement
+      controller receiver
+      do
+        create TradeAgreement with
+          buyer = receiver
+          seller = proposer
+          vaultId
+          assetId
+          assetName
+          agreedPrice = proposedPrice
+          negotiationRounds = roundNumber
+
+    -- | Receiver rejects the proposal — negotiation ends
+    choice RejectProposal : ()
+      controller receiver
+      do pure ()
+
+    -- | Receiver makes a counter-offer — roles reverse
+    -- The old receiver becomes the new proposer, and vice versa.
+    -- This creates a natural back-and-forth negotiation chain.
+    choice CounterOffer : ContractId TradeProposal
+      with
+        newPrice : Decimal
+        counterNotes : Text
+      controller receiver
+      do
+        assertMsg "Counter-offer price must be positive" (newPrice > 0.0)
+        assertMsg "Counter-offer price must differ from current" (newPrice /= proposedPrice)
+        create TradeProposal with
+          proposer = receiver     -- roles reverse
+          receiver = proposer     -- roles reverse
+          vaultId
+          assetId
+          assetName
+          proposedPrice = newPrice
+          notes = counterNotes
+          roundNumber = roundNumber + 1
+
+    -- | Proposer withdraws their own offer before the receiver responds
+    choice WithdrawProposal : ()
+      controller proposer
+      do pure ()
+
+------------------------------------------------------------------------
+-- TradeAgreement — Binding record of a negotiated trade
+------------------------------------------------------------------------
+
+-- | Immutable record of a completed negotiation. Both parties are signatories.
+-- This differs from TradeSettlement (in ConfidentialVault.daml) in that it
+-- records the full negotiation context (number of rounds).
+-- Only visible to buyer and seller — bilateral privacy guaranteed.
+template TradeAgreement
+  with
+    buyer               : Party   -- Party acquiring the asset
+    seller              : Party   -- Party selling the asset
+    vaultId             : Text    -- Source vault
+    assetId             : Text    -- Traded asset
+    assetName           : Text    -- Human-readable name
+    agreedPrice         : Decimal -- Final negotiated price (USD)
+    negotiationRounds   : Int     -- How many rounds of negotiation occurred
+  where
+    signatory buyer, seller
+
+    ensure agreedPrice > 0.0
+
+    -- | Buyer confirms the agreement has been executed
+    choice BuyerConfirm : ()
+      controller buyer
+      do pure ()
+
+    -- | Seller confirms the agreement has been executed
+    choice SellerConfirm : ()
+      controller seller
+      do pure ()

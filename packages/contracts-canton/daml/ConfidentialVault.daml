@@ -1,0 +1,317 @@
+-- | InstiVault — Confidential Vault for Canton Network
+-- |
+-- | Visibility model:
+-- |   Owner (signatory)       → full access: create, modify, manage parties
+-- |   Counterparties (observer) → can see vault composition, propose trades
+-- |   Auditors                → NOT observers here — get separate AuditRight contract
+-- |   Public                  → sees nothing — vault does not exist for non-parties
+module ConfidentialVault where
+
+-- No imports needed — all used functions are in Prelude
+
+-- | Type of Real World Asset
+data AssetType
+  = Bond
+  | Invoice
+  | Mortgage
+  | Equity
+    deriving (Eq, Show)
+
+-- | A tokenized RWA held inside a vault
+data RWAAsset = RWAAsset
+  with
+    assetId      : Text      -- Unique identifier
+    assetType    : AssetType  -- Category
+    name         : Text      -- Human-readable name (e.g. "BondToken-ACME-2026")
+    isin         : Text      -- International Securities Identification Number
+    nominalValue : Decimal   -- Face value in USD
+    couponRate   : Decimal   -- Annual coupon rate (0.05 = 5%)
+    maturityDate : Date      -- Maturity date
+    issuerName   : Text      -- Issuing institution
+  deriving (Eq, Show)
+
+-- | Vault lifecycle status
+data VaultStatus
+  = Active
+  | Frozen
+  | Closed
+    deriving (Eq, Show)
+
+------------------------------------------------------------------------
+-- VaultInvitation — Propose / Accept pattern
+------------------------------------------------------------------------
+
+-- | Invitation sent by a vault owner to a potential counterparty.
+-- The invitee sees this contract (observer) and can Accept or Decline.
+-- This enforces mutual consent before granting vault access.
+template VaultInvitation
+  with
+    vaultOwner : Party  -- Who sends the invitation
+    invitee    : Party  -- Who receives it
+    vaultId    : Text   -- Target vault
+    vaultName  : Text   -- Vault name for context
+  where
+    signatory vaultOwner
+    observer invitee
+
+    ensure vaultOwner /= invitee
+
+    -- | Invitee accepts — both parties become signatories on VaultAccessRight
+    choice Accept : ContractId VaultAccessRight
+      controller invitee
+      do
+        create VaultAccessRight with
+          owner = vaultOwner
+          grantee = invitee
+          vaultId
+
+    -- | Invitee declines — invitation archived, no access granted
+    choice Decline : ()
+      controller invitee
+      do pure ()
+
+    -- | Owner withdraws before the invitee responds
+    choice Withdraw : ()
+      controller vaultOwner
+      do pure ()
+
+------------------------------------------------------------------------
+-- VaultAccessRight — Proof of granted access
+------------------------------------------------------------------------
+
+-- | Proof that a party has been granted access to a vault.
+-- Both owner and grantee are signatories (mutual agreement).
+-- Either party can terminate the access right.
+template VaultAccessRight
+  with
+    owner   : Party  -- Vault owner who granted access
+    grantee : Party  -- Party with access
+    vaultId : Text   -- Vault identifier
+  where
+    signatory owner, grantee
+
+    key (owner, grantee, vaultId) : (Party, Party, Text)
+    maintainer key._1
+
+    -- | Owner revokes access — contract archived
+    choice RevokeAccess : ()
+      controller owner
+      do pure ()
+
+    -- | Grantee voluntarily relinquishes access
+    choice RelinquishAccess : ()
+      controller grantee
+      do pure ()
+
+------------------------------------------------------------------------
+-- ConfidentialVault — Main template
+------------------------------------------------------------------------
+
+-- | A confidential vault holding tokenized RWA assets.
+--
+-- Privacy guarantees (Canton visibility model):
+--   - Only the owner and listed counterparties can see this contract
+--   - Auditors are deliberately excluded — they receive a limited
+--     AuditRight contract with compliance-only data (see AuditRight.daml)
+--   - Any party not listed as signatory or observer has zero visibility
+template ConfidentialVault
+  with
+    owner          : Party       -- Institution that owns the vault (sole signatory)
+    vaultId        : Text        -- Unique identifier
+    vaultName      : Text        -- Human-readable name
+    description    : Text        -- Strategy notes / vault purpose
+    assets         : [RWAAsset]  -- Tokenized assets held in the vault
+    totalValue     : Decimal     -- Aggregated nominal value (USD)
+    status         : VaultStatus -- Lifecycle status
+    counterparties : [Party]     -- Parties with full read access (observers)
+  where
+    signatory owner
+    observer counterparties
+
+    key (owner, vaultId) : (Party, Text)
+    maintainer key._1
+
+    ensure totalValue >= 0.0
+        && totalValue == foldl (\acc a -> acc + a.nominalValue) 0.0 assets
+
+    ---------------------------------------------------
+    -- Asset management (owner only)
+    ---------------------------------------------------
+
+    -- | Deposit a new RWA asset into the vault
+    choice DepositAsset : ContractId ConfidentialVault
+      with
+        newAsset : RWAAsset
+      controller owner
+      do
+        assertMsg "Vault must be Active to deposit" (status == Active)
+        assertMsg "Asset nominal value must be positive" (newAsset.nominalValue > 0.0)
+        assertMsg "Asset ID already exists in vault"
+          (not $ any (\a -> a.assetId == newAsset.assetId) assets)
+        create this with
+          assets = newAsset :: assets
+          totalValue = totalValue + newAsset.nominalValue
+
+    -- | Withdraw an asset from the vault by its ID
+    choice WithdrawAsset : ContractId ConfidentialVault
+      with
+        targetAssetId : Text
+      controller owner
+      do
+        assertMsg "Vault must be Active to withdraw" (status == Active)
+        let matchingAssets = filter (\a -> a.assetId == targetAssetId) assets
+        assertMsg "Asset not found in vault" (not $ null matchingAssets)
+        let removedValue = foldl (\acc a -> acc + a.nominalValue) 0.0 matchingAssets
+        create this with
+          assets = filter (\a -> a.assetId /= targetAssetId) assets
+          totalValue = totalValue - removedValue
+
+    ---------------------------------------------------
+    -- Party management (owner only)
+    ---------------------------------------------------
+
+    -- | Add a counterparty (call after they accepted a VaultInvitation)
+    choice AddCounterparty : ContractId ConfidentialVault
+      with
+        newCounterparty : Party
+      controller owner
+      do
+        assertMsg "Vault must be Active to manage parties" (status == Active)
+        assertMsg "Cannot add owner as counterparty" (newCounterparty /= owner)
+        assertMsg "Party is already a counterparty" (newCounterparty `notElem` counterparties)
+        create this with
+          counterparties = newCounterparty :: counterparties
+
+    -- | Remove a counterparty — they immediately lose visibility
+    choice RemoveCounterparty : ContractId ConfidentialVault
+      with
+        party : Party
+      controller owner
+      do
+        assertMsg "Vault must be Active to manage parties" (status == Active)
+        assertMsg "Party is not a counterparty" (party `elem` counterparties)
+        create this with
+          counterparties = filter (/= party) counterparties
+
+    ---------------------------------------------------
+    -- Vault lifecycle (owner only)
+    ---------------------------------------------------
+
+    -- | Freeze the vault — blocks deposits and withdrawals
+    choice FreezeVault : ContractId ConfidentialVault
+      controller owner
+      do
+        assertMsg "Vault must be Active to freeze" (status == Active)
+        create this with status = Frozen
+
+    -- | Reactivate a frozen vault
+    choice ActivateVault : ContractId ConfidentialVault
+      controller owner
+      do
+        assertMsg "Vault must be Frozen to activate" (status == Frozen)
+        create this with status = Active
+
+    -- | Close the vault permanently
+    choice CloseVault : ContractId ConfidentialVault
+      controller owner
+      do
+        assertMsg "Vault must not already be Closed" (status /= Closed)
+        assertMsg "Vault must be empty to close" (null assets)
+        create this with status = Closed
+
+    ---------------------------------------------------
+    -- Counterparty actions (nonconsuming)
+    ---------------------------------------------------
+
+    -- | Counterparty requests a trade proposal on an asset in this vault.
+    -- Does NOT modify the vault — creates a separate TradeRequest contract.
+    nonconsuming choice RequestTrade : ContractId TradeRequest
+      with
+        requester    : Party
+        assetId      : Text
+        offeredPrice : Decimal
+        notes        : Text
+      controller requester
+      do
+        assertMsg "Vault must be Active for trades" (status == Active)
+        assertMsg "Only counterparties can request trades" (requester `elem` counterparties)
+        let targetAssets = filter (\a -> a.assetId == assetId) assets
+        assertMsg "Asset not found in vault" (not $ null targetAssets)
+        assertMsg "Offered price must be positive" (offeredPrice > 0.0)
+        create TradeRequest with
+          vaultOwner = owner
+          requester
+          vaultId
+          assetId
+          offeredPrice
+          notes
+
+------------------------------------------------------------------------
+-- TradeRequest — Created by counterparty, decided by owner
+------------------------------------------------------------------------
+
+-- | A trade request initiated by a counterparty on a vault asset.
+-- Only visible to the vault owner and the requester (bilateral privacy).
+-- The owner can accept or reject. Acceptance does NOT auto-execute —
+-- it creates a signal that the backend uses to coordinate the transfer.
+template TradeRequest
+  with
+    vaultOwner   : Party   -- Vault owner (decides)
+    requester    : Party   -- Counterparty who proposed the trade
+    vaultId      : Text    -- Source vault
+    assetId      : Text    -- Target asset
+    offeredPrice : Decimal -- Price offered (USD)
+    notes        : Text    -- Free-text justification
+  where
+    signatory vaultOwner, requester
+
+    ensure offeredPrice > 0.0
+
+    -- | Owner accepts the trade request
+    choice AcceptTrade : ContractId TradeSettlement
+      controller vaultOwner
+      do
+        create TradeSettlement with
+          seller = vaultOwner
+          buyer = requester
+          vaultId
+          assetId
+          settledPrice = offeredPrice
+
+    -- | Owner rejects the trade request
+    choice RejectTrade : ()
+      controller vaultOwner
+      do pure ()
+
+    -- | Requester cancels their own request
+    choice CancelRequest : ()
+      controller requester
+      do pure ()
+
+------------------------------------------------------------------------
+-- TradeSettlement — Record of an accepted trade
+------------------------------------------------------------------------
+
+-- | Immutable record of a settled trade. Both parties are signatories.
+-- This contract serves as proof-of-trade for audit and backend coordination.
+template TradeSettlement
+  with
+    seller       : Party   -- Former asset holder
+    buyer        : Party   -- New asset holder
+    vaultId      : Text    -- Source vault
+    assetId      : Text    -- Traded asset
+    settledPrice : Decimal -- Final price (USD)
+  where
+    signatory seller, buyer
+
+    ensure settledPrice > 0.0
+
+    -- | Buyer acknowledges settlement (archives the record)
+    choice BuyerAcknowledge : ()
+      controller buyer
+      do pure ()
+
+    -- | Seller acknowledges settlement (archives the record)
+    choice SellerAcknowledge : ()
+      controller seller
+      do pure ()

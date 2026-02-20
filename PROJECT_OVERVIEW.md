@@ -37,7 +37,7 @@ Un asset manager se connecte au dashboard, clique sur "Émettre un nouvel actif"
 
 | Champ | Exemple |
 |---|---|
-| Type d'actif | Obligation corporate |
+| Type d'actif | Obligation corporate | invoices
 | Nom | BondToken-ACME-2026 |
 | Valeur nominale | 1 000 000 USD |
 | Taux de coupon | 5% annuel |
@@ -97,7 +97,7 @@ Une banque privée crée un "Vault Confidentiel" et y dépose des tokens RWA. El
 
 **Ce que l'utilisateur fait concrètement :**
 
-Lors de la création d'un vault contenant un titre obligataire, l'utilisateur active l'option "Automatiser les rendements". Le système configure automatiquement les paiements planifiés.
+Lors de la créa tion d'un vault contenant un titre obligataire, l'utilisateur active l'option "Automatiser les rendements". Le système configure automatiquement les paiements planifiés.
 
 **Scénario concret — Coupon semestriel :**
 ```
