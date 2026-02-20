@@ -1,5 +1,6 @@
 import { Router, type Request, type Response, type Router as RouterType } from 'express';
 import { cantonClient } from '../services/canton-client.js';
+import { requireAuth, optionalAuth } from '../middleware/auth.js';
 import type {
   CreateVaultBody,
   DepositAssetBody,
@@ -9,6 +10,9 @@ import type {
 } from '../types/canton.js';
 
 export const cantonRouter: RouterType = Router();
+
+// Optional auth on all Canton routes
+cantonRouter.use(optionalAuth);
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -24,7 +28,7 @@ function getParty(req: Request): string {
 // ─── Vaults ──────────────────────────────────────────────────
 
 // POST /api/canton/vaults — createCmd ConfidentialVault
-cantonRouter.post('/vaults', async (req: Request, res: Response) => {
+cantonRouter.post('/vaults', requireAuth, async (req: Request, res: Response) => {
   try {
     const body = req.body as CreateVaultBody;
     const party = body.owner || getParty(req);
@@ -72,7 +76,7 @@ cantonRouter.get('/vaults/:vaultId', async (req: Request, res: Response) => {
 // ─── Assets (deposit / withdraw) ─────────────────────────────
 
 // POST /api/canton/vaults/:vaultId/assets — exerciseCmd DepositAsset
-cantonRouter.post('/vaults/:vaultId/assets', async (req: Request, res: Response) => {
+cantonRouter.post('/vaults/:vaultId/assets', requireAuth, async (req: Request, res: Response) => {
   try {
     const party = getParty(req);
     const body = req.body as DepositAssetBody;
@@ -100,7 +104,7 @@ cantonRouter.post('/vaults/:vaultId/assets', async (req: Request, res: Response)
 });
 
 // DELETE /api/canton/vaults/:vaultId/assets/:assetId — exerciseCmd WithdrawAsset
-cantonRouter.delete('/vaults/:vaultId/assets/:assetId', async (req: Request, res: Response) => {
+cantonRouter.delete('/vaults/:vaultId/assets/:assetId', requireAuth, async (req: Request, res: Response) => {
   try {
     const party = getParty(req);
 
@@ -121,7 +125,7 @@ cantonRouter.delete('/vaults/:vaultId/assets/:assetId', async (req: Request, res
 // ─── Invitations ─────────────────────────────────────────────
 
 // POST /api/canton/vaults/:vaultId/invite — createCmd VaultInvitation
-cantonRouter.post('/vaults/:vaultId/invite', async (req: Request, res: Response) => {
+cantonRouter.post('/vaults/:vaultId/invite', requireAuth, async (req: Request, res: Response) => {
   try {
     const party = getParty(req);
     const body = req.body as InvitePartyBody;
@@ -145,7 +149,7 @@ cantonRouter.post('/vaults/:vaultId/invite', async (req: Request, res: Response)
 });
 
 // POST /api/canton/invitations/:cid/accept — exerciseCmd Accept
-cantonRouter.post('/invitations/:cid/accept', async (req: Request, res: Response) => {
+cantonRouter.post('/invitations/:cid/accept', requireAuth, async (req: Request, res: Response) => {
   try {
     const party = getParty(req);
 
@@ -164,7 +168,7 @@ cantonRouter.post('/invitations/:cid/accept', async (req: Request, res: Response
 });
 
 // POST /api/canton/invitations/:cid/decline — exerciseCmd Decline
-cantonRouter.post('/invitations/:cid/decline', async (req: Request, res: Response) => {
+cantonRouter.post('/invitations/:cid/decline', requireAuth, async (req: Request, res: Response) => {
   try {
     const party = getParty(req);
 
@@ -185,7 +189,7 @@ cantonRouter.post('/invitations/:cid/decline', async (req: Request, res: Respons
 // ─── Counterparties ──────────────────────────────────────────
 
 // POST /api/canton/vaults/:vaultId/counterparties — exerciseCmd AddCounterparty
-cantonRouter.post('/vaults/:vaultId/counterparties', async (req: Request, res: Response) => {
+cantonRouter.post('/vaults/:vaultId/counterparties', requireAuth, async (req: Request, res: Response) => {
   try {
     const party = getParty(req);
     const body = req.body as AddCounterpartyBody;
@@ -211,6 +215,7 @@ cantonRouter.post('/vaults/:vaultId/counterparties', async (req: Request, res: R
 // DELETE /api/canton/vaults/:vaultId/counterparties/:party — exerciseCmd RemoveCounterparty
 cantonRouter.delete(
   '/vaults/:vaultId/counterparties/:party',
+  requireAuth,
   async (req: Request, res: Response) => {
     try {
       const actingParty = getParty(req);
@@ -233,7 +238,7 @@ cantonRouter.delete(
 // ─── Trades ──────────────────────────────────────────────────
 
 // POST /api/canton/vaults/:vaultId/trades — exerciseCmd RequestTrade
-cantonRouter.post('/vaults/:vaultId/trades', async (req: Request, res: Response) => {
+cantonRouter.post('/vaults/:vaultId/trades', requireAuth, async (req: Request, res: Response) => {
   try {
     const party = getParty(req);
     const body = req.body as RequestTradeBody;
@@ -259,7 +264,7 @@ cantonRouter.post('/vaults/:vaultId/trades', async (req: Request, res: Response)
 });
 
 // POST /api/canton/trades/:cid/accept — exerciseCmd AcceptTrade
-cantonRouter.post('/trades/:cid/accept', async (req: Request, res: Response) => {
+cantonRouter.post('/trades/:cid/accept', requireAuth, async (req: Request, res: Response) => {
   try {
     const party = getParty(req);
 
@@ -278,7 +283,7 @@ cantonRouter.post('/trades/:cid/accept', async (req: Request, res: Response) => 
 });
 
 // POST /api/canton/trades/:cid/reject — exerciseCmd RejectTrade
-cantonRouter.post('/trades/:cid/reject', async (req: Request, res: Response) => {
+cantonRouter.post('/trades/:cid/reject', requireAuth, async (req: Request, res: Response) => {
   try {
     const party = getParty(req);
 
@@ -310,7 +315,7 @@ cantonRouter.get('/trades', async (req: Request, res: Response) => {
 // ─── Vault Lifecycle ─────────────────────────────────────────
 
 // POST /api/canton/vaults/:vaultId/freeze — exerciseCmd FreezeVault
-cantonRouter.post('/vaults/:vaultId/freeze', async (req: Request, res: Response) => {
+cantonRouter.post('/vaults/:vaultId/freeze', requireAuth, async (req: Request, res: Response) => {
   try {
     const party = getParty(req);
 
@@ -329,7 +334,7 @@ cantonRouter.post('/vaults/:vaultId/freeze', async (req: Request, res: Response)
 });
 
 // POST /api/canton/vaults/:vaultId/activate — exerciseCmd ActivateVault
-cantonRouter.post('/vaults/:vaultId/activate', async (req: Request, res: Response) => {
+cantonRouter.post('/vaults/:vaultId/activate', requireAuth, async (req: Request, res: Response) => {
   try {
     const party = getParty(req);
 
@@ -348,7 +353,7 @@ cantonRouter.post('/vaults/:vaultId/activate', async (req: Request, res: Respons
 });
 
 // POST /api/canton/vaults/:vaultId/close — exerciseCmd CloseVault
-cantonRouter.post('/vaults/:vaultId/close', async (req: Request, res: Response) => {
+cantonRouter.post('/vaults/:vaultId/close', requireAuth, async (req: Request, res: Response) => {
   try {
     const party = getParty(req);
 

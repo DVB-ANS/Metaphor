@@ -7,8 +7,13 @@ import {
   approveReport,
   rejectReport,
 } from '../services/ai-client.js';
+import { requireAuth, optionalAuth } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 
 export const aiRouter: RouterType = Router();
+
+// Optional auth on all AI routes
+aiRouter.use(optionalAuth);
 
 function param(req: Request, name: string): string {
   const v = req.params[name];
@@ -16,7 +21,7 @@ function param(req: Request, name: string): string {
 }
 
 // POST /api/ai/analyze — trigger 0G Compute inference on a vault
-aiRouter.post('/analyze', async (req: Request, res: Response) => {
+aiRouter.post('/analyze', requireAuth, async (req: Request, res: Response) => {
   try {
     const body = req.body as AnalyzeRequestBody;
 
@@ -50,7 +55,7 @@ aiRouter.get('/reports/:reportId', (req: Request, res: Response) => {
 });
 
 // POST /api/ai/reports/:reportId/approve — approve recommendation(s)
-aiRouter.post('/reports/:reportId/approve', (req: Request, res: Response) => {
+aiRouter.post('/reports/:reportId/approve', requireAuth, requireRole('ADMIN', 'ISSUER'), (req: Request, res: Response) => {
   const { recommendationId } = req.body as { recommendationId?: string };
   const report = approveReport(param(req, 'reportId'), recommendationId);
 
@@ -63,7 +68,7 @@ aiRouter.post('/reports/:reportId/approve', (req: Request, res: Response) => {
 });
 
 // POST /api/ai/reports/:reportId/reject — reject recommendation(s)
-aiRouter.post('/reports/:reportId/reject', (req: Request, res: Response) => {
+aiRouter.post('/reports/:reportId/reject', requireAuth, requireRole('ADMIN', 'ISSUER'), (req: Request, res: Response) => {
   const { recommendationId } = req.body as { recommendationId?: string };
   const report = rejectReport(param(req, 'reportId'), recommendationId);
 

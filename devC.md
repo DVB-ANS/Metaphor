@@ -53,7 +53,7 @@ pnpm dev:backend    # Express on port 4000
 | `/ai-reports` | 0G AI Reports | Done |
 | `/admin` | Administration | Done |
 
-## Phase 3 (Backend Bridges) — In Progress
+## Phase 3 (Backend Bridges) — DONE
 
 ### Completed
 - [x] **Canton bridge** — Full Daml JSON API proxy (`packages/backend/src/routes/canton.ts`)
@@ -72,14 +72,38 @@ pnpm dev:backend    # Express on port 4000
   - `POST /api/ai/reports/:id/approve` — approve recommendation (single or all)
   - `POST /api/ai/reports/:id/reject` — reject recommendation (single or all)
   - In-memory report store with structured response matching Dev B's spec
-- [x] Shared types: `src/types/canton.ts`, `src/types/ai.ts`
-- [x] Updated `.env.example` with `CANTON_JSON_API_PORT`, `CANTON_LEDGER_ID`, `CANTON_PACKAGE_ID`
-
-### Remaining
-- [ ] ADI bridge — Tokenization + vault endpoints
-- [ ] Hedera bridge — Coupon scheduling + payment status
-- [ ] Auth middleware (wallet-based)
-- [ ] Role verification middleware (RBAC from ADI)
+- [x] **ADI bridge** — Tokenization + vault + institution endpoints (`packages/backend/src/routes/adi.ts`)
+  - `GET/POST /api/adi/tokens` — list & create RWA tokens
+  - `POST /api/adi/tokens/:address/fractionalize` — fractionalize tokens
+  - `POST /api/adi/vaults` — create vault, `GET /api/adi/vaults/:id` — vault info
+  - `GET /api/adi/vaults/:id/balance/:token` — balance check
+  - `POST /api/adi/vaults/:id/deposit|withdraw|allocate|deallocate` — vault operations
+  - `GET/POST /api/adi/institutions` — list & register institutions
+  - `POST /api/adi/institutions/propose` — multisig proposal flow
+  - `POST /api/adi/institutions/proposals/:id/approve|execute` — governance actions
+- [x] **Hedera bridge** — Coupon scheduling + yield distribution (`packages/backend/src/routes/hedera.ts`)
+  - `GET/POST /api/hedera/bonds` — list & register bonds
+  - `GET /api/hedera/bonds/:id` — bond detail with payment schedule
+  - `POST /api/hedera/bonds/:id/schedule-all|schedule` — schedule coupons
+  - `POST /api/hedera/bonds/:bondId/payments/:date/recover` — recover failed payments
+  - `GET /api/hedera/yield/snapshots/:id` — snapshot info
+  - `POST /api/hedera/yield/distribute` — yield distribution
+  - `POST /api/hedera/yield/claim` — claim yield
+  - `GET /api/hedera/yield/unclaimed/:holder/:paymentToken` — unclaimed amounts
+- [x] **Auth middleware** — Wallet-based authentication (`packages/backend/src/middleware/auth.ts`)
+  - Nonce generation + SIWE-style signature verification
+  - JWT token issuance (24h expiry)
+  - `requireAuth` middleware — blocks unauthenticated requests
+  - `optionalAuth` middleware — populates req.auth if token present
+  - Auth routes: `POST /api/auth/nonce`, `POST /api/auth/login`, `GET /api/auth/me`
+- [x] **RBAC middleware** — Role verification (`packages/backend/src/middleware/rbac.ts`)
+  - `requireRole('ADMIN', 'ISSUER', ...)` — checks JWT claim + on-chain fallback
+  - `requireWhitelist()` — verifies wallet whitelist on ADI AccessControl
+  - `fetchWalletRoles(address)` — queries all 4 roles from contract
+  - Role hashes computed via `ethers.id()` matching Solidity `keccak256()`
+- [x] Auth + RBAC applied to all write endpoints across ADI, Hedera, Canton, and AI routes
+- [x] Shared types: `src/types/canton.ts`, `src/types/ai.ts`, `src/types/auth.ts`
+- [x] Updated `.env.example` with `CANTON_JSON_API_PORT`, `CANTON_LEDGER_ID`, `CANTON_PACKAGE_ID`, `JWT_SECRET`
 
 ## Phase 4 (Integration) — After Phase 3
 - [ ] Wire Issue Asset form to ADI RWATokenFactory via backend

@@ -22,7 +22,7 @@ export const adiChain: Chain = {
 };
 
 export const config = getDefaultConfig({
-  appName: 'Outward',
+  appName: 'Metaphor',
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'demo',
   chains: [adiChain, mainnet, sepolia],
   transports: {

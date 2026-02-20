@@ -1,7 +1,12 @@
 import { Router, Request, Response, type Router as RouterType } from 'express';
 import { getAdiSigner, getContract, ADDRESSES } from '../config.js';
+import { requireAuth, optionalAuth } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 
 const router: RouterType = Router();
+
+// Optional auth on all routes (populates req.auth if token present)
+router.use(optionalAuth);
 
 // ─── Tokens ─────────────────────────────────────────────────────────
 
@@ -25,7 +30,7 @@ router.get('/tokens', async (_req: Request, res: Response) => {
     }
 });
 
-router.post('/tokens', async (req: Request, res: Response) => {
+router.post('/tokens', requireAuth, requireRole('ISSUER'), async (req: Request, res: Response) => {
     try {
         const { name, symbol, isin, rate, maturity, initialSupply } = req.body;
         const signer = getAdiSigner();
@@ -39,7 +44,7 @@ router.post('/tokens', async (req: Request, res: Response) => {
     }
 });
 
-router.post('/tokens/:address/fractionalize', async (req: Request, res: Response) => {
+router.post('/tokens/:address/fractionalize', requireAuth, requireRole('ISSUER'), async (req: Request, res: Response) => {
     try {
         const { fractions } = req.body;
         const signer = getAdiSigner();
@@ -54,7 +59,7 @@ router.post('/tokens/:address/fractionalize', async (req: Request, res: Response
 
 // ─── Vaults ─────────────────────────────────────────────────────────
 
-router.post('/vaults', async (_req: Request, res: Response) => {
+router.post('/vaults', requireAuth, requireRole('ISSUER'), async (_req: Request, res: Response) => {
     try {
         const signer = getAdiSigner();
         const vm = getContract('VaultManager', ADDRESSES.vaultManager, signer);
@@ -89,7 +94,7 @@ router.get('/vaults/:id/balance/:token', async (req: Request, res: Response) => 
     }
 });
 
-router.post('/vaults/:id/deposit', async (req: Request, res: Response) => {
+router.post('/vaults/:id/deposit', requireAuth, requireRole('INVESTOR'), async (req: Request, res: Response) => {
     try {
         const { token, amount } = req.body;
         const signer = getAdiSigner();
@@ -102,7 +107,7 @@ router.post('/vaults/:id/deposit', async (req: Request, res: Response) => {
     }
 });
 
-router.post('/vaults/:id/withdraw', async (req: Request, res: Response) => {
+router.post('/vaults/:id/withdraw', requireAuth, requireRole('INVESTOR'), async (req: Request, res: Response) => {
     try {
         const { token, amount } = req.body;
         const signer = getAdiSigner();
@@ -115,7 +120,7 @@ router.post('/vaults/:id/withdraw', async (req: Request, res: Response) => {
     }
 });
 
-router.post('/vaults/:id/allocate', async (req: Request, res: Response) => {
+router.post('/vaults/:id/allocate', requireAuth, requireRole('ISSUER'), async (req: Request, res: Response) => {
     try {
         const { token, strategy, amount } = req.body;
         const signer = getAdiSigner();
@@ -128,7 +133,7 @@ router.post('/vaults/:id/allocate', async (req: Request, res: Response) => {
     }
 });
 
-router.post('/vaults/:id/deallocate', async (req: Request, res: Response) => {
+router.post('/vaults/:id/deallocate', requireAuth, requireRole('ISSUER'), async (req: Request, res: Response) => {
     try {
         const { token, strategy, amount } = req.body;
         const signer = getAdiSigner();
@@ -158,7 +163,7 @@ router.get('/institutions', async (_req: Request, res: Response) => {
     }
 });
 
-router.post('/institutions', async (req: Request, res: Response) => {
+router.post('/institutions', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response) => {
     try {
         const { name, admin } = req.body;
         const signer = getAdiSigner();
@@ -171,7 +176,7 @@ router.post('/institutions', async (req: Request, res: Response) => {
     }
 });
 
-router.post('/institutions/propose', async (req: Request, res: Response) => {
+router.post('/institutions/propose', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response) => {
     try {
         const { name, admin } = req.body;
         const signer = getAdiSigner();
@@ -184,7 +189,7 @@ router.post('/institutions/propose', async (req: Request, res: Response) => {
     }
 });
 
-router.post('/institutions/proposals/:id/approve', async (req: Request, res: Response) => {
+router.post('/institutions/proposals/:id/approve', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response) => {
     try {
         const signer = getAdiSigner();
         const registry = getContract('InstitutionRegistry', ADDRESSES.institutionRegistry, signer);
@@ -196,7 +201,7 @@ router.post('/institutions/proposals/:id/approve', async (req: Request, res: Res
     }
 });
 
-router.post('/institutions/proposals/:id/execute', async (req: Request, res: Response) => {
+router.post('/institutions/proposals/:id/execute', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response) => {
     try {
         const signer = getAdiSigner();
         const registry = getContract('InstitutionRegistry', ADDRESSES.institutionRegistry, signer);

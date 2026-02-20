@@ -1,10 +1,19 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
 import { DitherShader } from '@/components/ui/dither-shader';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isLanding = pathname === '/';
+
+  // Landing page: render children directly without app chrome
+  if (isLanding) {
+    return <>{children}</>;
+  }
+
   return (
     <>
       {/* Full-screen dither background */}

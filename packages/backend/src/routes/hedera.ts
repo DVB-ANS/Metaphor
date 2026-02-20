@@ -1,7 +1,12 @@
 import { Router, Request, Response, type Router as RouterType } from 'express';
 import { getAdiSigner, getContract, ADDRESSES } from '../config.js';
+import { requireAuth, optionalAuth } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 
 const router: RouterType = Router();
+
+// Optional auth on all routes
+router.use(optionalAuth);
 
 // ─── Bonds ──────────────────────────────────────────────────────────
 
@@ -69,7 +74,7 @@ router.get('/bonds/:id', async (req: Request, res: Response) => {
     }
 });
 
-router.post('/bonds', async (req: Request, res: Response) => {
+router.post('/bonds', requireAuth, requireRole('ADMIN', 'ISSUER'), async (req: Request, res: Response) => {
     try {
         const { token, paymentToken, faceValue, rate, frequency, startDate, maturityDate, issuer } = req.body;
         const signer = getAdiSigner();
@@ -84,7 +89,7 @@ router.post('/bonds', async (req: Request, res: Response) => {
 
 // ─── Scheduling ─────────────────────────────────────────────────────
 
-router.post('/bonds/:id/schedule-all', async (req: Request, res: Response) => {
+router.post('/bonds/:id/schedule-all', requireAuth, requireRole('ISSUER', 'ADMIN'), async (req: Request, res: Response) => {
     try {
         const signer = getAdiSigner();
         const scheduler = getContract('CouponScheduler', ADDRESSES.couponScheduler, signer);
@@ -96,7 +101,7 @@ router.post('/bonds/:id/schedule-all', async (req: Request, res: Response) => {
     }
 });
 
-router.post('/bonds/:id/schedule', async (req: Request, res: Response) => {
+router.post('/bonds/:id/schedule', requireAuth, requireRole('ISSUER', 'ADMIN'), async (req: Request, res: Response) => {
     try {
         const { paymentDate } = req.body;
         const signer = getAdiSigner();
@@ -109,7 +114,7 @@ router.post('/bonds/:id/schedule', async (req: Request, res: Response) => {
     }
 });
 
-router.post('/bonds/:bondId/payments/:date/recover', async (req: Request, res: Response) => {
+router.post('/bonds/:bondId/payments/:date/recover', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response) => {
     try {
         const signer = getAdiSigner();
         const scheduler = getContract('CouponScheduler', ADDRESSES.couponScheduler, signer);
@@ -143,7 +148,7 @@ router.get('/yield/snapshots/:id', async (req: Request, res: Response) => {
     }
 });
 
-router.post('/yield/distribute', async (req: Request, res: Response) => {
+router.post('/yield/distribute', requireAuth, requireRole('ADMIN', 'ISSUER'), async (req: Request, res: Response) => {
     try {
         const { token, paymentToken, totalYield, holders } = req.body;
         const signer = getAdiSigner();
@@ -156,7 +161,7 @@ router.post('/yield/distribute', async (req: Request, res: Response) => {
     }
 });
 
-router.post('/yield/claim', async (req: Request, res: Response) => {
+router.post('/yield/claim', requireAuth, requireRole('INVESTOR'), async (req: Request, res: Response) => {
     try {
         const { paymentToken, snapshotId } = req.body;
         const signer = getAdiSigner();

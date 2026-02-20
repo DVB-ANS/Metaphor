@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Outward — RWA Hub for Institutions',
+  title: 'Metaphor — RWA Hub for Institutions',
   description: 'Confidential & Automated Real World Assets Hub for Institutional Finance',
 };
 

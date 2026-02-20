@@ -20,7 +20,7 @@ import {
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/app', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/vaults', label: 'My Vaults', icon: Vault },
   { href: '/issue', label: 'Issue Asset', icon: PlusCircle },
   { href: '/data-room', label: 'Data Room', icon: FolderLock },
@@ -34,13 +34,13 @@ const Logo = () => (
     href="/"
     className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal"
   >
-    <img src="/logo.png" alt="Outward" className="h-7 w-7 shrink-0 rounded-lg object-contain" />
+    <img src="/logo.png" alt="Metaphor" className="h-7 w-7 shrink-0 rounded-lg object-contain" />
     <motion.span
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="font-semibold whitespace-pre text-foreground tracking-tight"
     >
-      Outward
+      Metaphor
     </motion.span>
   </a>
 );
@@ -50,7 +50,7 @@ const LogoIcon = () => (
     href="/"
     className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal"
   >
-    <img src="/logo.png" alt="Outward" className="h-7 w-7 shrink-0 rounded-lg object-contain" />
+    <img src="/logo.png" alt="Metaphor" className="h-7 w-7 shrink-0 rounded-lg object-contain" />
   </a>
 );
 
@@ -59,8 +59,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   const links = navItems.map((item) => {
-    const isActive = pathname === item.href ||
-      (item.href !== '/' && pathname.startsWith(item.href));
+    const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
 
     return {
       label: item.label,
@@ -99,7 +98,7 @@ export function Sidebar() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
-                <p className="text-xs font-medium text-muted-foreground">Outward v0.1.0</p>
+                <p className="text-xs font-medium text-muted-foreground">Metaphor v0.1.0</p>
                 <p className="text-xs text-muted-foreground/70">ETHDenver 2026</p>
               </motion.div>
             ) : (

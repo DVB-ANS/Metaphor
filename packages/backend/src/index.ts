@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { healthRouter } from './routes/health.js';
+import { authRouter } from './routes/auth.js';
 import { cantonRouter } from './routes/canton.js';
 import { aiRouter } from './routes/ai.js';
 import adiRoutes from './routes/adi.js';
@@ -17,13 +18,15 @@ app.use(express.json());
 
 // Routes
 app.use('/api', healthRouter);
+app.use('/api/auth', authRouter);
 app.use('/api/adi', adiRoutes);
 app.use('/api/hedera', hederaRoutes);
 app.use('/api/canton', cantonRouter);
 app.use('/api/ai', aiRouter);
 
 app.listen(PORT, () => {
-  console.log(`Outward API running on http://localhost:${PORT}`);
+  console.log(`Metaphor API running on http://localhost:${PORT}`);
+  console.log(`  Auth endpoints:   http://localhost:${PORT}/api/auth`);
   console.log(`  ADI endpoints:    http://localhost:${PORT}/api/adi`);
   console.log(`  Hedera endpoints: http://localhost:${PORT}/api/hedera`);
   console.log(`  Canton endpoints: http://localhost:${PORT}/api/canton`);
