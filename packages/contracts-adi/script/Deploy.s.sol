@@ -5,12 +5,14 @@ import { Script, console } from "forge-std/Script.sol";
 import { InstiVaultAccessControl } from "../src/InstiVaultAccessControl.sol";
 import { RWATokenFactory } from "../src/RWATokenFactory.sol";
 import { VaultManager } from "../src/VaultManager.sol";
+import { InstitutionRegistry } from "../src/InstitutionRegistry.sol";
 
 contract Deploy is Script {
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        uint256 deployerPrivateKey = vm.envUint("ADI_PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
 
+        console.log("=== InstiVault ADI Deploy ===");
         console.log("Deployer:", deployer);
 
         vm.startBroadcast(deployerPrivateKey);
@@ -24,6 +26,16 @@ contract Deploy is Script {
         VaultManager vaultManager = new VaultManager(address(accessControl), address(tokenFactory));
         console.log("VaultManager:", address(vaultManager));
 
+        InstitutionRegistry registry = new InstitutionRegistry(address(accessControl));
+        console.log("InstitutionRegistry:", address(registry));
+
         vm.stopBroadcast();
+
+        console.log("");
+        console.log("=== Copy these to your .env ===");
+        console.log("ADI_ACCESS_CONTROL_ADDRESS=", address(accessControl));
+        console.log("ADI_TOKEN_FACTORY_ADDRESS=", address(tokenFactory));
+        console.log("ADI_VAULT_MANAGER_ADDRESS=", address(vaultManager));
+        console.log("ADI_INSTITUTION_REGISTRY_ADDRESS=", address(registry));
     }
 }

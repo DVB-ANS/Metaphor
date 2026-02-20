@@ -1,8 +1,8 @@
 import { Client, AccountId, PrivateKey } from "@hashgraph/sdk";
 
 export function getHederaClient(): Client {
-    const operatorId = process.env.HEDERA_OPERATOR_ID;
-    const operatorKey = process.env.HEDERA_OPERATOR_KEY;
+    const operatorId = process.env.HEDERA_OPERATOR_ID || process.env.HEDERA_ACCOUNT_ID;
+    const operatorKey = process.env.HEDERA_OPERATOR_KEY || process.env.HEDERA_PRIVATE_KEY;
     const network = process.env.HEDERA_NETWORK || "testnet";
 
     if (!operatorId || !operatorKey) {
