@@ -1,0 +1,287 @@
+-- | Tests for PrivateTrade — Daml Script
+-- |
+-- | Demonstrates and verifies:
+-- |   1. Simple proposal → accept flow
+-- |   2. Counter-offer negotiation (multi-round)
+-- |   3. Proposal rejection
+-- |   4. Proposal withdrawal by proposer
+-- |   5. Bilateral privacy — outsiders see nothing
+module TestPrivateTrade where
+
+import Daml.Script
+import DA.Date (date, Month(..))
+import ConfidentialVault (RWAAsset(..),  AssetType(..))
+import PrivateTrade
+
+------------------------------------------------------------------------
+-- Test 1: Simple proposal → accept
+------------------------------------------------------------------------
+
+testSimpleAccept : Script ()
+testSimpleAccept = script do
+  bnp <- allocateParty "BNP_Paribas"
+  blackrock <- allocateParty "BlackRock"
+
+  -- BNP proposes to sell a bond to BlackRock
+  proposalCid <- submit bnp do
+    createCmd TradeProposal with
+      proposer = bnp
+      receiver = blackrock
+      vaultId = "vault-001"
+      assetId = "bond-acme"
+      assetName = "BondToken-ACME-2026"
+      proposedPrice = 1000000.0
+      notes = "Offering full bond at face value"
+      roundNumber = 1
+
+  -- BlackRock can see the proposal
+  brProposals <- query @TradeProposal blackrock
+  assertMsg "BlackRock must see 1 proposal" (length brProposals == 1)
+
+  -- BlackRock accepts
+  agreementCid <- submit blackrock do
+    exerciseCmd proposalCid AcceptProposal
+
+  -- Both parties see the agreement
+  bnpAgreements <- query @TradeAgreement bnp
+  assertMsg "BNP must see 1 agreement" (length bnpAgreements == 1)
+
+  brAgreements <- query @TradeAgreement blackrock
+  assertMsg "BlackRock must see 1 agreement" (length brAgreements == 1)
+
+  -- Proposal no longer exists (consumed)
+  remainingProposals <- query @TradeProposal bnp
+  assertMsg "No proposals should remain" (null remainingProposals)
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 2: Multi-round counter-offer negotiation
+------------------------------------------------------------------------
+
+testCounterOfferNegotiation : Script ()
+testCounterOfferNegotiation = script do
+  bnp <- allocateParty "BNP_Paribas"
+  blackrock <- allocateParty "BlackRock"
+
+  -- Round 1: BNP proposes at 1M
+  round1Cid <- submit bnp do
+    createCmd TradeProposal with
+      proposer = bnp
+      receiver = blackrock
+      vaultId = "vault-001"
+      assetId = "bond-acme"
+      assetName = "BondToken-ACME-2026"
+      proposedPrice = 1000000.0
+      notes = "Initial offer at face value"
+      roundNumber = 1
+
+  -- Round 2: BlackRock counters at 900K
+  round2Cid <- submit blackrock do
+    exerciseCmd round1Cid CounterOffer with
+      newPrice = 900000.0
+      counterNotes = "Requesting 10% discount due to market conditions"
+
+  -- Verify roles reversed: BlackRock is now proposer
+  brProposals <- query @TradeProposal blackrock
+  assertMsg "BlackRock should see their own counter-offer" (length brProposals == 1)
+
+  -- Round 3: BNP counters at 950K
+  round3Cid <- submit bnp do
+    exerciseCmd round2Cid CounterOffer with
+      newPrice = 950000.0
+      counterNotes = "Meeting halfway"
+
+  -- Round 4: BlackRock accepts at 950K
+  agreementCid <- submit blackrock do
+    exerciseCmd round3Cid AcceptProposal
+
+  -- Verify agreement records 3 rounds
+  agreements <- query @TradeAgreement blackrock
+  assertMsg "Must have 1 agreement" (length agreements == 1)
+  let (_, agreement) = head agreements
+  assertMsg "Agreed price must be 950K" (agreement.agreedPrice == 950000.0)
+  assertMsg "Must record 3 negotiation rounds" (agreement.negotiationRounds == 3)
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 3: Proposal rejection
+------------------------------------------------------------------------
+
+testProposalRejection : Script ()
+testProposalRejection = script do
+  bnp <- allocateParty "BNP_Paribas"
+  blackrock <- allocateParty "BlackRock"
+
+  proposalCid <- submit bnp do
+    createCmd TradeProposal with
+      proposer = bnp
+      receiver = blackrock
+      vaultId = "vault-001"
+      assetId = "bond-acme"
+      assetName = "BondToken-ACME-2026"
+      proposedPrice = 2000000.0
+      notes = "Premium pricing"
+      roundNumber = 1
+
+  -- BlackRock rejects
+  submit blackrock do
+    exerciseCmd proposalCid RejectProposal
+
+  -- No proposals or agreements remain
+  proposals <- query @TradeProposal bnp
+  assertMsg "No proposals after rejection" (null proposals)
+
+  agreements <- query @TradeAgreement bnp
+  assertMsg "No agreements after rejection" (null agreements)
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 4: Proposer withdraws
+------------------------------------------------------------------------
+
+testProposalWithdrawal : Script ()
+testProposalWithdrawal = script do
+  bnp <- allocateParty "BNP_Paribas"
+  blackrock <- allocateParty "BlackRock"
+
+  proposalCid <- submit bnp do
+    createCmd TradeProposal with
+      proposer = bnp
+      receiver = blackrock
+      vaultId = "vault-001"
+      assetId = "bond-acme"
+      assetName = "BondToken-ACME-2026"
+      proposedPrice = 1000000.0
+      notes = "Changed my mind"
+      roundNumber = 1
+
+  -- BNP withdraws before BlackRock responds
+  submit bnp do
+    exerciseCmd proposalCid WithdrawProposal
+
+  -- Nothing remains
+  proposals <- query @TradeProposal blackrock
+  assertMsg "No proposals after withdrawal" (null proposals)
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 5: Bilateral privacy — outsider sees nothing
+------------------------------------------------------------------------
+
+testBilateralPrivacy : Script ()
+testBilateralPrivacy = script do
+  bnp <- allocateParty "BNP_Paribas"
+  blackrock <- allocateParty "BlackRock"
+  outsider <- allocateParty "Outsider"
+  fidelity <- allocateParty "Fidelity"
+
+  -- BNP and BlackRock negotiate
+  proposalCid <- submit bnp do
+    createCmd TradeProposal with
+      proposer = bnp
+      receiver = blackrock
+      vaultId = "vault-001"
+      assetId = "bond-acme"
+      assetName = "BondToken-ACME-2026"
+      proposedPrice = 1000000.0
+      notes = "Confidential offer"
+      roundNumber = 1
+
+  -- Outsider sees nothing
+  outsiderProposals <- query @TradeProposal outsider
+  assertMsg "Outsider must see 0 proposals" (null outsiderProposals)
+
+  -- Fidelity (another institution) sees nothing
+  fidelityProposals <- query @TradeProposal fidelity
+  assertMsg "Fidelity must see 0 proposals" (null fidelityProposals)
+
+  -- Accept and verify agreement privacy
+  agreementCid <- submit blackrock do
+    exerciseCmd proposalCid AcceptProposal
+
+  outsiderAgreements <- query @TradeAgreement outsider
+  assertMsg "Outsider must see 0 agreements" (null outsiderAgreements)
+
+  fidelityAgreements <- query @TradeAgreement fidelity
+  assertMsg "Fidelity must see 0 agreements" (null fidelityAgreements)
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 6: Ensure clause — invalid proposals rejected
+------------------------------------------------------------------------
+
+testInvalidProposals : Script ()
+testInvalidProposals = script do
+  bnp <- allocateParty "BNP_Paribas"
+  blackrock <- allocateParty "BlackRock"
+
+  -- Zero price must fail
+  submitMustFail bnp do
+    createCmd TradeProposal with
+      proposer = bnp
+      receiver = blackrock
+      vaultId = "vault-001"
+      assetId = "bond-acme"
+      assetName = "BondToken-ACME-2026"
+      proposedPrice = 0.0
+      notes = "Free?"
+      roundNumber = 1
+
+  -- Negative price must fail
+  submitMustFail bnp do
+    createCmd TradeProposal with
+      proposer = bnp
+      receiver = blackrock
+      vaultId = "vault-001"
+      assetId = "bond-acme"
+      assetName = "BondToken-ACME-2026"
+      proposedPrice = -500.0
+      notes = "Negative"
+      roundNumber = 1
+
+  -- Zero round number must fail
+  submitMustFail bnp do
+    createCmd TradeProposal with
+      proposer = bnp
+      receiver = blackrock
+      vaultId = "vault-001"
+      assetId = "bond-acme"
+      assetName = "BondToken-ACME-2026"
+      proposedPrice = 1000.0
+      notes = "Bad round"
+      roundNumber = 0
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 7: Counter-offer with same price must fail
+------------------------------------------------------------------------
+
+testCounterOfferSamePriceFails : Script ()
+testCounterOfferSamePriceFails = script do
+  bnp <- allocateParty "BNP_Paribas"
+  blackrock <- allocateParty "BlackRock"
+
+  proposalCid <- submit bnp do
+    createCmd TradeProposal with
+      proposer = bnp
+      receiver = blackrock
+      vaultId = "vault-001"
+      assetId = "bond-acme"
+      assetName = "BondToken-ACME-2026"
+      proposedPrice = 1000000.0
+      notes = "Offer"
+      roundNumber = 1
+
+  -- Counter-offer with same price must fail (use Accept instead)
+  submitMustFail blackrock do
+    exerciseCmd proposalCid CounterOffer with
+      newPrice = 1000000.0
+      counterNotes = "Same price counter"
+
+  pure ()

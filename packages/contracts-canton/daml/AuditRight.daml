@@ -1,0 +1,133 @@
+-- | InstiVault — Audit Right for Canton Network
+-- |
+-- | Grants auditors a LIMITED, compliance-only view of a vault.
+-- | Auditors see: vault name, total value, asset count, asset types, maturity range.
+-- | Auditors do NOT see: counterparty identities, trade terms, strategy, individual assets.
+-- |
+-- | Visibility model:
+-- |   Vault owner (signatory) → controls audit access, provides compliance data
+-- |   Auditor (signatory after accept) → compliance-only read access
+-- |   Counterparties → cannot see audit contracts
+-- |   Public → sees nothing
+module AuditRight where
+
+------------------------------------------------------------------------
+-- AuditInvitation — Propose / Accept pattern
+------------------------------------------------------------------------
+
+-- | Invitation sent by a vault owner to a potential auditor.
+-- The compliance data is provided at invitation creation so that when
+-- the auditor accepts, both authorities are available:
+--   vaultOwner (signatory of invitation) + auditor (controller of AcceptAudit)
+-- This satisfies AuditRight's signatory requirement of both parties.
+template AuditInvitation
+  with
+    vaultOwner       : Party    -- Vault owner sending the invitation
+    auditor          : Party    -- Auditor being invited
+    vaultId          : Text     -- Target vault
+    vaultName        : Text     -- Vault name for context
+    assetCount       : Int      -- Number of assets in vault
+    totalValue       : Decimal  -- Aggregated nominal value
+    assetTypes       : [Text]   -- e.g. ["Bond", "Invoice"]
+    earliestMaturity : Date     -- Earliest maturity date
+    latestMaturity   : Date     -- Latest maturity date
+  where
+    signatory vaultOwner
+    observer auditor
+
+    ensure vaultOwner /= auditor
+
+    -- | Auditor accepts — creates an AuditRight.
+    -- Authority: vaultOwner (signatory of this contract) + auditor (controller)
+    -- → satisfies AuditRight's signatory {vaultOwner, auditor}
+    choice AcceptAudit : ContractId AuditRight
+      controller auditor
+      do
+        create AuditRight with
+          vaultOwner
+          auditor
+          vaultId
+          vaultName
+          assetCount
+          totalValue
+          assetTypes
+          earliestMaturity
+          latestMaturity
+
+    -- | Auditor declines the invitation
+    choice DeclineAudit : ()
+      controller auditor
+      do pure ()
+
+    -- | Owner withdraws before the auditor responds
+    choice WithdrawAuditInvitation : ()
+      controller vaultOwner
+      do pure ()
+
+------------------------------------------------------------------------
+-- AuditRight — Limited compliance-only view
+------------------------------------------------------------------------
+
+-- | A limited view of a vault granted to an auditor.
+-- Contains ONLY compliance-relevant data:
+--   - Vault name and ID
+--   - Total value and asset count
+--   - Asset type categories (not individual asset details)
+--   - Maturity date range
+--
+-- Does NOT contain:
+--   - Counterparty identities
+--   - Trade terms or negotiation details
+--   - Strategy description
+--   - Individual asset details (ISIN, coupon rates, issuer names)
+--
+-- This separation is the core of Canton's visibility model demo:
+-- the same vault data is exposed differently to different parties.
+template AuditRight
+  with
+    vaultOwner       : Party    -- Vault owner
+    auditor          : Party    -- Auditor with limited access
+    vaultId          : Text     -- Vault identifier
+    vaultName        : Text     -- Vault name
+    assetCount       : Int      -- Number of assets in vault
+    totalValue       : Decimal  -- Aggregated nominal value (USD)
+    assetTypes       : [Text]   -- Asset categories (e.g. ["Bond", "Invoice"])
+    earliestMaturity : Date     -- Earliest asset maturity
+    latestMaturity   : Date     -- Latest asset maturity
+  where
+    signatory vaultOwner, auditor
+
+    key (vaultOwner, auditor, vaultId) : (Party, Party, Text)
+    maintainer key._1
+
+    ensure totalValue >= 0.0 && assetCount >= 0
+
+    -- | Owner updates the compliance data when the vault changes.
+    -- This keeps the audit view in sync without exposing full vault details.
+    choice UpdateAuditData : ContractId AuditRight
+      with
+        newAssetCount       : Int
+        newTotalValue       : Decimal
+        newAssetTypes       : [Text]
+        newEarliestMaturity : Date
+        newLatestMaturity   : Date
+      controller vaultOwner
+      do
+        assertMsg "Asset count must be non-negative" (newAssetCount >= 0)
+        assertMsg "Total value must be non-negative" (newTotalValue >= 0.0)
+        create this with
+          assetCount = newAssetCount
+          totalValue = newTotalValue
+          assetTypes = newAssetTypes
+          earliestMaturity = newEarliestMaturity
+          latestMaturity = newLatestMaturity
+
+    -- | Owner revokes audit access
+    choice RevokeAuditRight : ()
+      controller vaultOwner
+      do pure ()
+
+    -- | Auditor voluntarily relinquishes audit access
+    choice RelinquishAuditRight : ()
+      controller auditor
+      do pure ()
