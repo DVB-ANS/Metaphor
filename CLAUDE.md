@@ -4,6 +4,10 @@
 
 Outward is a confidential, automated RWA (Real World Assets) hub for institutional finance. Built for ETHDenver 2026, New France Village track. Targeting 4 bounties: ADI Foundation, Canton Network, Hedera, 0G Labs.
 
+**Documentation:**
+- [Project Overview](./PROJECT_OVERVIEW.md)
+- [Timeline](./TIMELINE.md)
+
 ## Team
 
 3 developers working in parallel:
@@ -19,10 +23,9 @@ packages/
 ├── contracts-canton/    # Daml (Canton Devnet L1)
 ├── contracts-hedera/    # Solidity + Hedera SDK (Hedera Testnet)
 ├── ai-engine/           # TypeScript (0G Compute)
-└── frontend/            # Next.js + TailwindCSS
+├── backend/             # Express API (TypeScript)
+└── frontend/            # Next.js + TailwindCSS + RainbowKit
 ```
-
-A `packages/backend/` (Express API) will be created in Phase 1.
 
 ## Tech Stack
 
@@ -57,19 +60,23 @@ main      ← version stable, déployable (on ne push JAMAIS directement ici)
 
 ## Key Contracts
 
-### ADI (Solidity)
-- `AccessControl.sol` — RBAC: Admin, Issuer, Investor, Auditor
-- `RWATokenFactory.sol` — ERC-20 with metadata (ISIN, rate, maturity, issuer)
-- `VaultManager.sol` — Vault lifecycle (create, deposit, withdraw, allocate)
+### ADI (Solidity) — Deployed on Sepolia + ADI Chain (99999)
+- `InstiVaultAccessControl.sol` — RBAC: Admin, Issuer, Investor, Auditor + whitelisting
+- `RWAToken.sol` — ERC-20 with RWA metadata (ISIN, rate, maturity, issuer) + whitelist transfer restrictions
+- `RWATokenFactory.sol` — Factory for creating RWA tokens + fractionalization
+- `VaultManager.sol` — Vault lifecycle (create, deposit, withdraw, allocate) + multi-token + Pausable
+- `InstitutionRegistry.sol` — Multi-tenant white-label registry + 2-of-N multisig proposals
+- `InstitutionDeployer.sol` — External deployer (EIP-170 workaround)
 
 ### Canton (Daml)
 - `ConfidentialVault` — Private vault with party-scoped visibility
 - `PrivateTrade` — Bilateral offer/counter-offer
 - `AuditRight` — Limited third-party audit access
 
-### Hedera (Solidity)
-- `CouponScheduler.sol` — Scheduled transactions via Hedera Schedule Service
-- `YieldDistributor.sol` — Pro-rata yield distribution
+### Hedera (Solidity) — Deployed on Hedera Testnet
+- `CouponScheduler.sol` — Scheduled coupon payments via Hedera Schedule Service precompile (0x16b), access-controlled execution (self-call / issuer / owner) + Pausable
+- `YieldDistributor.sol` — Snapshot-based pro-rata yield distribution to bond holders
+- `HederaScheduleService.sol` — Abstract base for Hedera precompile interaction (IHRC755 + IHRC1215)
 
 ## Conventions
 

@@ -37,7 +37,7 @@ Un asset manager se connecte au dashboard, clique sur "Émettre un nouvel actif"
 
 | Champ | Exemple |
 |---|---|
-| Type d'actif | Obligation corporate |
+| Type d'actif | Obligation corporate | invoices
 | Nom | BondToken-ACME-2026 |
 | Valeur nominale | 1 000 000 USD |
 | Taux de coupon | 5% annuel |
@@ -97,7 +97,7 @@ Une banque privée crée un "Vault Confidentiel" et y dépose des tokens RWA. El
 
 **Ce que l'utilisateur fait concrètement :**
 
-Lors de la création d'un vault contenant un titre obligataire, l'utilisateur active l'option "Automatiser les rendements". Le système configure automatiquement les paiements planifiés.
+Lors de la créa tion d'un vault contenant un titre obligataire, l'utilisateur active l'option "Automatiser les rendements". Le système configure automatiquement les paiements planifiés.
 
 **Scénario concret — Coupon semestriel :**
 ```
@@ -320,10 +320,13 @@ Le projet s'appuie sur **4 technologies sponsors**, chacune avec un rôle strict
 - Architecture prête pour la marque blanche (white-label ready)
 - Contrôles d'administration basés sur les rôles (RBAC) ou multisigs
 
-**Contrats prévus :**
-- `RWATokenFactory` — Création et gestion des tokens représentant des RWA
-- `VaultManager` — Gestion des vaults institutionnels (dépôt, retrait, allocation)
-- `AccessControl` — Système de rôles (Admin, Issuer, Investor, Auditor)
+**Contrats déployés (Sepolia + ADI Chain 99999) :**
+- `InstiVaultAccessControl` — RBAC (Admin, Issuer, Investor, Auditor) + whitelisting
+- `RWAToken` — ERC-20 avec métadonnées RWA + restrictions de transfert + burn à maturité
+- `RWATokenFactory` — Factory de tokens RWA + fractionnement
+- `VaultManager` — Gestion des vaults (dépôt, retrait, allocation) + Pausable
+- `InstitutionRegistry` — Registre multi-tenant white-label + multisig 2-of-N
+- `InstitutionDeployer` — Deployer externe (contournement EIP-170)
 
 ---
 
@@ -382,9 +385,10 @@ Public ─────────────X (aucune visibilité sur les posi
 5. Tout est on-chain, déterministe, sans intervention humaine
 ```
 
-**Contrats prévus :**
-- `CouponScheduler` — Création des transactions planifiées via Hedera Schedule Service
-- `YieldDistributor` — Distribution des rendements aux détenteurs de tokens RWA
+**Contrats déployés (Hedera Testnet) :**
+- `CouponScheduler` — Planification via precompile 0x16b (IHRC755 + IHRC1215) + access control + Pausable
+- `YieldDistributor` — Distribution pro-rata par snapshot aux détenteurs de tokens RWA
+- `HederaScheduleService` — Base abstraite pour l'interaction avec le precompile Hedera
 
 ---
 
@@ -471,53 +475,36 @@ Dashboard utilisateur → Bouton "Approuver & Exécuter" ou "Rejeter"
 
 ---
 
-## Structure du Dépôt (Prévue)
+## Structure du Dépôt
 
 ```
-outward/
-├── README.md                     # Documentation principale
+ETH-Denver/
+├── CLAUDE.md                     # Context Claude Code
 ├── PROJECT_OVERVIEW.md           # Ce fichier
+├── TIMELINE.md                   # Roadmap et suivi d'avancement
+├── .env.example                  # Template des variables d'environnement
 ├── packages/
-│   ├── frontend/                 # Application web Next.js
-│   │   ├── src/
-│   │   │   ├── components/       # Composants UI (Dashboard, VaultView, AIPanel)
-│   │   │   ├── hooks/            # Hooks custom (useVault, useSchedule, useAI)
-│   │   │   ├── pages/            # Pages de l'application
-│   │   │   └── utils/            # Helpers et constantes
-│   │   └── package.json
-│   ├── contracts-adi/            # Smart contracts Solidity pour ADI
-│   │   ├── src/
-│   │   │   ├── RWATokenFactory.sol
-│   │   │   ├── VaultManager.sol
-│   │   │   └── AccessControl.sol
-│   │   └── foundry.toml
-│   ├── contracts-canton/         # Templates Daml pour Canton Network
-│   │   ├── daml/
-│   │   │   ├── ConfidentialVault.daml
-│   │   │   ├── PrivateTrade.daml
-│   │   │   └── AuditRight.daml
-│   │   └── daml.yaml
-│   ├── contracts-hedera/         # Smart contracts + scripts Hedera
-│   │   ├── src/
-│   │   │   ├── CouponScheduler.sol
-│   │   │   └── YieldDistributor.sol
-│   │   ├── scripts/
-│   │   │   └── schedule-coupon.ts
-│   │   └── package.json
-│   └── ai-engine/                # Module IA (0G Compute)
-│       ├── src/
-│       │   ├── risk-analyzer.ts
-│       │   ├── strategy-simulator.ts
-│       │   └── 0g-client.ts
-│       └── package.json
-├── docs/
-│   ├── PRIVACY_MODEL.md          # Explication du modèle de confidentialité Canton
-│   ├── ARCHITECTURE.md           # Diagrammes d'architecture détaillés
-│   └── BOUNTY_COMPLIANCE.md      # Mapping bounties <-> fonctionnalités
-└── scripts/
-    ├── deploy-adi.sh             # Déploiement sur chaîne ADI
-    ├── deploy-canton.sh          # Déploiement sur Devnet Canton L1
-    └── deploy-hedera.sh          # Déploiement sur Hedera Testnet
+│   ├── contracts-adi/            # Foundry — Solidity (ADI chain)
+│   │   ├── src/                  # 6 contrats (InstiVaultAccessControl, RWAToken, etc.)
+│   │   ├── test/                 # 111 tests Forge
+│   │   ├── script/               # Deploy.s.sol + Demo.s.sol
+│   │   ├── abi/                  # ABIs extraits pour le backend
+│   │   └── broadcast/            # Records de déploiement (Sepolia + ADI)
+│   ├── contracts-hedera/         # Solidity + Hedera SDK
+│   │   ├── contracts/            # CouponScheduler, YieldDistributor, HederaScheduleService
+│   │   ├── test/                 # 74 tests Forge
+│   │   ├── src/                  # Scripts TS (deploy, schedule-coupon, e2e-test)
+│   │   ├── abi/                  # ABIs extraits pour le backend
+│   │   └── deployments.json      # Adresses déployées Hedera Testnet
+│   ├── contracts-canton/         # Templates Daml (Canton Network)
+│   │   └── daml/                 # ConfidentialVault, PrivateTrade, AuditRight + tests
+│   ├── ai-engine/                # Module IA (0G Compute)
+│   │   └── src/                  # risk-analyzer, strategy-simulator, 0g-client
+│   ├── backend/                  # Express API (TypeScript)
+│   │   └── src/                  # Routes (adi, hedera, canton, ai) + config
+│   └── frontend/                 # Next.js + TailwindCSS + RainbowKit
+│       └── src/                  # Pages, composants UI, mock data
+└── pnpm-workspace.yaml
 ```
 
 ---
@@ -525,25 +512,29 @@ outward/
 ## Bounties Ciblés — Checklist de Conformité
 
 ### ADI Foundation
-- [ ] MVP déployé sur chaîne ADI
-- [ ] Utilité économique réelle (tokenisation + vault fonctionnel)
-- [ ] Architecture white-label ready
-- [ ] RBAC ou multisig pour l'administration
+- [x] MVP déployé sur chaîne ADI (99999) + Sepolia (11155111)
+- [x] Utilité économique réelle (tokenisation + vault + fractionnement + allocation)
+- [x] Architecture white-label ready (InstitutionRegistry multi-tenant)
+- [x] RBAC (4 rôles) + multisig 2-of-N pour l'administration
+- [x] Pausable sur VaultManager (arrêt d'urgence)
+- [x] 111 tests passants + script de démo (`Demo.s.sol`)
 
 ### Canton Network
-- [ ] Contrats Daml natifs (pas de wrappers)
+- [x] Contrats Daml natifs (ConfidentialVault, PrivateTrade, AuditRight)
 - [ ] Déployés sur Devnet Canton L1
-- [ ] Séparation de visibilité démontrée (parties autorisées vs non autorisées)
+- [x] Séparation de visibilité démontrée (Owner/Counterparty/Auditor)
 
 ### Hedera
-- [ ] Utilisation du Hedera Schedule Service
-- [ ] Transactions planifiées créées et exécutées (paiements de coupons)
-- [ ] Initiation depuis un smart contract (pas depuis un script off-chain)
+- [x] Utilisation du Hedera Schedule Service (precompile 0x16b)
+- [x] Transactions planifiées créées et exécutées (paiements de coupons)
+- [x] Initiation depuis un smart contract (pas depuis un script off-chain)
+- [x] Access control sur executeCoupon + Pausable
+- [x] 74 tests passants, déployé sur Hedera Testnet
 
 ### 0G Labs
-- [ ] Intégration de 0G Compute (inférence)
-- [ ] Décisions structurées produites par l'IA (score de risque, recommandations)
-- [ ] Human-in-the-loop : approbation utilisateur avant exécution
+- [x] Intégration de 0G Compute (inférence)
+- [x] Décisions structurées produites par l'IA (score de risque, recommandations)
+- [x] Human-in-the-loop : approbation utilisateur avant exécution
 
 ---
 
@@ -551,7 +542,7 @@ outward/
 
 | Livrable | Statut | Description |
 |---|---|---|
-| Dépôt GitHub public | [ ] À créer | Code source complet avec documentation |
+| Dépôt GitHub public | [x] Créé | github.com/DVB-ANS/ETH-DENVER |
 | URL de démo live | [ ] À déployer | Interface web institutionnelle fonctionnelle |
 | Vidéo de démo | [ ] À enregistrer | < 3 minutes, flux complet du produit |
 | README complet | [ ] À rédiger | Setup, architecture, modèle de confidentialité |
@@ -572,10 +563,11 @@ outward/
 
 ## Prochaines Étapes
 
-1. **Initialiser le repo** — Structure de dossiers, configs, dépendances
-2. **Canton/Daml** — Écrire et déployer les templates Daml (risque technique #1)
-3. **ADI** — Smart contracts de tokenisation + vault manager
-4. **Hedera** — Logique de planification des coupons
-5. **0G Labs** — Intégration du module IA
-6. **Frontend** — Dashboard institutionnel connecté aux 4 couches
-7. **Tests & Démo** — Scénario de bout en bout + enregistrement vidéo
+1. ~~Initialiser le repo~~ ✅
+2. ~~Canton/Daml~~ ✅ (templates + tests, reste deploy Devnet L1)
+3. ~~ADI~~ ✅ (6 contrats, 111 tests, déployé Sepolia + ADI)
+4. ~~Hedera~~ ✅ (74 tests, déployé Hedera Testnet)
+5. ~~0G Labs~~ ✅ (risk-analyzer, strategy-simulator, mock fallback)
+6. **Frontend** — Remplacer les mock data par les vrais appels API backend
+7. **Deploy Canton** — Déployer les templates Daml sur Devnet L1
+8. **Tests & Démo** — Scénario de bout en bout + enregistrement vidéo

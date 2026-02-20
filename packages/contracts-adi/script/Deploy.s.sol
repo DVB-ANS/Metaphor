@@ -5,6 +5,7 @@ import { Script, console } from "forge-std/Script.sol";
 import { InstiVaultAccessControl } from "../src/InstiVaultAccessControl.sol";
 import { RWATokenFactory } from "../src/RWATokenFactory.sol";
 import { VaultManager } from "../src/VaultManager.sol";
+import { InstitutionDeployer } from "../src/InstitutionDeployer.sol";
 import { InstitutionRegistry } from "../src/InstitutionRegistry.sol";
 
 contract Deploy is Script {
@@ -26,7 +27,10 @@ contract Deploy is Script {
         VaultManager vaultManager = new VaultManager(address(accessControl), address(tokenFactory));
         console.log("VaultManager:", address(vaultManager));
 
-        InstitutionRegistry registry = new InstitutionRegistry(address(accessControl));
+        InstitutionDeployer instDeployer = new InstitutionDeployer();
+        console.log("InstitutionDeployer:", address(instDeployer));
+
+        InstitutionRegistry registry = new InstitutionRegistry(address(accessControl), address(instDeployer));
         console.log("InstitutionRegistry:", address(registry));
 
         vm.stopBroadcast();

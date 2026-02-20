@@ -1,0 +1,590 @@
+-- | Tests for ConfidentialVault — Daml Script
+-- |
+-- | Demonstrates and verifies:
+-- |   1. Vault creation and asset deposits
+-- |   2. Invitation propose/accept workflow
+-- |   3. Visibility isolation (counterparty sees, outsider does not)
+-- |   4. Vault lifecycle (freeze, activate, close)
+-- |   5. Trade request flow (request, accept, reject)
+module TestConfidentialVault where
+
+import Daml.Script
+import DA.Date (date, Month(..))
+import ConfidentialVault
+
+-- Helper: create a sample bond asset
+mkBond : Text -> Text -> Decimal -> RWAAsset
+mkBond id name value = RWAAsset with
+  assetId = id
+  assetType = Bond
+  name
+  isin = "FR000000" <> id
+  nominalValue = value
+  couponRate = 0.05
+  maturityDate = date 2028 Feb 15
+  issuerName = "ACME Corp"
+
+-- Helper: create a sample invoice asset
+mkInvoice : Text -> Text -> Decimal -> RWAAsset
+mkInvoice id name value = RWAAsset with
+  assetId = id
+  assetType = Invoice
+  name
+  isin = "IT000000" <> id
+  nominalValue = value
+  couponRate = 0.078
+  maturityDate = date 2026 Dec 31
+  issuerName = "Roma Industries"
+
+------------------------------------------------------------------------
+-- Test 1: Full vault lifecycle
+------------------------------------------------------------------------
+
+testVaultLifecycle : Script ()
+testVaultLifecycle = script do
+  -- Setup parties
+  bnp <- allocateParty "BNP_Paribas"
+  blackrock <- allocateParty "BlackRock"
+  outsider <- allocateParty "Outsider"
+
+  -- 1. BNP creates an empty vault
+  vaultCid <- submit bnp do
+    createCmd ConfidentialVault with
+      owner = bnp
+      vaultId = "vault-001"
+      vaultName = "Fixed Income Europe Q1"
+      description = "European fixed income portfolio"
+      assets = []
+      totalValue = 0.0
+      status = Active
+      counterparties = []
+
+  -- 2. BNP deposits a bond
+  vaultCid <- submit bnp do
+    exerciseCmd vaultCid DepositAsset with
+      newAsset = mkBond "bond-acme" "BondToken-ACME-2026" 1000000.0
+
+  -- 3. BNP deposits an invoice
+  vaultCid <- submit bnp do
+    exerciseCmd vaultCid DepositAsset with
+      newAsset = mkInvoice "inv-italy" "Factures Italie Q1" 500000.0
+
+  -- 4. Verify: outsider sees nothing
+  outsiderVaults <- query @ConfidentialVault outsider
+  assertMsg "Outsider must see 0 vaults" (null outsiderVaults)
+
+  -- 5. BNP freezes the vault
+  frozenCid <- submit bnp do
+    exerciseCmd vaultCid FreezeVault
+
+  -- 6. Deposit to frozen vault must fail
+  submitMustFail bnp do
+    exerciseCmd frozenCid DepositAsset with
+      newAsset = mkBond "bond-fail" "ShouldFail" 100000.0
+
+  -- 7. BNP reactivates
+  activeCid <- submit bnp do
+    exerciseCmd frozenCid ActivateVault
+
+  -- 8. Withdraw the invoice
+  vaultCid <- submit bnp do
+    exerciseCmd activeCid WithdrawAsset with
+      targetAssetId = "inv-italy"
+
+  -- 8b. Withdraw the bond (vault must be empty to close)
+  vaultCid <- submit bnp do
+    exerciseCmd vaultCid WithdrawAsset with
+      targetAssetId = "bond-acme"
+
+  -- 9. Close the vault (now empty)
+  closedCid <- submit bnp do
+    exerciseCmd vaultCid CloseVault
+
+  -- 10. Operations on Closed vault must fail
+  submitMustFail bnp do
+    exerciseCmd closedCid DepositAsset with
+      newAsset = mkBond "bond-closed" "ClosedFail" 100000.0
+
+  submitMustFail bnp do
+    exerciseCmd closedCid AddCounterparty with
+      newCounterparty = blackrock
+
+  submitMustFail bnp do
+    exerciseCmd closedCid FreezeVault
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 2: Invitation workflow + visibility isolation
+------------------------------------------------------------------------
+
+testInvitationAndVisibility : Script ()
+testInvitationAndVisibility = script do
+  -- Setup parties
+  bnp <- allocateParty "BNP_Paribas"
+  blackrock <- allocateParty "BlackRock"
+  deloitte <- allocateParty "Deloitte"
+  outsider <- allocateParty "Outsider"
+
+  -- BNP creates a vault with an asset
+  vaultCid <- submit bnp do
+    createCmd ConfidentialVault with
+      owner = bnp
+      vaultId = "vault-002"
+      vaultName = "M&A Data Room"
+      description = "Confidential data room for M&A transaction"
+      assets = [mkBond "bond-ma" "MA-Portfolio-2026" 10000000.0]
+      totalValue = 10000000.0
+      status = Active
+      counterparties = []
+
+  -- BEFORE invitation: BlackRock sees nothing
+  brVaultsBefore <- query @ConfidentialVault blackrock
+  assertMsg "BlackRock must see 0 vaults before invitation" (null brVaultsBefore)
+
+  -- BNP sends invitation to BlackRock
+  inviteCid <- submit bnp do
+    createCmd VaultInvitation with
+      vaultOwner = bnp
+      invitee = blackrock
+      vaultId = "vault-002"
+      vaultName = "M&A Data Room"
+
+  -- BlackRock can see the invitation
+  invitations <- query @VaultInvitation blackrock
+  assertMsg "BlackRock must see 1 invitation" (length invitations == 1)
+
+  -- BlackRock accepts
+  accessCid <- submit blackrock do
+    exerciseCmd inviteCid Accept
+
+  -- BNP adds BlackRock as counterparty on the vault
+  vaultCid <- submit bnp do
+    exerciseCmd vaultCid AddCounterparty with
+      newCounterparty = blackrock
+
+  -- AFTER invitation: BlackRock can now see the vault
+  brVaultsAfter <- query @ConfidentialVault blackrock
+  assertMsg "BlackRock must see 1 vault after invitation" (length brVaultsAfter == 1)
+
+  -- Deloitte (not invited) still sees nothing
+  dlVaults <- query @ConfidentialVault deloitte
+  assertMsg "Deloitte must see 0 vaults (not invited)" (null dlVaults)
+
+  -- Outsider sees nothing
+  outsiderVaults <- query @ConfidentialVault outsider
+  assertMsg "Outsider must see 0 vaults" (null outsiderVaults)
+
+  -- BNP removes BlackRock
+  vaultCid <- submit bnp do
+    exerciseCmd vaultCid RemoveCounterparty with
+      party = blackrock
+
+  -- BlackRock loses visibility immediately
+  brVaultsRevoked <- query @ConfidentialVault blackrock
+  assertMsg "BlackRock must see 0 vaults after removal" (null brVaultsRevoked)
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 3: Trade request flow
+------------------------------------------------------------------------
+
+testTradeRequest : Script ()
+testTradeRequest = script do
+  -- Setup parties
+  bnp <- allocateParty "BNP_Paribas"
+  blackrock <- allocateParty "BlackRock"
+
+  -- BNP creates vault with BlackRock as counterparty
+  vaultCid <- submit bnp do
+    createCmd ConfidentialVault with
+      owner = bnp
+      vaultId = "vault-003"
+      vaultName = "Trading Vault"
+      description = "Vault for OTC trades"
+      assets = [mkBond "bond-trade" "TradableBond-2026" 5000000.0]
+      totalValue = 5000000.0
+      status = Active
+      counterparties = [blackrock]
+
+  -- BlackRock requests a trade (nonconsuming — vault is NOT modified)
+  tradeCid <- submit blackrock do
+    exerciseCmd vaultCid RequestTrade with
+      requester = blackrock
+      assetId = "bond-trade"
+      offeredPrice = 4800000.0
+      notes = "Interested in acquiring this bond at slight discount"
+
+  -- Verify the vault still exists unchanged
+  vaults <- query @ConfidentialVault bnp
+  assertMsg "Vault must still exist after trade request" (length vaults == 1)
+
+  -- BNP accepts the trade
+  settlementCid <- submit bnp do
+    exerciseCmd tradeCid AcceptTrade
+
+  -- Both parties can see the settlement
+  bnpSettlements <- query @TradeSettlement bnp
+  assertMsg "BNP must see 1 settlement" (length bnpSettlements == 1)
+
+  brSettlements <- query @TradeSettlement blackrock
+  assertMsg "BlackRock must see 1 settlement" (length brSettlements == 1)
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 4: Trade rejection and cancellation
+------------------------------------------------------------------------
+
+testTradeRejectAndCancel : Script ()
+testTradeRejectAndCancel = script do
+  bnp <- allocateParty "BNP_Paribas"
+  blackrock <- allocateParty "BlackRock"
+  fidelity <- allocateParty "Fidelity"
+
+  -- Vault with 2 counterparties
+  vaultCid <- submit bnp do
+    createCmd ConfidentialVault with
+      owner = bnp
+      vaultId = "vault-004"
+      vaultName = "Multi-CP Vault"
+      description = "Vault with multiple counterparties"
+      assets = [mkBond "bond-multi" "MultiBond-2026" 2000000.0]
+      totalValue = 2000000.0
+      status = Active
+      counterparties = [blackrock, fidelity]
+
+  -- BlackRock requests a trade
+  tradeCid1 <- submit blackrock do
+    exerciseCmd vaultCid RequestTrade with
+      requester = blackrock
+      assetId = "bond-multi"
+      offeredPrice = 1900000.0
+      notes = "Initial offer"
+
+  -- BNP rejects BlackRock's trade
+  submit bnp do
+    exerciseCmd tradeCid1 RejectTrade
+
+  -- Fidelity requests a trade then cancels it
+  tradeCid2 <- submit fidelity do
+    exerciseCmd vaultCid RequestTrade with
+      requester = fidelity
+      assetId = "bond-multi"
+      offeredPrice = 2100000.0
+      notes = "Premium offer"
+
+  submit fidelity do
+    exerciseCmd tradeCid2 CancelRequest
+
+  -- No pending trades remain
+  bnpTrades <- query @TradeRequest bnp
+  assertMsg "No pending trades should remain" (null bnpTrades)
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 5: Non-counterparty cannot request trade
+------------------------------------------------------------------------
+
+testUnauthorizedTradeRequest : Script ()
+testUnauthorizedTradeRequest = script do
+  bnp <- allocateParty "BNP_Paribas"
+  outsider <- allocateParty "Outsider"
+
+  vaultCid <- submit bnp do
+    createCmd ConfidentialVault with
+      owner = bnp
+      vaultId = "vault-005"
+      vaultName = "Restricted Vault"
+      description = "No unauthorized access"
+      assets = [mkBond "bond-secret" "SecretBond" 1000000.0]
+      totalValue = 1000000.0
+      status = Active
+      counterparties = []
+
+  -- Outsider cannot request a trade (not a counterparty)
+  submitMustFail outsider do
+    exerciseCmd vaultCid RequestTrade with
+      requester = outsider
+      assetId = "bond-secret"
+      offeredPrice = 500000.0
+      notes = "Unauthorized attempt"
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 6: Invitation decline and withdraw
+------------------------------------------------------------------------
+
+testInvitationDeclineAndWithdraw : Script ()
+testInvitationDeclineAndWithdraw = script do
+  bnp <- allocateParty "BNP_Paribas"
+  blackrock <- allocateParty "BlackRock"
+  fidelity <- allocateParty "Fidelity"
+
+  -- BlackRock declines an invitation
+  inviteCid1 <- submit bnp do
+    createCmd VaultInvitation with
+      vaultOwner = bnp
+      invitee = blackrock
+      vaultId = "vault-006"
+      vaultName = "Declined Vault"
+
+  submit blackrock do
+    exerciseCmd inviteCid1 Decline
+
+  -- No access right created
+  accessRights <- query @VaultAccessRight blackrock
+  assertMsg "No access right after decline" (null accessRights)
+
+  -- BNP withdraws invitation to Fidelity before they respond
+  inviteCid2 <- submit bnp do
+    createCmd VaultInvitation with
+      vaultOwner = bnp
+      invitee = fidelity
+      vaultId = "vault-006"
+      vaultName = "Withdrawn Vault"
+
+  submit bnp do
+    exerciseCmd inviteCid2 Withdraw
+
+  -- No access right created
+  accessRightsFid <- query @VaultAccessRight fidelity
+  assertMsg "No access right after withdrawal" (null accessRightsFid)
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 7: Ensure clause — invalid totalValue rejected
+------------------------------------------------------------------------
+
+testEnsureClause : Script ()
+testEnsureClause = script do
+  bnp <- allocateParty "BNP_Paribas"
+
+  -- Negative totalValue must fail
+  submitMustFail bnp do
+    createCmd ConfidentialVault with
+      owner = bnp
+      vaultId = "vault-bad-1"
+      vaultName = "Bad Vault"
+      description = "Should fail"
+      assets = []
+      totalValue = -100.0
+      status = Active
+      counterparties = []
+
+  -- Mismatched totalValue vs assets must fail
+  submitMustFail bnp do
+    createCmd ConfidentialVault with
+      owner = bnp
+      vaultId = "vault-bad-2"
+      vaultName = "Inconsistent Vault"
+      description = "Should fail"
+      assets = [mkBond "bond-x" "BondX" 1000000.0]
+      totalValue = 500000.0  -- wrong: should be 1000000.0
+      status = Active
+      counterparties = []
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 8: Owner cannot add self as counterparty
+------------------------------------------------------------------------
+
+testOwnerCannotBeSelfCounterparty : Script ()
+testOwnerCannotBeSelfCounterparty = script do
+  bnp <- allocateParty "BNP_Paribas"
+
+  vaultCid <- submit bnp do
+    createCmd ConfidentialVault with
+      owner = bnp
+      vaultId = "vault-self"
+      vaultName = "Self Test"
+      description = "Test self-add"
+      assets = []
+      totalValue = 0.0
+      status = Active
+      counterparties = []
+
+  -- Owner adding themselves as counterparty must fail
+  submitMustFail bnp do
+    exerciseCmd vaultCid AddCounterparty with
+      newCounterparty = bnp
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 9: Withdraw nonexistent asset fails
+------------------------------------------------------------------------
+
+testWithdrawNonexistentAsset : Script ()
+testWithdrawNonexistentAsset = script do
+  bnp <- allocateParty "BNP_Paribas"
+
+  vaultCid <- submit bnp do
+    createCmd ConfidentialVault with
+      owner = bnp
+      vaultId = "vault-withdraw"
+      vaultName = "Withdraw Test"
+      description = "Test missing asset"
+      assets = [mkBond "bond-real" "RealBond" 1000000.0]
+      totalValue = 1000000.0
+      status = Active
+      counterparties = []
+
+  -- Withdrawing a nonexistent asset must fail
+  submitMustFail bnp do
+    exerciseCmd vaultCid WithdrawAsset with
+      targetAssetId = "does-not-exist"
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 10: VaultAccessRight revocation and relinquish
+------------------------------------------------------------------------
+
+testAccessRightRevocationAndRelinquish : Script ()
+testAccessRightRevocationAndRelinquish = script do
+  bnp <- allocateParty "BNP_Paribas"
+  blackrock <- allocateParty "BlackRock"
+  fidelity <- allocateParty "Fidelity"
+
+  -- Create and accept invitation for BlackRock
+  inviteCid1 <- submit bnp do
+    createCmd VaultInvitation with
+      vaultOwner = bnp
+      invitee = blackrock
+      vaultId = "vault-revoke"
+      vaultName = "Revoke Test"
+
+  accessCid1 <- submit blackrock do
+    exerciseCmd inviteCid1 Accept
+
+  -- Owner revokes BlackRock's access
+  submit bnp do
+    exerciseCmd accessCid1 RevokeAccess
+
+  -- No access rights remain for BlackRock
+  brAccess <- query @VaultAccessRight blackrock
+  assertMsg "BlackRock access must be revoked" (null brAccess)
+
+  -- Create and accept invitation for Fidelity
+  inviteCid2 <- submit bnp do
+    createCmd VaultInvitation with
+      vaultOwner = bnp
+      invitee = fidelity
+      vaultId = "vault-revoke"
+      vaultName = "Relinquish Test"
+
+  accessCid2 <- submit fidelity do
+    exerciseCmd inviteCid2 Accept
+
+  -- Fidelity voluntarily relinquishes access
+  submit fidelity do
+    exerciseCmd accessCid2 RelinquishAccess
+
+  -- No access rights remain for Fidelity
+  fidAccess <- query @VaultAccessRight fidelity
+  assertMsg "Fidelity access must be relinquished" (null fidAccess)
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 11: Self-invitation prevention
+------------------------------------------------------------------------
+
+testSelfInvitationPrevention : Script ()
+testSelfInvitationPrevention = script do
+  bnp <- allocateParty "BNP_Paribas"
+
+  -- Owner cannot invite themselves
+  submitMustFail bnp do
+    createCmd VaultInvitation with
+      vaultOwner = bnp
+      invitee = bnp
+      vaultId = "vault-self-invite"
+      vaultName = "Self Invite"
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 12: Duplicate asset ID prevention
+------------------------------------------------------------------------
+
+testDuplicateAssetId : Script ()
+testDuplicateAssetId = script do
+  bnp <- allocateParty "BNP_Paribas"
+
+  vaultCid <- submit bnp do
+    createCmd ConfidentialVault with
+      owner = bnp
+      vaultId = "vault-dup"
+      vaultName = "Duplicate Test"
+      description = "Test duplicate asset ID"
+      assets = [mkBond "bond-1" "Bond One" 1000000.0]
+      totalValue = 1000000.0
+      status = Active
+      counterparties = []
+
+  -- Depositing an asset with the same ID must fail
+  submitMustFail bnp do
+    exerciseCmd vaultCid DepositAsset with
+      newAsset = mkBond "bond-1" "Bond One Duplicate" 500000.0
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 13: Close vault with assets must fail
+------------------------------------------------------------------------
+
+testCloseNonEmptyVaultFails : Script ()
+testCloseNonEmptyVaultFails = script do
+  bnp <- allocateParty "BNP_Paribas"
+
+  vaultCid <- submit bnp do
+    createCmd ConfidentialVault with
+      owner = bnp
+      vaultId = "vault-noclose"
+      vaultName = "Non-empty Vault"
+      description = "Cannot close with assets"
+      assets = [mkBond "bond-lock" "LockedBond" 1000000.0]
+      totalValue = 1000000.0
+      status = Active
+      counterparties = []
+
+  -- Closing a vault that still has assets must fail
+  submitMustFail bnp do
+    exerciseCmd vaultCid CloseVault
+
+  pure ()
+
+------------------------------------------------------------------------
+-- Test 14: ActivateVault on Closed vault must fail
+------------------------------------------------------------------------
+
+testActivateClosedVaultFails : Script ()
+testActivateClosedVaultFails = script do
+  bnp <- allocateParty "BNP_Paribas"
+
+  vaultCid <- submit bnp do
+    createCmd ConfidentialVault with
+      owner = bnp
+      vaultId = "vault-closed-act"
+      vaultName = "Closed Activate Test"
+      description = "Test activate on closed"
+      assets = []
+      totalValue = 0.0
+      status = Active
+      counterparties = []
+
+  closedCid <- submit bnp do
+    exerciseCmd vaultCid CloseVault
+
+  -- ActivateVault on Closed vault must fail (requires Frozen)
+  submitMustFail bnp do
+    exerciseCmd closedCid ActivateVault
+
+  pure ()

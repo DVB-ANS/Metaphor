@@ -1,7 +1,8 @@
-sdk-version: 2.9.0
+sdk-version: 2.10.3
 name: instivault-canton
 version: 0.1.0
 source: daml
 dependencies:
   - daml-prim
   - daml-stdlib
+  - daml-script

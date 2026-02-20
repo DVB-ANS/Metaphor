@@ -3,3 +3,7 @@ packages:
   - "packages/backend"
   - "packages/contracts-hedera"
   - "packages/ai-engine"
+
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver
