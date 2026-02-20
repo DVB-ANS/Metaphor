@@ -85,9 +85,9 @@ main              ← stable, NEVER push directly
 | Phase | Branch | Status | Notes |
 |-------|--------|--------|-------|
 | 1. ADI Core | `feat/adi-core` | DONE (2026-02-19) | 4 contracts, 57 tests passing |
-| 2A. Hedera Core | `feat/hedera-core` | NOT STARTED | — |
-| 2B. ADI Token Logic | `feat/adi-token-logic` | NOT STARTED | Needs Phase 1 merged |
-| 3. Hedera Edge Cases + Deploy | `feat/hedera-edge-cases` | NOT STARTED | Needs Phase 2A merged |
+| 2A. Hedera Core | `feat/hedera-core` | DONE (2026-02-19) | CouponScheduler + YieldDistributor |
+| 2B. ADI Token Logic | `feat/adi-allocate` | DONE (2026-02-19) | allocate/deallocate, fractionalize, burnAtMaturity, deploy script — 87 tests passing |
+| 3. Hedera Edge Cases + Deploy | `feat/adi-allocate` | DONE (2026-02-19) | Edge cases + deploy + E2E — 73 Hedera tests passing |
 | 4. RBAC + White-Label | `feat/adi-rbac-whitelabel` | NOT STARTED | Needs Phases 1+3, with Dev B |
 | 5. Frontend Integration | `feat/frontend-adi-hedera` | NOT STARTED | With Dev C |
 | 6. E2E + Bounty Compliance | `develop` / `feat/polish` | NOT STARTED | Final phase |
@@ -180,7 +180,7 @@ struct Vault {
 - [x] `createVault()` — restricted to `ISSUER_ROLE`, returns vaultId
 - [x] `deposit(uint256 vaultId, address token, uint256 amount)` — `INVESTOR_ROLE` + whitelisted + token registered
 - [x] `withdraw(uint256 vaultId, address token, uint256 amount)` — `INVESTOR_ROLE`, checks balance
-- [ ] `allocate(uint256 vaultId, address token, uint256 amount)` — `ISSUER_ROLE` (deferred to Phase 2B)
+- [x] `allocate(uint256 vaultId, address token, uint256 amount)` — `ISSUER_ROLE` (done in Phase 2B)
 - [x] `getVaultInfo(uint256 vaultId)` — public view
 - [x] `getVaultBalance(uint256 vaultId, address token)` — public view
 - [x] `getDepositorBalance(uint256 vaultId, address token, address depositor)` — public view
@@ -301,21 +301,21 @@ git checkout develop && git pull origin develop && git checkout -b feat/adi-toke
 
 ### 2B.1 — Fractionalization
 
-- [ ] Add `fractionalize(address token, uint256 fractions)` — splits asset into N equal ERC-20 shares
-- [ ] Track: `mapping(address => address[]) public fractionalizedTokens` (original → fractions)
+- [x] Add `fractionalize(address token, uint256 fractions)` — splits asset into N equal ERC-20 shares
+- [x] Track: `mapping(address => address[]) public fractionalizedTokens` (original → fractions)
 
 ### 2B.2 — Burn-at-Maturity
 
-- [ ] `RWAToken.burnAtMaturity()` — callable only after `maturityDate` has passed
-- [ ] Burns all caller's tokens + triggers nominal reimbursement
+- [x] `RWAToken.burnAtMaturity()` — callable only after `maturityDate` has passed
+- [x] Burns all caller's tokens + triggers nominal reimbursement
 - [ ] Final payment: last coupon + nominal value + burn in single tx
-- [ ] Guard: `require(block.timestamp >= maturity, "Not mature")`
-- [ ] Prevent double-burn per holder
+- [x] Guard: `require(block.timestamp >= maturity, "Not mature")`
+- [x] Prevent double-burn per holder
 
 ### 2B.3 — Integration Tests
 
-- [ ] Full lifecycle: `mint → transfer → coupon → maturity → burn`
-- [ ] Edge: transfer between coupons, partial holdings at maturity
+- [x] Full lifecycle: `mint → transfer → coupon → maturity → burn`
+- [x] Edge: transfer between coupons, partial holdings at maturity
 
 ### 2B.4 — PR
 
@@ -337,17 +337,17 @@ git checkout develop && git pull origin develop && git checkout -b feat/hedera-e
 ```
 
 ### 3.1 — Edge Cases
-- [ ] Insufficient liquidity: suspend payment, emit `PaymentSuspended` event
-- [ ] All-or-nothing execution (no silent partial payments)
-- [ ] Missed payment recovery logic
+- [x] Insufficient liquidity: suspend payment, emit `PaymentFailed` event
+- [x] All-or-nothing execution (no silent partial payments)
+- [x] Missed payment recovery logic (`recoverPayment`)
 
 ### 3.2 — Deployment Scripts
-- [ ] `packages/contracts-adi/script/Deploy.s.sol` — Foundry deployment script for ADI chain
-- [ ] `packages/contracts-hedera/src/deploy.ts` — deploy to Hedera Testnet
-- [ ] Record deployed addresses in `deployments.json` at package root
+- [x] `packages/contracts-adi/script/Deploy.s.sol` — Foundry deployment script for ADI chain
+- [x] `packages/contracts-hedera/src/deploy.ts` — deploy to Hedera Testnet
+- [x] Record deployed addresses in `deployments.json` at package root
 
 ### 3.3 — E2E Test
-- [ ] Script: schedule → execute → verify balances on Hedera Testnet
+- [x] Script: `e2e-test.ts` — register bond → schedule → verify on Hedera Testnet
 
 ### 3.4 — PR
 

@@ -35,10 +35,17 @@ contract VaultManager {
     mapping(uint256 => address[]) public vaultTokens;
     mapping(uint256 => mapping(address => bool)) private _tokenTracked;
 
+    // vaultId => token => strategy => amount allocated
+    mapping(uint256 => mapping(address => mapping(bytes32 => uint256))) public allocations;
+    // vaultId => token => total allocated
+    mapping(uint256 => mapping(address => uint256)) public totalAllocated;
+
     event VaultCreated(uint256 indexed vaultId, address indexed owner);
     event Deposited(uint256 indexed vaultId, address indexed token, address indexed depositor, uint256 amount);
     event Withdrawn(uint256 indexed vaultId, address indexed token, address indexed depositor, uint256 amount);
     event VaultStatusChanged(uint256 indexed vaultId, VaultStatus newStatus);
+    event Allocated(uint256 indexed vaultId, address indexed token, bytes32 indexed strategy, uint256 amount);
+    event Deallocated(uint256 indexed vaultId, address indexed token, bytes32 indexed strategy, uint256 amount);
 
     error NotIssuer();
     error NotInvestor();
@@ -47,6 +54,8 @@ contract VaultManager {
     error VaultNotActive(uint256 vaultId);
     error VaultDoesNotExist(uint256 vaultId);
     error InsufficientBalance(uint256 vaultId, address token, uint256 requested, uint256 available);
+    error InsufficientAvailableBalance(uint256 vaultId, address token, uint256 requested, uint256 available);
+    error InsufficientAllocation(uint256 vaultId, address token, bytes32 strategy, uint256 requested, uint256 allocated);
     error TokenNotRegistered(address token);
     error ZeroAmount();
 
@@ -131,9 +140,15 @@ contract VaultManager {
     {
         if (amount == 0) revert ZeroAmount();
 
-        uint256 available = deposits[vaultId][token][msg.sender];
-        if (amount > available) {
-            revert InsufficientBalance(vaultId, token, amount, available);
+        uint256 depositorBal = deposits[vaultId][token][msg.sender];
+        if (amount > depositorBal) {
+            revert InsufficientBalance(vaultId, token, amount, depositorBal);
+        }
+
+        // Ensure vault-level available (non-allocated) balance covers the withdrawal
+        uint256 vaultAvailable = vaultTokenBalances[vaultId][token] - totalAllocated[vaultId][token];
+        if (amount > vaultAvailable) {
+            revert InsufficientAvailableBalance(vaultId, token, amount, vaultAvailable);
         }
 
         deposits[vaultId][token][msg.sender] -= amount;
@@ -179,5 +194,53 @@ contract VaultManager {
 
     function getVaultTokens(uint256 vaultId) external view returns (address[] memory) {
         return vaultTokens[vaultId];
+    }
+
+    // ── Allocation ──
+
+    function allocate(uint256 vaultId, address token, bytes32 strategy, uint256 amount)
+        external
+        vaultExists(vaultId)
+        vaultActive(vaultId)
+        onlyIssuer
+    {
+        if (amount == 0) revert ZeroAmount();
+
+        uint256 available = vaultTokenBalances[vaultId][token] - totalAllocated[vaultId][token];
+        if (amount > available) {
+            revert InsufficientAvailableBalance(vaultId, token, amount, available);
+        }
+
+        allocations[vaultId][token][strategy] += amount;
+        totalAllocated[vaultId][token] += amount;
+
+        emit Allocated(vaultId, token, strategy, amount);
+    }
+
+    function deallocate(uint256 vaultId, address token, bytes32 strategy, uint256 amount)
+        external
+        vaultExists(vaultId)
+        vaultActive(vaultId)
+        onlyIssuer
+    {
+        if (amount == 0) revert ZeroAmount();
+
+        uint256 allocated = allocations[vaultId][token][strategy];
+        if (amount > allocated) {
+            revert InsufficientAllocation(vaultId, token, strategy, amount, allocated);
+        }
+
+        allocations[vaultId][token][strategy] -= amount;
+        totalAllocated[vaultId][token] -= amount;
+
+        emit Deallocated(vaultId, token, strategy, amount);
+    }
+
+    function getAllocation(uint256 vaultId, address token, bytes32 strategy) external view returns (uint256) {
+        return allocations[vaultId][token][strategy];
+    }
+
+    function getAvailableBalance(uint256 vaultId, address token) external view returns (uint256) {
+        return vaultTokenBalances[vaultId][token] - totalAllocated[vaultId][token];
     }
 }

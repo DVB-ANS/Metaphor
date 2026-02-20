@@ -205,4 +205,225 @@ contract RWATokenFactoryTest is Test {
         assertEq(token.totalSupply(), 0);
         assertEq(token.balanceOf(issuer), 0);
     }
+
+    // ── Fractionalization ──
+
+    function _createDefaultToken() internal returns (address) {
+        vm.prank(issuer);
+        return factory.createToken(_defaultParams());
+    }
+
+    function test_fractionalize_success() public {
+        address original = _createDefaultToken();
+
+        vm.prank(issuer);
+        address fractionAddr = factory.fractionalize(original, 100e18);
+
+        assertTrue(fractionAddr != address(0));
+        assertTrue(factory.isRegistered(fractionAddr));
+
+        RWAToken fractionToken = RWAToken(fractionAddr);
+        assertEq(fractionToken.totalSupply(), 100e18);
+        assertEq(fractionToken.balanceOf(issuer), 100e18);
+    }
+
+    function test_fractionalize_metadataPreserved() public {
+        address original = _createDefaultToken();
+
+        vm.prank(issuer);
+        address fractionAddr = factory.fractionalize(original, 100e18);
+
+        RWAToken fractionToken = RWAToken(fractionAddr);
+        (, uint256 rate, uint256 maturity, address fracIssuer) = fractionToken.getMetadata();
+
+        assertEq(rate, RATE);
+        assertEq(maturity, MATURITY);
+        assertEq(fracIssuer, issuer);
+    }
+
+    function test_fractionalize_uniqueISIN() public {
+        address original = _createDefaultToken();
+
+        vm.startPrank(issuer);
+        address frac1 = factory.fractionalize(original, 50e18);
+        address frac2 = factory.fractionalize(original, 50e18);
+        vm.stopPrank();
+
+        RWAToken t1 = RWAToken(frac1);
+        RWAToken t2 = RWAToken(frac2);
+        (string memory isin1,,,) = t1.getMetadata();
+        (string memory isin2,,,) = t2.getMetadata();
+
+        assertTrue(keccak256(bytes(isin1)) != keccak256(bytes(isin2)));
+    }
+
+    function test_fractionalize_trackedInMapping() public {
+        address original = _createDefaultToken();
+
+        vm.startPrank(issuer);
+        address frac1 = factory.fractionalize(original, 50e18);
+        address frac2 = factory.fractionalize(original, 25e18);
+        vm.stopPrank();
+
+        address[] memory fracs = factory.getFractionalTokens(original);
+        assertEq(fracs.length, 2);
+        assertEq(fracs[0], frac1);
+        assertEq(fracs[1], frac2);
+    }
+
+    function test_fractionalize_registeredInAllTokens() public {
+        address original = _createDefaultToken();
+
+        vm.prank(issuer);
+        factory.fractionalize(original, 100e18);
+
+        assertEq(factory.getTokenCount(), 2); // original + fraction
+    }
+
+    function test_fractionalize_emitsEvents() public {
+        address original = _createDefaultToken();
+
+        vm.prank(issuer);
+        vm.expectEmit(true, false, false, false);
+        emit RWATokenFactory.Fractionalized(original, address(0), 100e18);
+        factory.fractionalize(original, 100e18);
+    }
+
+    function test_fractionalize_revertsNonIssuer() public {
+        address original = _createDefaultToken();
+
+        vm.prank(nobody);
+        vm.expectRevert(RWATokenFactory.NotIssuer.selector);
+        factory.fractionalize(original, 100e18);
+    }
+
+    function test_fractionalize_revertsUnregisteredToken() public {
+        vm.prank(issuer);
+        vm.expectRevert(abi.encodeWithSelector(RWATokenFactory.TokenNotRegistered.selector, address(0xdead)));
+        factory.fractionalize(address(0xdead), 100e18);
+    }
+
+    function test_fractionalize_revertsZeroFractions() public {
+        address original = _createDefaultToken();
+
+        vm.prank(issuer);
+        vm.expectRevert(RWATokenFactory.ZeroFractions.selector);
+        factory.fractionalize(original, 0);
+    }
+
+    // ── Burn at maturity ──
+
+    function test_burnAtMaturity_success() public {
+        address tokenAddr = _createDefaultToken();
+        RWAToken token = RWAToken(tokenAddr);
+
+        // Issuer transfers to investor
+        vm.prank(issuer);
+        token.transfer(investor, 10_000e18);
+
+        // Warp past maturity
+        vm.warp(MATURITY + 1);
+
+        vm.prank(investor);
+        token.burnAtMaturity();
+
+        assertEq(token.balanceOf(investor), 0);
+        assertTrue(token.hasBurnedAtMaturity(investor));
+    }
+
+    function test_burnAtMaturity_revertsBeforeMaturity() public {
+        address tokenAddr = _createDefaultToken();
+        RWAToken token = RWAToken(tokenAddr);
+
+        vm.warp(MATURITY - 1);
+
+        vm.prank(issuer);
+        vm.expectRevert(
+            abi.encodeWithSelector(RWAToken.NotMatureYet.selector, MATURITY, MATURITY - 1)
+        );
+        token.burnAtMaturity();
+    }
+
+    function test_burnAtMaturity_revertsDoubleBurn() public {
+        address tokenAddr = _createDefaultToken();
+        RWAToken token = RWAToken(tokenAddr);
+
+        vm.warp(MATURITY + 1);
+
+        vm.startPrank(issuer);
+        token.burnAtMaturity();
+
+        vm.expectRevert(abi.encodeWithSelector(RWAToken.AlreadyBurnedAtMaturity.selector, issuer));
+        token.burnAtMaturity();
+        vm.stopPrank();
+    }
+
+    function test_burnAtMaturity_revertsZeroBalance() public {
+        address tokenAddr = _createDefaultToken();
+        RWAToken token = RWAToken(tokenAddr);
+
+        vm.warp(MATURITY + 1);
+
+        vm.prank(investor);
+        vm.expectRevert(abi.encodeWithSelector(RWAToken.NothingToBurn.selector, investor));
+        token.burnAtMaturity();
+    }
+
+    function test_burnAtMaturity_multipleHolders() public {
+        address tokenAddr = _createDefaultToken();
+        RWAToken token = RWAToken(tokenAddr);
+
+        vm.startPrank(issuer);
+        token.transfer(investor, 10_000e18);
+        vm.stopPrank();
+
+        vm.warp(MATURITY + 1);
+
+        // Issuer burns
+        vm.prank(issuer);
+        token.burnAtMaturity();
+        assertEq(token.balanceOf(issuer), 0);
+
+        // Investor burns
+        vm.prank(investor);
+        token.burnAtMaturity();
+        assertEq(token.balanceOf(investor), 0);
+
+        assertEq(token.totalSupply(), 0);
+    }
+
+    function test_burnAtMaturity_lifecycle() public {
+        // mint → transfer → maturity → burn
+        address tokenAddr = _createDefaultToken();
+        RWAToken token = RWAToken(tokenAddr);
+
+        // Issuer mints extra
+        vm.prank(issuer);
+        token.mint(issuer, 500_000e18);
+        assertEq(token.totalSupply(), INITIAL_SUPPLY + 500_000e18);
+
+        // Transfer to investor
+        vm.prank(issuer);
+        token.transfer(investor, 200_000e18);
+        assertEq(token.balanceOf(investor), 200_000e18);
+
+        // Not mature yet — cannot burn
+        vm.prank(investor);
+        vm.expectRevert();
+        token.burnAtMaturity();
+
+        // Warp to maturity
+        vm.warp(MATURITY);
+
+        // Investor burns at maturity
+        vm.prank(investor);
+        token.burnAtMaturity();
+        assertEq(token.balanceOf(investor), 0);
+        assertTrue(token.hasBurnedAtMaturity(investor));
+
+        // Issuer burns remaining
+        vm.prank(issuer);
+        token.burnAtMaturity();
+        assertEq(token.totalSupply(), 0);
+    }
 }

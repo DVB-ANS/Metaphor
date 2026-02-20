@@ -31,6 +31,11 @@ contract RWAToken is ERC20, ERC20Burnable {
 
     error OnlyFactoryOrIssuer();
     error TransferNotWhitelisted(address account);
+    error NotMatureYet(uint256 maturityDate, uint256 currentTime);
+    error AlreadyBurnedAtMaturity(address holder);
+    error NothingToBurn(address holder);
+
+    mapping(address => bool) private _hasBurnedAtMaturity;
 
     modifier onlyFactoryOrIssuer() {
         if (msg.sender != factory && msg.sender != metadata.issuer) {
@@ -51,6 +56,26 @@ contract RWAToken is ERC20, ERC20Burnable {
 
     function mint(address to, uint256 amount) external onlyFactoryOrIssuer {
         _mint(to, amount);
+    }
+
+    function burnAtMaturity() external {
+        if (block.timestamp < metadata.maturity) {
+            revert NotMatureYet(metadata.maturity, block.timestamp);
+        }
+        if (_hasBurnedAtMaturity[msg.sender]) {
+            revert AlreadyBurnedAtMaturity(msg.sender);
+        }
+        uint256 balance = balanceOf(msg.sender);
+        if (balance == 0) {
+            revert NothingToBurn(msg.sender);
+        }
+
+        _hasBurnedAtMaturity[msg.sender] = true;
+        _burn(msg.sender, balance);
+    }
+
+    function hasBurnedAtMaturity(address holder) external view returns (bool) {
+        return _hasBurnedAtMaturity[holder];
     }
 
     function getMetadata() external view returns (string memory isin, uint256 rate, uint256 maturity, address issuer) {

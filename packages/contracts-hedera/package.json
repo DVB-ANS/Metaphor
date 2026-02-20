@@ -8,6 +8,7 @@
     "test:gas": "forge test --gas-report",
     "deploy": "tsx src/deploy.ts",
     "schedule": "tsx src/schedule-coupon.ts",
+    "e2e": "tsx src/e2e-test.ts",
     "lint": "forge fmt --check"
   },
   "dependencies": {

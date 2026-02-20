@@ -389,4 +389,210 @@ contract VaultManagerTest is Test {
         emit VaultManager.VaultStatusChanged(vaultId, VaultManager.VaultStatus.Paused);
         vault.pauseVault(vaultId);
     }
+
+    // ── Allocation ──
+
+    bytes32 constant STRAT_A = keccak256("STRATEGY_A");
+    bytes32 constant STRAT_B = keccak256("STRATEGY_B");
+
+    function _createVaultAndDeposit(uint256 depositAmount) internal returns (uint256 vaultId) {
+        vm.prank(issuer);
+        vaultId = vault.createVault();
+
+        vm.startPrank(investor);
+        token.approve(address(vault), depositAmount);
+        vault.deposit(vaultId, address(token), depositAmount);
+        vm.stopPrank();
+    }
+
+    function test_allocate_success() public {
+        uint256 vaultId = _createVaultAndDeposit(10_000e18);
+
+        vm.prank(issuer);
+        vault.allocate(vaultId, address(token), STRAT_A, 4_000e18);
+
+        assertEq(vault.getAllocation(vaultId, address(token), STRAT_A), 4_000e18);
+        assertEq(vault.getAvailableBalance(vaultId, address(token)), 6_000e18);
+    }
+
+    function test_allocate_emitsEvent() public {
+        uint256 vaultId = _createVaultAndDeposit(10_000e18);
+
+        vm.prank(issuer);
+        vm.expectEmit(true, true, true, true);
+        emit VaultManager.Allocated(vaultId, address(token), STRAT_A, 5_000e18);
+        vault.allocate(vaultId, address(token), STRAT_A, 5_000e18);
+    }
+
+    function test_allocate_multipleStrategies() public {
+        uint256 vaultId = _createVaultAndDeposit(10_000e18);
+
+        vm.startPrank(issuer);
+        vault.allocate(vaultId, address(token), STRAT_A, 3_000e18);
+        vault.allocate(vaultId, address(token), STRAT_B, 4_000e18);
+        vm.stopPrank();
+
+        assertEq(vault.getAllocation(vaultId, address(token), STRAT_A), 3_000e18);
+        assertEq(vault.getAllocation(vaultId, address(token), STRAT_B), 4_000e18);
+        assertEq(vault.getAvailableBalance(vaultId, address(token)), 3_000e18);
+    }
+
+    function test_allocate_revertsInsufficientBalance() public {
+        uint256 vaultId = _createVaultAndDeposit(10_000e18);
+
+        vm.prank(issuer);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                VaultManager.InsufficientAvailableBalance.selector, vaultId, address(token), 15_000e18, 10_000e18
+            )
+        );
+        vault.allocate(vaultId, address(token), STRAT_A, 15_000e18);
+    }
+
+    function test_allocate_revertsNonIssuer() public {
+        uint256 vaultId = _createVaultAndDeposit(10_000e18);
+
+        vm.prank(investor);
+        vm.expectRevert(VaultManager.NotIssuer.selector);
+        vault.allocate(vaultId, address(token), STRAT_A, 1_000e18);
+    }
+
+    function test_allocate_revertsInactiveVault() public {
+        uint256 vaultId = _createVaultAndDeposit(10_000e18);
+
+        vm.prank(admin);
+        vault.pauseVault(vaultId);
+
+        vm.prank(issuer);
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.VaultNotActive.selector, vaultId));
+        vault.allocate(vaultId, address(token), STRAT_A, 1_000e18);
+    }
+
+    function test_allocate_revertsZeroAmount() public {
+        uint256 vaultId = _createVaultAndDeposit(10_000e18);
+
+        vm.prank(issuer);
+        vm.expectRevert(VaultManager.ZeroAmount.selector);
+        vault.allocate(vaultId, address(token), STRAT_A, 0);
+    }
+
+    function test_deallocate_success() public {
+        uint256 vaultId = _createVaultAndDeposit(10_000e18);
+
+        vm.startPrank(issuer);
+        vault.allocate(vaultId, address(token), STRAT_A, 5_000e18);
+        vault.deallocate(vaultId, address(token), STRAT_A, 2_000e18);
+        vm.stopPrank();
+
+        assertEq(vault.getAllocation(vaultId, address(token), STRAT_A), 3_000e18);
+        assertEq(vault.getAvailableBalance(vaultId, address(token)), 7_000e18);
+    }
+
+    function test_deallocate_emitsEvent() public {
+        uint256 vaultId = _createVaultAndDeposit(10_000e18);
+
+        vm.startPrank(issuer);
+        vault.allocate(vaultId, address(token), STRAT_A, 5_000e18);
+
+        vm.expectEmit(true, true, true, true);
+        emit VaultManager.Deallocated(vaultId, address(token), STRAT_A, 2_000e18);
+        vault.deallocate(vaultId, address(token), STRAT_A, 2_000e18);
+        vm.stopPrank();
+    }
+
+    function test_deallocate_revertsInsufficientAllocation() public {
+        uint256 vaultId = _createVaultAndDeposit(10_000e18);
+
+        vm.startPrank(issuer);
+        vault.allocate(vaultId, address(token), STRAT_A, 3_000e18);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                VaultManager.InsufficientAllocation.selector, vaultId, address(token), STRAT_A, 5_000e18, 3_000e18
+            )
+        );
+        vault.deallocate(vaultId, address(token), STRAT_A, 5_000e18);
+        vm.stopPrank();
+    }
+
+    function test_deallocate_revertsNonIssuer() public {
+        uint256 vaultId = _createVaultAndDeposit(10_000e18);
+
+        vm.prank(issuer);
+        vault.allocate(vaultId, address(token), STRAT_A, 5_000e18);
+
+        vm.prank(investor);
+        vm.expectRevert(VaultManager.NotIssuer.selector);
+        vault.deallocate(vaultId, address(token), STRAT_A, 1_000e18);
+    }
+
+    function test_getAvailableBalance() public {
+        uint256 vaultId = _createVaultAndDeposit(10_000e18);
+
+        assertEq(vault.getAvailableBalance(vaultId, address(token)), 10_000e18);
+
+        vm.prank(issuer);
+        vault.allocate(vaultId, address(token), STRAT_A, 6_000e18);
+
+        assertEq(vault.getAvailableBalance(vaultId, address(token)), 4_000e18);
+    }
+
+    function test_getAllocation() public {
+        uint256 vaultId = _createVaultAndDeposit(10_000e18);
+
+        assertEq(vault.getAllocation(vaultId, address(token), STRAT_A), 0);
+
+        vm.prank(issuer);
+        vault.allocate(vaultId, address(token), STRAT_A, 7_000e18);
+
+        assertEq(vault.getAllocation(vaultId, address(token), STRAT_A), 7_000e18);
+    }
+
+    function test_withdraw_respectsAllocations() public {
+        uint256 vaultId = _createVaultAndDeposit(10_000e18);
+
+        // Allocate 8k, leaving only 2k available
+        vm.prank(issuer);
+        vault.allocate(vaultId, address(token), STRAT_A, 8_000e18);
+
+        // Investor tries to withdraw 5k (has 10k deposited but only 2k vault-available)
+        vm.prank(investor);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                VaultManager.InsufficientAvailableBalance.selector, vaultId, address(token), 5_000e18, 2_000e18
+            )
+        );
+        vault.withdraw(vaultId, address(token), 5_000e18);
+
+        // Withdraw within available should succeed
+        vm.prank(investor);
+        vault.withdraw(vaultId, address(token), 2_000e18);
+        assertEq(vault.getDepositorBalance(vaultId, address(token), investor), 8_000e18);
+    }
+
+    function test_allocate_thenDeallocate_fullCycle() public {
+        uint256 vaultId = _createVaultAndDeposit(10_000e18);
+
+        vm.startPrank(issuer);
+        // Allocate to two strategies
+        vault.allocate(vaultId, address(token), STRAT_A, 4_000e18);
+        vault.allocate(vaultId, address(token), STRAT_B, 3_000e18);
+        assertEq(vault.getAvailableBalance(vaultId, address(token)), 3_000e18);
+
+        // Deallocate fully from STRAT_A
+        vault.deallocate(vaultId, address(token), STRAT_A, 4_000e18);
+        assertEq(vault.getAllocation(vaultId, address(token), STRAT_A), 0);
+        assertEq(vault.getAvailableBalance(vaultId, address(token)), 7_000e18);
+
+        // Deallocate partially from STRAT_B
+        vault.deallocate(vaultId, address(token), STRAT_B, 1_000e18);
+        assertEq(vault.getAllocation(vaultId, address(token), STRAT_B), 2_000e18);
+        assertEq(vault.getAvailableBalance(vaultId, address(token)), 8_000e18);
+        vm.stopPrank();
+
+        // Investor can now withdraw up to 8k
+        vm.prank(investor);
+        vault.withdraw(vaultId, address(token), 8_000e18);
+        assertEq(vault.getDepositorBalance(vaultId, address(token), investor), 2_000e18);
+    }
 }

@@ -2,7 +2,7 @@ import {
     ContractCreateFlow,
     ContractFunctionParameters,
 } from "@hashgraph/sdk";
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
 import { getHederaClient } from "./config";
 
@@ -66,17 +66,26 @@ async function main() {
     console.log(`   YieldDistributor deployed: ${distributorContractId.toString()}`);
     console.log(`   EVM address: ${distributorContractId.toSolidityAddress()}`);
 
-    console.log("\nDeployment complete!");
-    console.log(
-        JSON.stringify(
-            {
-                couponScheduler: schedulerContractId.toString(),
-                yieldDistributor: distributorContractId.toString(),
+    const deployments = {
+        network: process.env.HEDERA_NETWORK || 'testnet',
+        deployer: operatorId.toString(),
+        deployedAt: new Date().toISOString(),
+        contracts: {
+            couponScheduler: {
+                contractId: schedulerContractId.toString(),
+                evmAddress: schedulerContractId.toSolidityAddress(),
             },
-            null,
-            2
-        )
-    );
+            yieldDistributor: {
+                contractId: distributorContractId.toString(),
+                evmAddress: distributorContractId.toSolidityAddress(),
+            },
+        },
+    };
+
+    const deploymentsPath = resolve(__dirname, '../deployments.json');
+    writeFileSync(deploymentsPath, JSON.stringify(deployments, null, 2) + '\n');
+    console.log(`\nDeployment complete! Addresses saved to ${deploymentsPath}`);
+    console.log(JSON.stringify(deployments, null, 2));
 }
 
 main().catch((err) => {
