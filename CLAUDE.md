@@ -1,8 +1,8 @@
-# InstiVault — Claude Context
+# Outward — Claude Context
 
 ## Project
 
-InstiVault is a confidential, automated RWA (Real World Assets) hub for institutional finance. Built for ETHDenver 2026, New France Village track. Targeting 4 bounties: ADI Foundation, Canton Network, Hedera, 0G Labs.
+Outward is a confidential, automated RWA (Real World Assets) hub for institutional finance. Built for ETHDenver 2026, New France Village track. Targeting 4 bounties: ADI Foundation, Canton Network, Hedera, 0G Labs.
 
 ## Team
 
@@ -77,6 +77,7 @@ main      ← version stable, déployable (on ne push JAMAIS directement ici)
 - TypeScript: strict mode, ESNext target, bundler module resolution
 - Formatting: Prettier (single quotes, trailing commas, 100 char width)
 - No secrets in repo — use `.env` (template in `.env.example`)
+- All user-facing text across the entire site must be in English. All units must use the imperial system.
 
 ## Bounty Requirements (must not forget)
 

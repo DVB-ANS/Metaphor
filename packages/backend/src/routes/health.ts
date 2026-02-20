@@ -5,7 +5,7 @@ export const healthRouter: RouterType = Router();
 healthRouter.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
-    service: 'instivault-api',
+    service: 'outward-api',
     version: '0.1.0',
     timestamp: new Date().toISOString(),
   });

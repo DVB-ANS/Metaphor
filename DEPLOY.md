@@ -1,4 +1,4 @@
-# InstiVault — Deploy Guide
+# Outward — Deploy Guide
 
 Guide pour deployer les smart contracts ADI + Hedera et configurer le backend.
 
@@ -203,7 +203,7 @@ Le backend tourne sur `http://localhost:3001`. Verifie avec :
 
 ```bash
 curl http://localhost:3001/health
-# {"status":"ok","service":"instivault-backend"}
+# {"status":"ok","service":"outward-backend"}
 ```
 
 ---

@@ -1,4 +1,4 @@
-# InstiVault — Roadmap (3 Devs)
+# Outward — Roadmap (3 Devs)
 
 ## Git Workflow
 

@@ -34,15 +34,13 @@ const Logo = () => (
     href="/"
     className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal"
   >
-    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
-      IV
-    </div>
+    <img src="/logo.png" alt="Outward" className="h-7 w-7 shrink-0 rounded-lg object-contain" />
     <motion.span
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="font-semibold whitespace-pre text-foreground tracking-tight"
     >
-      InstiVault
+      Outward
     </motion.span>
   </a>
 );
@@ -52,9 +50,7 @@ const LogoIcon = () => (
     href="/"
     className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal"
   >
-    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
-      IV
-    </div>
+    <img src="/logo.png" alt="Outward" className="h-7 w-7 shrink-0 rounded-lg object-contain" />
   </a>
 );
 
@@ -103,7 +99,7 @@ export function Sidebar() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
-                <p className="text-xs font-medium text-muted-foreground">InstiVault v0.1.0</p>
+                <p className="text-xs font-medium text-muted-foreground">Outward v0.1.0</p>
                 <p className="text-xs text-muted-foreground/70">ETHDenver 2026</p>
               </motion.div>
             ) : (

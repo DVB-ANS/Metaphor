@@ -73,7 +73,7 @@ const roles = [
 export default function AdminPage() {
   const [addWalletOpen, setAddWalletOpen] = useState(false);
   const [whitelabelForm, setWhitelabelForm] = useState({
-    institutionName: 'InstiVault',
+    institutionName: 'Outward',
     primaryColor: '#6366f1',
     domain: '',
   });

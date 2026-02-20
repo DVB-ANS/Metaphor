@@ -23,7 +23,7 @@ app.use('/api/canton', cantonRouter);
 app.use('/api/ai', aiRouter);
 
 app.listen(PORT, () => {
-  console.log(`InstiVault API running on http://localhost:${PORT}`);
+  console.log(`Outward API running on http://localhost:${PORT}`);
   console.log(`  ADI endpoints:    http://localhost:${PORT}/api/adi`);
   console.log(`  Hedera endpoints: http://localhost:${PORT}/api/hedera`);
   console.log(`  Canton endpoints: http://localhost:${PORT}/api/canton`);
