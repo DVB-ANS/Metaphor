@@ -120,6 +120,19 @@ function DemoPanel({ role, color }: { role: 'owner' | 'counterparty' | 'auditor'
       .finally(() => setLoading(false));
   }, [role]);
 
+  const updateTradeStatus = (tradeId: string, newStatus: string) => {
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            trades: prev.trades?.map((t) =>
+              t.id === tradeId ? { ...t, status: newStatus } : t
+            ) ?? null,
+          }
+        : null
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center rounded-xl border border-neutral-800 bg-neutral-900 p-8">
@@ -253,9 +266,9 @@ function DemoPanel({ role, color }: { role: 'owner' | 'counterparty' | 'auditor'
                     )}
                     {trade.status === 'pending' && role === 'owner' && (
                       <div className="mt-2 flex gap-1.5">
-                        <Button size="sm" variant="default" className="h-6 text-[10px]">Accept</Button>
-                        <Button size="sm" variant="outline" className="h-6 text-[10px]">Counter</Button>
-                        <Button size="sm" variant="ghost" className="h-6 text-[10px]">Reject</Button>
+                        <Button size="sm" variant="default" className="h-6 text-[10px]" onClick={() => updateTradeStatus(trade.id, 'accepted')}>Accept</Button>
+                        <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => updateTradeStatus(trade.id, 'countered')}>Counter</Button>
+                        <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => { if (confirm('Reject this trade?')) updateTradeStatus(trade.id, 'rejected'); }}>Reject</Button>
                       </div>
                     )}
                   </div>

@@ -69,6 +69,13 @@ export default function AIReportsPage() {
     detail: string;
     impact: string;
   }>({ open: false, action: '', detail: '', impact: '' });
+  const [rejectedRecs, setRejectedRecs] = useState<Set<string>>(new Set());
+
+  const handleRejectRec = (recId: string) => {
+    if (confirm('Reject this AI recommendation?')) {
+      setRejectedRecs((prev) => new Set(prev).add(recId));
+    }
+  };
 
   const [reports, setReports] = useState<any[]>([]);
   const [scoreHistory, setScoreHistory] = useState<any[]>([]);
@@ -252,46 +259,55 @@ export default function AIReportsPage() {
               </div>
 
               {/* Recommendations with Approve/Reject */}
-              {report.recommendations.length > 0 && (
-                <div>
-                  <p className="mb-2 text-sm font-medium">
-                    Recommendations ({report.recommendations.length})
-                  </p>
-                  <div className="space-y-3">
-                    {report.recommendations.map((rec: any) => (
-                      <div
-                        key={rec.id}
-                        className="flex items-start justify-between rounded-lg border p-4"
-                      >
-                        <div className="flex-1">
-                          <p className="font-medium">{rec.action}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">{rec.detail}</p>
-                          <p className="mt-1 text-xs text-primary">{rec.impact}</p>
+              {(() => {
+                const visibleRecs = report.recommendations.filter(
+                  (rec: any) => !rejectedRecs.has(rec.id)
+                );
+                return visibleRecs.length > 0 ? (
+                  <div>
+                    <p className="mb-2 text-sm font-medium">
+                      Recommendations ({visibleRecs.length})
+                    </p>
+                    <div className="space-y-3">
+                      {visibleRecs.map((rec: any) => (
+                        <div
+                          key={rec.id}
+                          className="flex items-start justify-between rounded-lg border p-4"
+                        >
+                          <div className="flex-1">
+                            <p className="font-medium">{rec.action}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">{rec.detail}</p>
+                            <p className="mt-1 text-xs text-primary">{rec.impact}</p>
+                          </div>
+                          <div className="ml-4 flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() =>
+                                setApproveDialog({
+                                  open: true,
+                                  action: rec.action,
+                                  detail: rec.detail,
+                                  impact: rec.impact,
+                                })
+                              }
+                            >
+                              <CheckCircle className="mr-1 h-3 w-3" /> Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleRejectRec(rec.id)}
+                            >
+                              <XCircle className="mr-1 h-3 w-3" /> Reject
+                            </Button>
+                          </div>
                         </div>
-                        <div className="ml-4 flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={() =>
-                              setApproveDialog({
-                                open: true,
-                                action: rec.action,
-                                detail: rec.detail,
-                                impact: rec.impact,
-                              })
-                            }
-                          >
-                            <CheckCircle className="mr-1 h-3 w-3" /> Approve
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            <XCircle className="mr-1 h-3 w-3" /> Reject
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                ) : null;
+              })()}
 
               <div className="flex gap-2 pt-2">
                 <Badge variant="outline">0G Compute</Badge>

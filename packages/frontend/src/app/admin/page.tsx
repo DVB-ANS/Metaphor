@@ -233,7 +233,16 @@ export default function AdminPage() {
                     {wallet.addedAt}
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => {
+                        if (confirm(`Remove ${wallet.label} (${wallet.address}) from the whitelist?`)) {
+                          setWallets((prev) => prev.filter((w: any) => w.address !== wallet.address));
+                        }
+                      }}
+                    >
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </TableCell>
