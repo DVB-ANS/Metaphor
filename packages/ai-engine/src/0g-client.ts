@@ -80,10 +80,10 @@ export async function selectProvider(modelPreference?: string): Promise<ZGProvid
   return providers[0];
 }
 
-export async function setupProvider(providerAddress: string, fundAmount = 1) {
+export async function setupProvider(providerAddress: string, fundAmount = 1n) {
   const broker = getBroker();
   await broker.inference.acknowledgeProviderSigner(providerAddress);
-  await broker.inference.transferFund(providerAddress, fundAmount);
+  await broker.ledger.transferFund(providerAddress, 'inference', BigInt(fundAmount));
 }
 
 export async function infer(
