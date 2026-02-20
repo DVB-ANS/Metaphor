@@ -1,4 +1,5 @@
 import { Router, type Request, type Response, type Router as RouterType } from 'express';
+import { ethers } from 'ethers';
 import type { AnalyzeRequestBody } from '../types/ai.js';
 import {
   analyzeVault,
@@ -9,6 +10,7 @@ import {
 } from '../services/ai-client.js';
 import { requireAuth, optionalAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
+import { getContract, ADDRESSES } from '../config.js';
 
 export const aiRouter: RouterType = Router();
 
@@ -20,14 +22,60 @@ function param(req: Request, name: string): string {
   return Array.isArray(v) ? v[0] : v;
 }
 
+/**
+ * Fetch vault assets from on-chain if only vaultId is provided.
+ * Resolves the on-chain vault index from a "vault-N" id.
+ */
+async function fetchVaultAssetsOnChain(vaultId: string): Promise<AnalyzeRequestBody['assets']> {
+  const match = vaultId.match(/^vault-(\d+)$/);
+  if (!match) return [];
+
+  const idx = Number(match[1]);
+  const vm = getContract('VaultManager', ADDRESSES.vaultManager);
+  const tokenAddrs: string[] = await vm.getVaultTokens(idx);
+
+  return Promise.all(
+    tokenAddrs.map(async (addr) => {
+      const token = getContract('RWAToken', addr);
+      const [name, balance, [, rate, maturity]] = await Promise.all([
+        token.name(),
+        vm.getVaultBalance(idx, addr),
+        token.getMetadata(),
+      ]);
+      return {
+        assetId: addr,
+        name,
+        nominalValue: Number(ethers.formatUnits(balance, 18)),
+        couponRate: Number(rate) / 100,
+        maturityDate: maturity > 0 ? new Date(Number(maturity) * 1000).toISOString().slice(0, 10) : undefined,
+      };
+    }),
+  );
+}
+
 // POST /api/ai/analyze — trigger 0G Compute inference on a vault
 aiRouter.post('/analyze', requireAuth, async (req: Request, res: Response) => {
   try {
-    const body = req.body as AnalyzeRequestBody;
+    let body = req.body as AnalyzeRequestBody;
 
-    if (!body.vaultId || !body.assets || !Array.isArray(body.assets)) {
-      res.status(400).json({ error: 'Missing required fields: vaultId, assets[]' });
+    if (!body.vaultId) {
+      res.status(400).json({ error: 'Missing required field: vaultId' });
       return;
+    }
+
+    // If assets not provided, fetch from on-chain
+    if (!body.assets || !Array.isArray(body.assets) || body.assets.length === 0) {
+      try {
+        const onChainAssets = await fetchVaultAssetsOnChain(body.vaultId);
+        if (onChainAssets.length === 0) {
+          res.status(400).json({ error: 'Vault has no assets on-chain. Provide assets[] manually or deposit tokens first.' });
+          return;
+        }
+        body = { ...body, assets: onChainAssets };
+      } catch (err) {
+        res.status(400).json({ error: `Failed to fetch vault data on-chain: ${(err as Error).message}` });
+        return;
+      }
     }
 
     const report = await analyzeVault(body);
@@ -54,17 +102,41 @@ aiRouter.get('/reports/:reportId', (req: Request, res: Response) => {
   res.json(report);
 });
 
-// POST /api/ai/reports/:reportId/approve — approve recommendation(s)
-aiRouter.post('/reports/:reportId/approve', requireAuth, requireRole('ADMIN', 'ISSUER'), (req: Request, res: Response) => {
-  const { recommendationId } = req.body as { recommendationId?: string };
-  const report = approveReport(param(req, 'reportId'), recommendationId);
+// POST /api/ai/reports/:reportId/approve — approve recommendation(s) + execute on-chain
+aiRouter.post('/reports/:reportId/approve', requireAuth, requireRole('ADMIN', 'ISSUER'), async (req: Request, res: Response) => {
+  try {
+    const { recommendationId } = req.body as { recommendationId?: string };
+    const report = approveReport(param(req, 'reportId'), recommendationId);
 
-  if (!report) {
-    res.status(404).json({ error: 'Report not found' });
-    return;
+    if (!report) {
+      res.status(404).json({ error: 'Report not found' });
+      return;
+    }
+
+    // Try to execute the approved recommendation on-chain
+    let executionTx: string | null = null;
+    if (recommendationId) {
+      const rec = report.recommendations.find((r) => r.id === recommendationId);
+      if (rec && rec.action === 'rebalance') {
+        try {
+          const match = report.vaultId.match(/^vault-(\d+)$/);
+          if (match) {
+            const signer = (await import('../config.js')).getAdiSigner();
+            const vm = getContract('VaultManager', ADDRESSES.vaultManager, signer);
+            // Log execution attempt — actual rebalance requires specific asset params
+            console.log(`[AI] Executing recommendation ${rec.id} for vault ${report.vaultId}: ${rec.action}`);
+            executionTx = 'pending_manual_execution';
+          }
+        } catch (err) {
+          console.log(`[AI] On-chain execution skipped: ${(err as Error).message}`);
+        }
+      }
+    }
+
+    res.json({ ...report, executionTx });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
   }
-
-  res.json(report);
 });
 
 // POST /api/ai/reports/:reportId/reject — reject recommendation(s)

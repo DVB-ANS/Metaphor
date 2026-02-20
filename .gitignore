@@ -31,6 +31,9 @@ packages/contracts-canton/.daml/
 *.swo
 .DS_Store
 
+# Backend data (AI reports persistence)
+packages/backend/data/
+
 # Logs
 *.log
 npm-debug.log*

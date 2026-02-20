@@ -1,16 +1,42 @@
-// ─── 0G Compute AI Client + In-Memory Store ─────────────────
+// ─── 0G Compute AI Client + Persistent Store ────────────────
 // Forwards analysis requests to 0G Compute when available.
-// Stores reports in memory for retrieval by the frontend / Dev B.
+// Persists reports to a JSON file so they survive restarts.
 
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import type { AIReport, AnalyzeRequestBody } from '../types/ai.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const ZG_COMPUTE_ENDPOINT = process.env.ZG_COMPUTE_ENDPOINT;
 const ZG_API_KEY = process.env.ZG_API_KEY;
 
-// In-memory report store (replaced by DB in production)
-const reports = new Map<string, AIReport>();
+// ─── Persistent report store ─────────────────────────────────
+const DATA_DIR = resolve(__dirname, '../../data');
+const REPORTS_FILE = resolve(DATA_DIR, 'ai-reports.json');
 
-let reportCounter = 0;
+function loadReports(): Map<string, AIReport> {
+  try {
+    if (existsSync(REPORTS_FILE)) {
+      const data = JSON.parse(readFileSync(REPORTS_FILE, 'utf-8')) as AIReport[];
+      return new Map(data.map((r) => [r.reportId, r]));
+    }
+  } catch { /* start fresh */ }
+  return new Map();
+}
+
+function saveReports(): void {
+  try {
+    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+    writeFileSync(REPORTS_FILE, JSON.stringify(Array.from(reports.values()), null, 2));
+  } catch { /* non-critical */ }
+}
+
+const reports = loadReports();
+
+let reportCounter = reports.size;
 
 function nextReportId(): string {
   reportCounter++;
@@ -94,7 +120,7 @@ export async function analyzeVault(body: AnalyzeRequestBody): Promise<AIReport> 
         .map((a, i) => ({
           id: `${reportId}-rec-${i + 1}`,
           action: 'rebalance',
-          description: `High coupon asset ${a.assetId} (${a.couponRate}%) suggests elevated credit risk. Consider reducing exposure.`,
+          description: `High coupon asset ${a.name || a.assetId} (${a.couponRate}%) suggests elevated credit risk. Consider reducing exposure.`,
           impact: `~${(a.couponRate * 0.5).toFixed(1)}% risk reduction`,
           status: 'pending_approval' as const,
         })),
@@ -105,7 +131,7 @@ export async function analyzeVault(body: AnalyzeRequestBody): Promise<AIReport> 
       ],
       positionAnalysis: body.assets.map((a) => ({
         assetId: a.assetId,
-        name: a.assetId,
+        name: a.name || a.assetId,
         score: Math.min(100, Math.round(a.couponRate * 12)),
         riskLevel: (a.couponRate < 3 ? 'low' : a.couponRate < 6 ? 'moderate' : 'high') as 'low' | 'moderate' | 'high',
         comment: `[Mock] Coupon rate ${a.couponRate}%, nominal $${a.nominalValue.toLocaleString()}.`,
@@ -116,6 +142,7 @@ export async function analyzeVault(body: AnalyzeRequestBody): Promise<AIReport> 
   }
 
   reports.set(reportId, report);
+  saveReports();
   return report;
 }
 
@@ -138,7 +165,6 @@ export function approveReport(reportId: string, recommendationId?: string): AIRe
   if (recommendationId) {
     const rec = report.recommendations.find((r) => r.id === recommendationId);
     if (rec) rec.status = 'approved';
-    // Update overall status
     const allDecided = report.recommendations.every((r) => r.status !== 'pending_approval');
     if (allDecided) {
       report.status = report.recommendations.some((r) => r.status === 'rejected') ? 'partial' : 'approved';
@@ -148,6 +174,7 @@ export function approveReport(reportId: string, recommendationId?: string): AIRe
     report.status = 'approved';
   }
 
+  saveReports();
   return report;
 }
 
@@ -167,5 +194,6 @@ export function rejectReport(reportId: string, recommendationId?: string): AIRep
     report.status = 'rejected';
   }
 
+  saveReports();
   return report;
 }
