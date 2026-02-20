@@ -26,11 +26,11 @@ export interface Vault {
   id: string;
   name: string;
   totalValue: number;
-  riskScore: number;
-  riskLevel: RiskLevel;
+  riskScore: number | null;
+  riskLevel: RiskLevel | null;
   status: VaultStatus;
   assetCount: number;
-  yieldYTD: number;
+  yieldYTD: number | null;
   createdAt: string;
   assets: VaultAsset[];
 }
@@ -713,7 +713,7 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
-export function getRiskColor(level: RiskLevel): string {
+export function getRiskColor(level: RiskLevel | null | undefined): string {
   switch (level) {
     case 'low':
       return 'text-green-500';
@@ -721,10 +721,12 @@ export function getRiskColor(level: RiskLevel): string {
       return 'text-yellow-500';
     case 'high':
       return 'text-red-500';
+    default:
+      return 'text-muted-foreground';
   }
 }
 
-export function getRiskBg(level: RiskLevel): string {
+export function getRiskBg(level: RiskLevel | null | undefined): string {
   switch (level) {
     case 'low':
       return 'bg-green-500';
@@ -732,6 +734,8 @@ export function getRiskBg(level: RiskLevel): string {
       return 'bg-yellow-500';
     case 'high':
       return 'bg-red-500';
+    default:
+      return 'bg-muted-foreground';
   }
 }
 

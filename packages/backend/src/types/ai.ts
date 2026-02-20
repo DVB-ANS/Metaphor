@@ -9,6 +9,7 @@ export interface AnalyzeRequestBody {
   vaultId: string;
   assets: {
     assetId: string;
+    name?: string;
     nominalValue: number;
     couponRate: number;
     maturityDate?: string;

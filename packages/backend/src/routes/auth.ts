@@ -66,6 +66,18 @@ authRouter.post('/login', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/auth/dev-login — Dev-only login without wallet (all roles)
+authRouter.post('/dev-login', (req: Request, res: Response) => {
+  if (process.env.DEV_MODE !== 'true') {
+    res.status(403).json({ error: 'Dev login is disabled' });
+    return;
+  }
+  const address = req.body.address || '0x0000000000000000000000000000000000000001';
+  const roles = ['ADMIN', 'ISSUER', 'INVESTOR', 'AUDITOR'];
+  const token = signToken(address, roles);
+  res.json({ token, address: address.toLowerCase(), roles });
+});
+
 // GET /api/auth/me — Get current authenticated user info
 authRouter.get('/me', requireAuth, async (req: Request, res: Response) => {
   try {

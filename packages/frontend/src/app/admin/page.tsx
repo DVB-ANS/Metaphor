@@ -36,13 +36,17 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Shield, Key, Palette, UserPlus, Trash2, Upload } from 'lucide-react';
+import { Shield, Key, Palette, UserPlus, Trash2, Upload, Loader2 } from 'lucide-react';
 import { RoleGate } from '@/components/role-gate';
 import { type Role } from '@/lib/mock-data';
 import { api } from '@/lib/api';
 
 export default function AdminPage() {
   const [addWalletOpen, setAddWalletOpen] = useState(false);
+  const [walletForm, setWalletForm] = useState({ address: '', label: '', role: '' });
+  const [walletSubmitting, setWalletSubmitting] = useState(false);
+  const [walletError, setWalletError] = useState<string | null>(null);
+
   const [whitelabelForm, setWhitelabelForm] = useState({
     institutionName: 'Metaphor',
     primaryColor: '#6366f1',
@@ -54,11 +58,40 @@ export default function AdminPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get<any[]>('/api/demo/admin/wallets')
+    api.get<any[]>('/api/v1/admin/wallets')
       .then(setWallets)
       .catch((err) => setFetchError(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleAddWallet = async () => {
+    setWalletSubmitting(true);
+    setWalletError(null);
+    try {
+      // Call both whitelist and role assignment
+      await api.post('/api/adi/whitelist', { address: walletForm.address });
+      if (walletForm.role) {
+        await api.post('/api/adi/roles', { address: walletForm.address, role: walletForm.role });
+      }
+      // Optimistically add to local state
+      setWallets((prev) => [
+        ...prev,
+        {
+          address: walletForm.address,
+          label: walletForm.label,
+          role: walletForm.role || 'investor',
+          addedAt: new Date().toISOString().slice(0, 10),
+          kycStatus: 'pending',
+        },
+      ]);
+      setAddWalletOpen(false);
+      setWalletForm({ address: '', label: '', role: '' });
+    } catch (err: any) {
+      setWalletError(err.message || 'Failed to add wallet. Check that the backend is running.');
+    } finally {
+      setWalletSubmitting(false);
+    }
+  };
 
   const roles = [
     {
@@ -160,18 +193,31 @@ export default function AdminPage() {
                   Add a KYC-verified wallet to the authorized whitelist on ADI AccessControl.
                 </DialogDescription>
               </DialogHeader>
+              {walletError && (
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+                  <p className="text-sm text-red-400">{walletError}</p>
+                </div>
+              )}
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Wallet Address</Label>
-                  <Input placeholder="0x..." />
+                  <Input
+                    placeholder="0x..."
+                    value={walletForm.address}
+                    onChange={(e) => setWalletForm((prev) => ({ ...prev, address: e.target.value }))}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Label</Label>
-                  <Input placeholder="e.g. BlackRock Fund III" />
+                  <Input
+                    placeholder="e.g. BlackRock Fund III"
+                    value={walletForm.label}
+                    onChange={(e) => setWalletForm((prev) => ({ ...prev, label: e.target.value }))}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Role</Label>
-                  <Select>
+                  <Select value={walletForm.role} onValueChange={(v) => setWalletForm((prev) => ({ ...prev, role: v }))}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
@@ -188,13 +234,14 @@ export default function AdminPage() {
                 <Button variant="outline" onClick={() => setAddWalletOpen(false)}>
                   Cancel
                 </Button>
-                <Button
-                  onClick={() => {
-                    setAddWalletOpen(false);
-                    alert('Wallet added (mock). Will call AccessControl.sol in Phase 4.');
-                  }}
-                >
-                  Add to Whitelist
+                <Button onClick={handleAddWallet} disabled={walletSubmitting || !walletForm.address}>
+                  {walletSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Adding...
+                    </>
+                  ) : (
+                    'Add to Whitelist'
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -213,7 +260,13 @@ export default function AdminPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {wallets.map((wallet: any) => (
+              {wallets.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                    No whitelisted wallets found on-chain.
+                  </TableCell>
+                </TableRow>
+              ) : wallets.map((wallet: any) => (
                 <TableRow key={wallet.address}>
                   <TableCell className="font-mono text-sm">{wallet.address}</TableCell>
                   <TableCell>{wallet.label}</TableCell>
