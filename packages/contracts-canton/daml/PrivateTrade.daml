@@ -9,7 +9,7 @@
 -- |   Everyone else        → sees nothing
 module PrivateTrade where
 
-import ConfidentialVault (RWAAsset)
+-- No imports needed
 
 ------------------------------------------------------------------------
 -- TradeProposal — Bilateral negotiation

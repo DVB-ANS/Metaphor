@@ -13,6 +13,7 @@ module TestAuditRight where
 
 import Daml.Script
 import DA.Date (date, Month(..))
+import DA.List (head)
 import ConfidentialVault
 import AuditRight
 

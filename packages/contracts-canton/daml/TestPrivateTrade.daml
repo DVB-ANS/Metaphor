@@ -9,8 +9,7 @@
 module TestPrivateTrade where
 
 import Daml.Script
-import DA.Date (date, Month(..))
-import ConfidentialVault (RWAAsset(..),  AssetType(..))
+import DA.List (head)
 import PrivateTrade
 
 ------------------------------------------------------------------------
