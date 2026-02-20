@@ -33,6 +33,7 @@
 - **Icons**: lucide-react
 - **Charts**: recharts
 - **Backend**: Express + tsx (dev), TypeScript strict
+- **Language rule**: All user-facing text must be in English. All units must use the imperial system.
 
 ### Run Commands
 ```bash
@@ -52,11 +53,31 @@ pnpm dev:backend    # Express on port 4000
 | `/ai-reports` | 0G AI Reports | Done |
 | `/admin` | Administration | Done |
 
-## Phase 3 (Backend Bridges) — Next
+## Phase 3 (Backend Bridges) — In Progress
+
+### Completed
+- [x] **Canton bridge** — Full Daml JSON API proxy (`packages/backend/src/routes/canton.ts`)
+  - Canton JSON API client (`services/canton-client.ts`) — create, exercise, query, fetch with party-scoped JWT auth
+  - Vault CRUD: `POST/GET /api/canton/vaults`, `GET /api/canton/vaults/:id`
+  - Asset management: `POST/DELETE /api/canton/vaults/:id/assets`
+  - Invitations: `POST /api/canton/vaults/:id/invite`, accept/decline
+  - Counterparties: `POST/DELETE /api/canton/vaults/:id/counterparties`
+  - Trades: `POST /api/canton/vaults/:id/trades`, accept/reject, `GET /api/canton/trades`
+  - Lifecycle: freeze, activate, close
+  - Party resolution via `X-Canton-Party` header or env fallback
+- [x] **0G bridge** — AI analysis endpoints (`packages/backend/src/routes/ai.ts`)
+  - `POST /api/ai/analyze` — triggers 0G Compute inference (mock fallback when 0G not configured)
+  - `GET /api/ai/reports` — list reports (filter by vaultId)
+  - `GET /api/ai/reports/:id` — single report detail
+  - `POST /api/ai/reports/:id/approve` — approve recommendation (single or all)
+  - `POST /api/ai/reports/:id/reject` — reject recommendation (single or all)
+  - In-memory report store with structured response matching Dev B's spec
+- [x] Shared types: `src/types/canton.ts`, `src/types/ai.ts`
+- [x] Updated `.env.example` with `CANTON_JSON_API_PORT`, `CANTON_LEDGER_ID`, `CANTON_PACKAGE_ID`
+
+### Remaining
 - [ ] ADI bridge — Tokenization + vault endpoints
-- [ ] Canton bridge — Daml ledger API proxy
 - [ ] Hedera bridge — Coupon scheduling + payment status
-- [ ] 0G bridge — AI analysis trigger + results
 - [ ] Auth middleware (wallet-based)
 - [ ] Role verification middleware (RBAC from ADI)
 

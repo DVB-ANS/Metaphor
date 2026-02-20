@@ -40,8 +40,8 @@ const initialForm: AssetForm = {
 const BottomGradient = () => {
   return (
     <>
-      <span className="absolute inset-x-0 -bottom-px block h-px w-full bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-0 transition duration-500 group-hover/btn:opacity-100" />
-      <span className="absolute inset-x-10 -bottom-px mx-auto block h-px w-1/2 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-0 blur-sm transition duration-500 group-hover/btn:opacity-100" />
+      <span className="absolute inset-x-0 -bottom-px block h-px w-full bg-gradient-to-r from-transparent via-neutral-400 to-transparent opacity-0 transition duration-500 group-hover/btn:opacity-100" />
+      <span className="absolute inset-x-10 -bottom-px mx-auto block h-px w-1/2 bg-gradient-to-r from-transparent via-neutral-500 to-transparent opacity-0 blur-sm transition duration-500 group-hover/btn:opacity-100" />
     </>
   );
 };
@@ -92,7 +92,7 @@ export default function IssueAssetPage() {
           {/* Asset Type */}
           <LabelInputContainer className="mb-4">
             <Label htmlFor="assetType">Asset Type</Label>
-            <div className="group/btn relative">
+            <div className="group/btn relative overflow-hidden">
               <Select
                 value={form.assetType}
                 onValueChange={(v) => handleChange('assetType', v)}
@@ -115,7 +115,7 @@ export default function IssueAssetPage() {
           {/* Name */}
           <LabelInputContainer className="mb-4">
             <Label htmlFor="name">Asset Name</Label>
-            <div className="group/btn relative">
+            <div className="group/btn relative overflow-hidden">
               <Input
                 id="name"
                 placeholder="e.g. BondToken-ACME-2026"
@@ -131,7 +131,7 @@ export default function IssueAssetPage() {
           <div className="mb-4 flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
             <LabelInputContainer>
               <Label htmlFor="nominalValue">Nominal Value (USD)</Label>
-              <div className="group/btn relative">
+              <div className="group/btn relative overflow-hidden">
                 <Input
                   id="nominalValue"
                   type="number"
@@ -145,7 +145,7 @@ export default function IssueAssetPage() {
             </LabelInputContainer>
             <LabelInputContainer>
               <Label htmlFor="tokenCount">Number of Tokens</Label>
-              <div className="group/btn relative">
+              <div className="group/btn relative overflow-hidden">
                 <Input
                   id="tokenCount"
                   type="number"
@@ -163,7 +163,7 @@ export default function IssueAssetPage() {
           <div className="mb-4 flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
             <LabelInputContainer>
               <Label htmlFor="couponRate">Coupon Rate (% annual)</Label>
-              <div className="group/btn relative">
+              <div className="group/btn relative overflow-hidden">
                 <Input
                   id="couponRate"
                   type="number"
@@ -178,7 +178,7 @@ export default function IssueAssetPage() {
             </LabelInputContainer>
             <LabelInputContainer>
               <Label htmlFor="paymentFrequency">Payment Frequency</Label>
-              <div className="group/btn relative">
+              <div className="group/btn relative overflow-hidden">
                 <Select
                   value={form.paymentFrequency}
                   onValueChange={(v) => handleChange('paymentFrequency', v)}
@@ -201,7 +201,7 @@ export default function IssueAssetPage() {
           {/* Maturity Date */}
           <LabelInputContainer className="mb-4">
             <Label htmlFor="maturityDate">Maturity Date</Label>
-            <div className="group/btn relative">
+            <div className="group/btn relative overflow-hidden">
               <Input
                 id="maturityDate"
                 type="date"
@@ -216,7 +216,7 @@ export default function IssueAssetPage() {
           {/* Jurisdiction */}
           <LabelInputContainer className="mb-4">
             <Label htmlFor="jurisdiction">Jurisdiction</Label>
-            <div className="group/btn relative">
+            <div className="group/btn relative overflow-hidden">
               <Select
                 value={form.jurisdiction}
                 onValueChange={(v) => handleChange('jurisdiction', v)}
@@ -240,7 +240,7 @@ export default function IssueAssetPage() {
           {/* Description */}
           <LabelInputContainer className="mb-8">
             <Label htmlFor="description">Description (optional)</Label>
-            <div className="group/btn relative">
+            <div className="group/btn relative overflow-hidden">
               <Textarea
                 id="description"
                 placeholder="Additional details about the asset..."
