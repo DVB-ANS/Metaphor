@@ -33,6 +33,7 @@ import {
   XCircle,
   Download,
   TrendingUp,
+  Loader2,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -65,16 +66,19 @@ export default function AIReportsPage() {
   const [vaultFilter, setVaultFilter] = useState<string>('all');
   const [approveDialog, setApproveDialog] = useState<{
     open: boolean;
+    reportId: string;
+    recId: string;
     action: string;
     detail: string;
     impact: string;
-  }>({ open: false, action: '', detail: '', impact: '' });
+  }>({ open: false, reportId: '', recId: '', action: '', detail: '', impact: '' });
 
   const [reports, setReports] = useState<any[]>([]);
   const [scoreHistory, setScoreHistory] = useState<any[]>([]);
   const [vaults, setVaults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -105,6 +109,71 @@ export default function AIReportsPage() {
 
   const handleExportPdf = (reportId: string) => {
     alert(`PDF export for report ${reportId} (mock). Will be implemented with a PDF library.`);
+  };
+
+  const handleApproveClick = (report: any, rec: any) => {
+    setApproveDialog({
+      open: true,
+      reportId: report.reportId ?? report.id,
+      recId: rec.id,
+      action: rec.action,
+      detail: rec.description ?? rec.detail,
+      impact: rec.impact,
+    });
+  };
+
+  const confirmApprove = async () => {
+    const { reportId, recId } = approveDialog;
+    setActionLoading(recId);
+    try {
+      await api.post(`/api/ai/reports/${reportId}/approve`, {
+        recommendationId: recId,
+      });
+      // Update local state
+      setReports((prev) =>
+        prev.map((r) => {
+          const rid = r.reportId ?? r.id;
+          if (rid !== reportId) return r;
+          return {
+            ...r,
+            recommendations: r.recommendations.map((rec: any) =>
+              rec.id === recId ? { ...rec, status: 'approved' } : rec,
+            ),
+          };
+        }),
+      );
+    } catch (err: any) {
+      alert(`Approve failed: ${err.message}`);
+    } finally {
+      setActionLoading(null);
+      setApproveDialog((prev) => ({ ...prev, open: false }));
+    }
+  };
+
+  const handleReject = async (report: any, recId: string) => {
+    const reportId = report.reportId ?? report.id;
+    setActionLoading(recId);
+    try {
+      await api.post(`/api/ai/reports/${reportId}/reject`, {
+        recommendationId: recId,
+      });
+      setReports((prev) =>
+        prev.map((r) => {
+          const rid = r.reportId ?? r.id;
+          if (rid !== reportId) return r;
+          return {
+            ...r,
+            recommendations: r.recommendations.map((rec: any) =>
+              rec.id === recId ? { ...rec, status: 'rejected' } : rec,
+            ),
+          };
+        }),
+      );
+    } catch (err: any) {
+      alert(`Reject failed: ${err.message}`);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   if (loading) return <BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading AI reports...</p></div></BentoGrid>;
@@ -258,37 +327,59 @@ export default function AIReportsPage() {
                     Recommendations ({report.recommendations.length})
                   </p>
                   <div className="space-y-3">
-                    {report.recommendations.map((rec: any) => (
-                      <div
-                        key={rec.id}
-                        className="flex items-start justify-between rounded-lg border p-4"
-                      >
-                        <div className="flex-1">
-                          <p className="font-medium">{rec.action}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">{rec.detail}</p>
-                          <p className="mt-1 text-xs text-primary">{rec.impact}</p>
+                    {report.recommendations.map((rec: any) => {
+                      const recStatus = rec.status === 'pending_approval' ? 'pending' : rec.status;
+                      const recDetail = rec.description ?? rec.detail;
+                      return (
+                        <div
+                          key={rec.id}
+                          className="flex items-start justify-between rounded-lg border p-4"
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{rec.action}</p>
+                              {recStatus !== 'pending' && (
+                                <Badge variant={recStatus === 'approved' ? 'default' : 'destructive'} className="text-xs">
+                                  {recStatus}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="mt-1 text-sm text-muted-foreground">{recDetail}</p>
+                            <p className="mt-1 text-xs text-primary">{rec.impact}</p>
+                          </div>
+                          {recStatus === 'pending' && (
+                            <div className="ml-4 flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="default"
+                                disabled={actionLoading === rec.id}
+                                onClick={() => handleApproveClick(report, rec)}
+                              >
+                                {actionLoading === rec.id ? (
+                                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="mr-1 h-3 w-3" />
+                                )}
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={actionLoading === rec.id}
+                                onClick={() => handleReject(report, rec.id)}
+                              >
+                                {actionLoading === rec.id ? (
+                                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                ) : (
+                                  <XCircle className="mr-1 h-3 w-3" />
+                                )}
+                                Reject
+                              </Button>
+                            </div>
+                          )}
                         </div>
-                        <div className="ml-4 flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={() =>
-                              setApproveDialog({
-                                open: true,
-                                action: rec.action,
-                                detail: rec.detail,
-                                impact: rec.impact,
-                              })
-                            }
-                          >
-                            <CheckCircle className="mr-1 h-3 w-3" /> Approve
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            <XCircle className="mr-1 h-3 w-3" /> Reject
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -331,13 +422,14 @@ export default function AIReportsPage() {
             >
               Cancel
             </Button>
-            <Button
-              onClick={() => {
-                setApproveDialog((prev) => ({ ...prev, open: false }));
-                alert('Action approved (mock). Will execute via 0G + backend bridge.');
-              }}
-            >
-              Confirm & Execute
+            <Button onClick={confirmApprove} disabled={!!actionLoading}>
+              {actionLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirming...
+                </>
+              ) : (
+                'Confirm & Execute'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -53,7 +53,7 @@ export default function DashboardPage() {
         <div className="flex h-64 flex-col items-center justify-center gap-2">
           <p className="text-sm text-red-400">Failed to load dashboard</p>
           <p className="text-xs text-neutral-600">{error}</p>
-          <p className="text-xs text-neutral-600">Make sure the backend is running on port 4000</p>
+          <p className="text-xs text-neutral-600">Make sure the backend is running (`pnpm dev:backend`)</p>
         </div>
       </BentoGrid>
     );

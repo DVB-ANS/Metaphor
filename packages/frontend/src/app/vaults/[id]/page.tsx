@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   CardContent,
@@ -51,33 +51,97 @@ import {
   Pie,
 } from 'recharts';
 import {
-  mockVaults,
-  mockPayments,
-  mockAIReports,
-  mockScoreHistory,
   formatCurrency,
   getRiskColor,
   getRiskBg,
   getStatusBadgeVariant,
   getAssetTypeLabel,
   type AIReport,
+  type Vault,
+  type Payment,
+  type ScoreHistory,
 } from '@/lib/mock-data';
+import { api } from '@/lib/api';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe'];
+
+/** Map a backend AIReport (reportId, riskScore, description) to frontend AIReport (id, score, detail) */
+function mapBackendReport(raw: any): AIReport {
+  return {
+    id: raw.reportId ?? raw.id,
+    vaultId: raw.vaultId,
+    vaultName: raw.vaultName ?? '',
+    date: raw.createdAt ?? raw.date ?? new Date().toISOString().slice(0, 10),
+    score: raw.riskScore ?? raw.score,
+    riskLevel: raw.riskLevel,
+    summary: raw.summary,
+    recommendations: (raw.recommendations ?? []).map((r: any) => ({
+      id: r.id,
+      action: r.action,
+      detail: r.description ?? r.detail,
+      impact: r.impact,
+      status: r.status === 'pending_approval' ? 'pending' : r.status,
+    })),
+    stressTests: raw.stressTests ?? [],
+    positionAnalysis: (raw.positionAnalysis ?? []).map((p: any) => ({
+      name: p.name ?? p.assetId,
+      score: p.score,
+      riskLevel: p.riskLevel,
+      comment: p.comment,
+    })),
+  };
+}
 
 export default function VaultDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+
+  const [vault, setVault] = useState<Vault | null>(null);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [existingReport, setExistingReport] = useState<AIReport | null>(null);
+  const [scoreHistory, setScoreHistory] = useState<ScoreHistory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AIReport | null>(null);
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [selectedRecId, setSelectedRecId] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const vault = mockVaults.find((v) => v.id === id);
-  if (!vault) {
+  useEffect(() => {
+    Promise.all([
+      api.get<Vault>(`/api/demo/vaults/${id}`),
+      api.get<Payment[]>(`/api/demo/payments?vaultId=${id}`),
+      api.get<any[]>(`/api/demo/ai/reports?vaultId=${id}`),
+      api.get<ScoreHistory[]>(`/api/demo/ai/score-history?vaultId=${id}`),
+    ])
+      .then(([vaultData, paymentsData, reportsData, historyData]) => {
+        setVault(vaultData);
+        setPayments(paymentsData);
+        if (reportsData.length > 0) {
+          setExistingReport(reportsData[0]);
+        }
+        setScoreHistory(historyData);
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return (
+      <BentoGrid className="space-y-6">
+        <div className="flex h-64 items-center justify-center">
+          <p className="text-sm text-neutral-500 animate-pulse">Loading vault...</p>
+        </div>
+      </BentoGrid>
+    );
+  }
+
+  if (error || !vault) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
-        <p className="text-lg text-muted-foreground">Vault not found</p>
+        <p className="text-lg text-muted-foreground">{error || 'Vault not found'}</p>
         <Button variant="ghost" className="mt-4" onClick={() => router.push('/vaults')}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to vaults
         </Button>
@@ -85,11 +149,9 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
     );
   }
 
-  const vaultPayments = mockPayments.filter((p) => p.vaultId === vault.id);
+  const vaultPayments = payments;
   const upcomingPayments = vaultPayments.filter((p) => p.status === 'scheduled');
   const pastPayments = vaultPayments.filter((p) => p.status === 'completed');
-  const existingReport = mockAIReports.find((r) => r.vaultId === vault.id);
-  const scoreHistory = mockScoreHistory[vault.id] || [];
 
   const allocationData = vault.assets.map((a) => ({
     name: a.name.length > 20 ? a.name.slice(0, 20) + '...' : a.name,
@@ -98,25 +160,70 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
-    // Simulate 0G Compute inference delay
-    await new Promise((resolve) => setTimeout(resolve, 2500));
-    setAnalysisResult(existingReport || null);
-    setAnalyzing(false);
+    try {
+      const raw = await api.post('/api/ai/analyze', {
+        vaultId: vault.id,
+        assets: vault.assets.map((a) => ({
+          assetId: a.id,
+          nominalValue: a.value,
+          couponRate: a.couponRate,
+          maturityDate: a.maturityDate,
+          rating: a.rating,
+          jurisdiction: a.jurisdiction,
+        })),
+      });
+      setAnalysisResult(mapBackendReport(raw));
+    } catch (err: any) {
+      alert(`Analysis failed: ${err.message}`);
+    } finally {
+      setAnalyzing(false);
+    }
   };
+
+  const currentReport = analysisResult || existingReport;
 
   const handleApprove = (recId: string) => {
     setSelectedRecId(recId);
     setApproveDialogOpen(true);
   };
 
-  const confirmAction = () => {
-    // Mock — will be wired to backend in Phase 4
-    setApproveDialogOpen(false);
-    setSelectedRecId(null);
-    alert('Action approved (mock). Will execute via backend bridge in Phase 4.');
+  const confirmAction = async () => {
+    if (!currentReport || !selectedRecId) return;
+    setActionLoading(selectedRecId);
+    try {
+      const reportId = currentReport.id;
+      const raw = await api.post(`/api/ai/reports/${reportId}/approve`, {
+        recommendationId: selectedRecId,
+      });
+      const updated = mapBackendReport(raw);
+      if (analysisResult) setAnalysisResult(updated);
+      else setExistingReport(updated);
+    } catch (err: any) {
+      alert(`Approve failed: ${err.message}`);
+    } finally {
+      setActionLoading(null);
+      setApproveDialogOpen(false);
+      setSelectedRecId(null);
+    }
   };
 
-  const currentReport = analysisResult || existingReport;
+  const handleReject = async (recId: string) => {
+    if (!currentReport) return;
+    setActionLoading(recId);
+    try {
+      const reportId = currentReport.id;
+      const raw = await api.post(`/api/ai/reports/${reportId}/reject`, {
+        recommendationId: recId,
+      });
+      const updated = mapBackendReport(raw);
+      if (analysisResult) setAnalysisResult(updated);
+      else setExistingReport(updated);
+    } catch (err: any) {
+      alert(`Reject failed: ${err.message}`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   return (
     <BentoGrid className="space-y-6">
@@ -450,22 +557,47 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
                         className="flex items-start justify-between rounded-lg border p-4"
                       >
                         <div className="flex-1">
-                          <p className="font-medium">{rec.action}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{rec.action}</p>
+                            {rec.status !== 'pending' && (
+                              <Badge variant={rec.status === 'approved' ? 'default' : 'destructive'} className="text-xs">
+                                {rec.status}
+                              </Badge>
+                            )}
+                          </div>
                           <p className="mt-1 text-sm text-muted-foreground">{rec.detail}</p>
                           <p className="mt-1 text-xs text-primary">{rec.impact}</p>
                         </div>
-                        <div className="ml-4 flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={() => handleApprove(rec.id)}
-                          >
-                            <CheckCircle className="mr-1 h-3 w-3" /> Approve
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            <XCircle className="mr-1 h-3 w-3" /> Reject
-                          </Button>
-                        </div>
+                        {rec.status === 'pending' && (
+                          <div className="ml-4 flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              disabled={actionLoading === rec.id}
+                              onClick={() => handleApprove(rec.id)}
+                            >
+                              {actionLoading === rec.id ? (
+                                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                              ) : (
+                                <CheckCircle className="mr-1 h-3 w-3" />
+                              )}
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={actionLoading === rec.id}
+                              onClick={() => handleReject(rec.id)}
+                            >
+                              {actionLoading === rec.id ? (
+                                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                              ) : (
+                                <XCircle className="mr-1 h-3 w-3" />
+                              )}
+                              Reject
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -504,7 +636,15 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
             <Button variant="outline" onClick={() => setApproveDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={confirmAction}>Confirm & Execute</Button>
+            <Button onClick={confirmAction} disabled={!!actionLoading}>
+              {actionLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirming...
+                </>
+              ) : (
+                'Confirm & Execute'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -47,6 +47,7 @@ import {
   Handshake,
   ArrowRightLeft,
   MessageSquare,
+  Loader2,
 } from 'lucide-react';
 import {
   formatCurrency,
@@ -79,9 +80,14 @@ function getVisibilityDescription(role: VisibilityLevel): string {
 
 export default function DataRoomPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ vaultId: '', publicKey: '', name: '', role: '' });
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+
   const [confidentialVaults, setConfidentialVaults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [tradeLoading, setTradeLoading] = useState<string | null>(null);
 
   useEffect(() => {
     api.get<any[]>('/api/demo/canton/vaults')
@@ -89,6 +95,61 @@ export default function DataRoomPage() {
       .catch((err) => setFetchError(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleInvite = async () => {
+    setInviteLoading(true);
+    setInviteError(null);
+    try {
+      await api.post(`/api/canton/vaults/${inviteForm.vaultId}/invite`, {
+        to: inviteForm.publicKey,
+        role: inviteForm.role,
+      });
+      setInviteOpen(false);
+      setInviteForm({ vaultId: '', publicKey: '', name: '', role: '' });
+    } catch (err: any) {
+      setInviteError(err.message || 'Failed to send invitation. Canton may not be configured.');
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const handleTradeAccept = async (tradeId: string) => {
+    setTradeLoading(tradeId);
+    try {
+      await api.post(`/api/canton/trades/${tradeId}/accept`);
+      setConfidentialVaults((prev) =>
+        prev.map((cv) => ({
+          ...cv,
+          trades: cv.trades.map((t: any) =>
+            t.id === tradeId ? { ...t, status: 'accepted' } : t,
+          ),
+        })),
+      );
+    } catch (err: any) {
+      alert(`Accept failed: ${err.message}. Canton may not be configured.`);
+    } finally {
+      setTradeLoading(null);
+    }
+  };
+
+  const handleTradeReject = async (tradeId: string) => {
+    setTradeLoading(tradeId);
+    try {
+      await api.post(`/api/canton/trades/${tradeId}/reject`);
+      setConfidentialVaults((prev) =>
+        prev.map((cv) => ({
+          ...cv,
+          trades: cv.trades.map((t: any) =>
+            t.id === tradeId ? { ...t, status: 'rejected' } : t,
+          ),
+        })),
+      );
+    } catch (err: any) {
+      alert(`Reject failed: ${err.message}. Canton may not be configured.`);
+    } finally {
+      setTradeLoading(null);
+    }
+  };
 
   if (loading) return <BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading data room...</p></div></BentoGrid>;
   if (fetchError) return <BentoGrid className="space-y-6"><div className="flex h-64 flex-col items-center justify-center gap-2"><p className="text-sm text-red-400">Failed to load data room</p><p className="text-xs text-neutral-600">{fetchError}</p></div></BentoGrid>;
@@ -116,10 +177,15 @@ export default function DataRoomPage() {
                 according to their visibility level.
               </DialogDescription>
             </DialogHeader>
+            {inviteError && (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+                <p className="text-sm text-red-400">{inviteError}</p>
+              </div>
+            )}
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Vault</Label>
-                <Select>
+                <Select value={inviteForm.vaultId} onValueChange={(v) => setInviteForm((prev) => ({ ...prev, vaultId: v }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select vault" />
                   </SelectTrigger>
@@ -134,15 +200,23 @@ export default function DataRoomPage() {
               </div>
               <div className="space-y-2">
                 <Label>Canton Public Key</Label>
-                <Input placeholder="0x..." />
+                <Input
+                  placeholder="0x..."
+                  value={inviteForm.publicKey}
+                  onChange={(e) => setInviteForm((prev) => ({ ...prev, publicKey: e.target.value }))}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Institution Name</Label>
-                <Input placeholder="e.g. BlackRock" />
+                <Input
+                  placeholder="e.g. BlackRock"
+                  value={inviteForm.name}
+                  onChange={(e) => setInviteForm((prev) => ({ ...prev, name: e.target.value }))}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Access Level</Label>
-                <Select>
+                <Select value={inviteForm.role} onValueChange={(v) => setInviteForm((prev) => ({ ...prev, role: v }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select access level" />
                   </SelectTrigger>
@@ -157,13 +231,14 @@ export default function DataRoomPage() {
               <Button variant="outline" onClick={() => setInviteOpen(false)}>
                 Cancel
               </Button>
-              <Button
-                onClick={() => {
-                  setInviteOpen(false);
-                  alert('Invitation sent (mock). Canton Daml contract will be created in Phase 4.');
-                }}
-              >
-                Send Invitation
+              <Button onClick={handleInvite} disabled={inviteLoading || !inviteForm.vaultId || !inviteForm.publicKey || !inviteForm.role}>
+                {inviteLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...
+                  </>
+                ) : (
+                  'Send Invitation'
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -311,13 +386,29 @@ export default function DataRoomPage() {
                       )}
                       {trade.status === 'pending' && (
                         <div className="mt-3 flex gap-2">
-                          <Button size="sm" variant="default">
+                          <Button
+                            size="sm"
+                            variant="default"
+                            disabled={tradeLoading === trade.id}
+                            onClick={() => handleTradeAccept(trade.id)}
+                          >
+                            {tradeLoading === trade.id ? (
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                            ) : null}
                             Accept
                           </Button>
                           <Button size="sm" variant="outline">
                             Counter
                           </Button>
-                          <Button size="sm" variant="ghost">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={tradeLoading === trade.id}
+                            onClick={() => handleTradeReject(trade.id)}
+                          >
+                            {tradeLoading === trade.id ? (
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                            ) : null}
                             Reject
                           </Button>
                         </div>

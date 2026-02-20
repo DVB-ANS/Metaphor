@@ -213,4 +213,45 @@ router.post('/institutions/proposals/:id/execute', requireAuth, requireRole('ADM
     }
 });
 
+// ─── Whitelist / Role Management ────────────────────────────
+
+router.post('/whitelist', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response) => {
+    try {
+        const { address } = req.body;
+        if (!address) { res.status(400).json({ error: 'Missing address' }); return; }
+        const signer = getAdiSigner();
+        const ac = getContract('AccessControl', ADDRESSES.accessControl, signer);
+        const tx = await ac.addToWhitelist(address);
+        const receipt = await tx.wait();
+        res.json({ txHash: receipt.hash });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/roles', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response) => {
+    try {
+        const { address, role } = req.body;
+        if (!address || !role) { res.status(400).json({ error: 'Missing address or role' }); return; }
+
+        const roleMap: Record<string, string> = {
+            admin: 'ADMIN_ROLE',
+            issuer: 'ISSUER_ROLE',
+            investor: 'INVESTOR_ROLE',
+            auditor: 'AUDITOR_ROLE',
+        };
+        const roleName = roleMap[role.toLowerCase()];
+        if (!roleName) { res.status(400).json({ error: `Unknown role: ${role}` }); return; }
+
+        const signer = getAdiSigner();
+        const ac = getContract('AccessControl', ADDRESSES.accessControl, signer);
+        const roleHash = await ac[roleName]();
+        const tx = await ac.grantRole(roleHash, address);
+        const receipt = await tx.wait();
+        res.json({ txHash: receipt.hash });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 export default router;

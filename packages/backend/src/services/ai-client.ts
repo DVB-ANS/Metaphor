@@ -119,6 +119,83 @@ export async function analyzeVault(body: AnalyzeRequestBody): Promise<AIReport> 
   return report;
 }
 
+// ─── Seed demo reports on startup ─────────────────────────────
+// Ensures the AI endpoints have data from the start for the frontend demo.
+(function seedDemoReports() {
+  const seed: AIReport[] = [
+    {
+      reportId: 'report-1',
+      vaultId: 'vault-3',
+      riskScore: 67,
+      riskLevel: 'high',
+      summary: 'High geographic and credit concentration risk. EM exposure with sub-investment-grade names requires active monitoring.',
+      recommendations: [
+        { id: 'rec-1', action: 'Reduce Eskom exposure', description: 'Eskom Holdings rated B with negative outlook. Reduce from 25% to 10%.', impact: 'Risk score improvement: 67 → 52', status: 'pending_approval' },
+        { id: 'rec-2', action: 'Add investment-grade hedge', description: 'Allocate 15% to IG corporate bonds to offset EM credit risk.', impact: 'Portfolio Sharpe ratio improvement: +0.3', status: 'pending_approval' },
+      ],
+      stressTests: [
+        { scenario: 'USD +10% vs EM currencies', impact: '-8.4%' },
+        { scenario: 'EM sovereign crisis', impact: '-22.1%' },
+        { scenario: 'Global rate +2%', impact: '-5.7%' },
+      ],
+      positionAnalysis: [
+        { assetId: 'asset-7', name: 'Petrobras 2028 USD', score: 55, riskLevel: 'moderate', comment: 'Oil price dependency, but USD-denominated reduces FX risk' },
+        { assetId: 'asset-8', name: 'Tata Motors 2027', score: 62, riskLevel: 'high', comment: 'Cyclical sector, INR depreciation risk' },
+        { assetId: 'asset-9', name: 'Eskom Holdings 2029', score: 84, riskLevel: 'high', comment: 'Load-shedding crisis, sovereign guarantee uncertain' },
+      ],
+      status: 'pending_approval',
+      createdAt: '2026-02-18',
+    },
+    {
+      reportId: 'report-2',
+      vaultId: 'vault-1',
+      riskScore: 42,
+      riskLevel: 'moderate',
+      summary: 'Well-diversified EU portfolio. Main risk is Italian invoice concentration and duration exposure.',
+      recommendations: [
+        { id: 'rec-3', action: 'Reduce Italy invoice exposure', description: 'Reduce Milan Factoring Pool from 25% to 15%. Reallocate to French sovereign.', impact: 'Risk score improvement: 42 → 34', status: 'pending_approval' },
+      ],
+      stressTests: [
+        { scenario: 'ECB rate +1%', impact: '-2.8%' },
+        { scenario: 'ECB rate +2%', impact: '-5.4%' },
+        { scenario: 'Italy sovereign downgrade', impact: '-4.1%' },
+      ],
+      positionAnalysis: [
+        { assetId: 'asset-1', name: 'France Sovereign OAT 2028', score: 12, riskLevel: 'low', comment: 'Stable sovereign rating, short duration' },
+        { assetId: 'asset-2', name: 'Siemens AG Corporate 2027', score: 38, riskLevel: 'moderate', comment: 'Industrial sector cyclically exposed' },
+        { assetId: 'asset-3', name: 'Milan Factoring Pool Q3', score: 71, riskLevel: 'high', comment: 'Geographic concentration + BBB rating' },
+      ],
+      status: 'pending_approval',
+      createdAt: '2026-02-15',
+    },
+    {
+      reportId: 'report-3',
+      vaultId: 'vault-2',
+      riskScore: 18,
+      riskLevel: 'low',
+      summary: 'Low-risk sovereign portfolio. All AAA-rated US Treasuries. No action required.',
+      recommendations: [],
+      stressTests: [
+        { scenario: 'Fed rate +1%', impact: '-0.8%' },
+        { scenario: 'Fed rate +2%', impact: '-1.6%' },
+        { scenario: 'US downgrade to AA+', impact: '-2.1%' },
+      ],
+      positionAnalysis: [
+        { assetId: 'asset-4', name: 'US Treasury 10Y 2035', score: 22, riskLevel: 'low', comment: 'Longer duration but highest credit quality' },
+        { assetId: 'asset-5', name: 'US Treasury 5Y 2030', score: 15, riskLevel: 'low', comment: 'Medium duration, zero credit risk' },
+        { assetId: 'asset-6', name: 'US Treasury 2Y 2027', score: 8, riskLevel: 'low', comment: 'Near-cash equivalent, minimal risk' },
+      ],
+      status: 'pending_approval',
+      createdAt: '2026-02-10',
+    },
+  ];
+
+  for (const r of seed) {
+    reports.set(r.reportId, r);
+  }
+  reportCounter = seed.length;
+})();
+
 export function getReport(reportId: string): AIReport | undefined {
   return reports.get(reportId);
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,10 +14,12 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { RoleGate } from '@/components/role-gate';
+import { api } from '@/lib/api';
 
 interface AssetForm {
   assetType: string;
   name: string;
+  isin: string;
   nominalValue: string;
   couponRate: string;
   paymentFrequency: string;
@@ -29,6 +32,7 @@ interface AssetForm {
 const initialForm: AssetForm = {
   assetType: '',
   name: '',
+  isin: '',
   nominalValue: '',
   couponRate: '',
   paymentFrequency: '',
@@ -37,6 +41,12 @@ const initialForm: AssetForm = {
   jurisdiction: '',
   description: '',
 };
+
+function deriveSymbol(name: string): string {
+  const words = name.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).filter(Boolean);
+  if (words.length === 0) return 'RWA';
+  return words.map((w) => w[0].toUpperCase()).join('').slice(0, 6);
+}
 
 const BottomGradient = () => {
   return (
@@ -62,8 +72,10 @@ const LabelInputContainer = ({
 };
 
 export default function IssueAssetPage() {
+  const router = useRouter();
   const [form, setForm] = useState<AssetForm>(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const handleChange = (field: keyof AssetForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -72,10 +84,29 @@ export default function IssueAssetPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    // Mock submit — will be wired to ADI contracts via backend in Phase 3
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    alert('Asset tokenization submitted (mock). Will be connected to ADI contracts.');
+    setSubmitError(null);
+
+    try {
+      const maturityTimestamp = form.maturityDate
+        ? Math.floor(new Date(form.maturityDate).getTime() / 1000)
+        : 0;
+      const supply = form.tokenCount ? BigInt(form.tokenCount).toString() : '0';
+
+      await api.post('/api/adi/tokens', {
+        name: form.name,
+        symbol: deriveSymbol(form.name),
+        isin: form.isin || 'PENDING',
+        rate: Number(form.couponRate) || 0,
+        maturity: maturityTimestamp,
+        initialSupply: supply,
+      });
+
+      router.push('/vaults');
+    } catch (err: any) {
+      setSubmitError(err.message || 'Failed to issue asset. Check that the backend is running.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -89,6 +120,12 @@ export default function IssueAssetPage() {
           Tokenize a real-world asset on the ADI chain. Tokens will be minted via
           RWATokenFactory.
         </p>
+
+        {submitError && (
+          <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+            <p className="text-sm text-red-400">{submitError}</p>
+          </div>
+        )}
 
         <form className="my-8" onSubmit={handleSubmit}>
           {/* Asset Type */}
@@ -127,6 +164,22 @@ export default function IssueAssetPage() {
               />
               <BottomGradient />
             </div>
+          </LabelInputContainer>
+
+          {/* ISIN */}
+          <LabelInputContainer className="mb-4">
+            <Label htmlFor="isin">ISIN</Label>
+            <div className="group/btn relative overflow-hidden">
+              <Input
+                id="isin"
+                placeholder="e.g. FR0014007LW0"
+                value={form.isin}
+                onChange={(e) => handleChange('isin', e.target.value)}
+                className="dark:bg-zinc-900 dark:shadow-[0px_0px_1px_1px_#262626]"
+              />
+              <BottomGradient />
+            </div>
+            <p className="text-xs text-muted-foreground">International Securities Identification Number (12 characters)</p>
           </LabelInputContainer>
 
           {/* Nominal Value + Token Count */}
