@@ -6,6 +6,11 @@
         "name": "platformAccessControl_",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "deployer_",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"
@@ -48,6 +53,19 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "deployer",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract InstitutionDeployer"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",

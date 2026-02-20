@@ -464,8 +464,9 @@ contract CouponSchedulerTest is Test {
         uint256 balanceBefore = paymentToken.balanceOf(issuer);
         uint256 couponAmount = scheduler.getCouponAmount(bondId);
 
-        // Simulate Hedera executing the callback
+        // Simulate Hedera executing the callback (self-call)
         vm.warp(dates[0]);
+        vm.prank(address(scheduler));
         scheduler.executeCoupon(bondId, dates[0]);
 
         uint256 balanceAfter = paymentToken.balanceOf(issuer);
@@ -489,6 +490,21 @@ contract CouponSchedulerTest is Test {
         emit CouponScheduler.CouponExecuted(bondId, dates[0], couponAmount);
 
         vm.warp(dates[0]);
+        vm.prank(address(scheduler));
+        scheduler.executeCoupon(bondId, dates[0]);
+    }
+
+    function test_executeCoupon_revertsUnauthorizedExecutor() public {
+        uint256 bondId = _registerDefaultBond();
+        uint256[] memory dates = scheduler.getPaymentDates(bondId);
+        _mockScheduleCall();
+
+        vm.prank(issuer);
+        scheduler.scheduleCoupon(bondId, dates[0]);
+
+        vm.warp(dates[0]);
+        vm.prank(user);
+        vm.expectRevert(CouponScheduler.UnauthorizedExecutor.selector);
         scheduler.executeCoupon(bondId, dates[0]);
     }
 
@@ -496,6 +512,7 @@ contract CouponSchedulerTest is Test {
         uint256 bondId = _registerDefaultBond();
         uint256[] memory dates = scheduler.getPaymentDates(bondId);
 
+        vm.prank(address(scheduler));
         vm.expectRevert(abi.encodeWithSelector(CouponScheduler.PaymentNotScheduled.selector, bondId, dates[0]));
         scheduler.executeCoupon(bondId, dates[0]);
     }
@@ -610,6 +627,7 @@ contract CouponSchedulerTest is Test {
 
         // Execute should mark as Failed, not revert
         vm.warp(dates[0]);
+        vm.prank(address(scheduler));
         scheduler.executeCoupon(bondId, dates[0]);
 
         CouponScheduler.ScheduledPayment memory payment = scheduler.getPayment(bondId, dates[0]);
@@ -634,6 +652,7 @@ contract CouponSchedulerTest is Test {
         vm.warp(dates[0]);
         vm.expectEmit(true, false, false, true);
         emit CouponScheduler.PaymentFailed(bondId, dates[0], couponAmount, 0);
+        vm.prank(address(scheduler));
         scheduler.executeCoupon(bondId, dates[0]);
     }
 
@@ -654,6 +673,7 @@ contract CouponSchedulerTest is Test {
         // Should mark as Failed, issuer gets nothing (all-or-nothing)
         uint256 issuerBefore = paymentToken.balanceOf(issuer);
         vm.warp(dates[0]);
+        vm.prank(address(scheduler));
         scheduler.executeCoupon(bondId, dates[0]);
 
         assertEq(paymentToken.balanceOf(issuer), issuerBefore); // No partial transfer
@@ -676,6 +696,7 @@ contract CouponSchedulerTest is Test {
         vm.prank(address(scheduler));
         paymentToken.transfer(admin, schedulerBalance);
         vm.warp(dates[0]);
+        vm.prank(address(scheduler));
         scheduler.executeCoupon(bondId, dates[0]);
 
         // Recover the payment
@@ -738,6 +759,7 @@ contract CouponSchedulerTest is Test {
         scheduler.scheduleCoupon(bondId, dates[0]);
 
         vm.warp(dates[0]);
+        vm.prank(address(scheduler));
         scheduler.executeCoupon(bondId, dates[0]);
 
         // Cannot recover an already executed payment
@@ -775,6 +797,7 @@ contract CouponSchedulerTest is Test {
 
         // Execute fails
         vm.warp(dates[0]);
+        vm.prank(address(scheduler));
         scheduler.executeCoupon(bondId, dates[0]);
         CouponScheduler.ScheduledPayment memory p1 = scheduler.getPayment(bondId, dates[0]);
         assertEq(uint8(p1.status), uint8(CouponScheduler.PaymentStatus.Failed));
@@ -796,6 +819,7 @@ contract CouponSchedulerTest is Test {
         uint256 couponAmount = scheduler.getCouponAmount(bondId);
 
         vm.warp(dates[1]);
+        vm.prank(address(scheduler));
         scheduler.executeCoupon(bondId, dates[1]);
 
         assertEq(paymentToken.balanceOf(issuer) - issuerBefore, couponAmount);

@@ -91,6 +91,7 @@ contract CouponScheduler is Ownable, HederaScheduleService {
     error PaymentDateInPast(uint256 paymentDate);
     error PaymentNotRecoverable(uint256 bondId, uint256 paymentDate);
     error InsufficientLiquidity(uint256 bondId, uint256 paymentDate, uint256 required, uint256 available);
+    error UnauthorizedExecutor();
 
     event PaymentFailed(uint256 indexed bondId, uint256 paymentDate, uint256 required, uint256 available);
     event PaymentRecovered(uint256 indexed bondId, uint256 paymentDate);
@@ -240,11 +241,14 @@ contract CouponScheduler is Ownable, HederaScheduleService {
     /// @param bondId The bond ID
     /// @param paymentDate The payment date
     function executeCoupon(uint256 bondId, uint256 paymentDate) external bondExists(bondId) {
+        Bond storage bond = _bonds[bondId];
+        if (msg.sender != address(this) && msg.sender != bond.issuer && msg.sender != owner()) {
+            revert UnauthorizedExecutor();
+        }
+
         ScheduledPayment storage payment = _payments[bondId][paymentDate];
         if (payment.bondId == 0 && payment.paymentDate == 0) revert PaymentNotFound(bondId, paymentDate);
         if (payment.status != PaymentStatus.Scheduled) revert PaymentNotScheduled(bondId, paymentDate);
-
-        Bond storage bond = _bonds[bondId];
 
         // All-or-nothing: check liquidity before transfer
         uint256 available = IERC20(bond.paymentToken).balanceOf(address(this));
