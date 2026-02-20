@@ -3,10 +3,11 @@ pragma solidity ^0.8.20;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { InstiVaultAccessControl } from "./InstiVaultAccessControl.sol";
 import { RWATokenFactory } from "./RWATokenFactory.sol";
 
-contract VaultManager {
+contract VaultManager is Pausable {
     using SafeERC20 for IERC20;
 
     enum VaultStatus {
@@ -99,7 +100,15 @@ contract VaultManager {
         tokenFactory = RWATokenFactory(tokenFactory_);
     }
 
-    function createVault() external onlyIssuer returns (uint256) {
+    function pause() external onlyAdmin {
+        _pause();
+    }
+
+    function unpause() external onlyAdmin {
+        _unpause();
+    }
+
+    function createVault() external onlyIssuer whenNotPaused returns (uint256) {
         uint256 vaultId = nextVaultId++;
 
         vaults[vaultId] =
@@ -114,6 +123,7 @@ contract VaultManager {
         vaultExists(vaultId)
         vaultActive(vaultId)
         onlyInvestor
+        whenNotPaused
     {
         if (amount == 0) revert ZeroAmount();
         if (!accessControl.isWhitelisted(msg.sender)) revert NotWhitelisted(msg.sender);
@@ -137,6 +147,7 @@ contract VaultManager {
         vaultExists(vaultId)
         vaultActive(vaultId)
         onlyInvestor
+        whenNotPaused
     {
         if (amount == 0) revert ZeroAmount();
 
@@ -203,6 +214,7 @@ contract VaultManager {
         vaultExists(vaultId)
         vaultActive(vaultId)
         onlyIssuer
+        whenNotPaused
     {
         if (amount == 0) revert ZeroAmount();
 
@@ -222,6 +234,7 @@ contract VaultManager {
         vaultExists(vaultId)
         vaultActive(vaultId)
         onlyIssuer
+        whenNotPaused
     {
         if (amount == 0) revert ZeroAmount();
 

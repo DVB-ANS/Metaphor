@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { HederaScheduleService } from "./hedera-deps/HederaScheduleService.sol";
@@ -9,7 +10,7 @@ import { HederaScheduleService } from "./hedera-deps/HederaScheduleService.sol";
 /// @title CouponScheduler
 /// @notice Schedules and executes bond coupon payments via the Hedera Schedule Service
 /// @dev Key bounty contract: scheduling is initiated FROM the smart contract via precompile 0x16b
-contract CouponScheduler is Ownable, HederaScheduleService {
+contract CouponScheduler is Ownable, Pausable, HederaScheduleService {
     using SafeERC20 for IERC20;
 
     // ─── Enums ───────────────────────────────────────────────────────────
@@ -127,6 +128,16 @@ contract CouponScheduler is Ownable, HederaScheduleService {
         _authorizeSchedule();
     }
 
+    /// @notice Pause all scheduling operations (does not affect pending callbacks)
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /// @notice Unpause scheduling operations
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
     // ─── Bond Management ─────────────────────────────────────────────────
 
     /// @notice Register a new bond and compute its payment schedule
@@ -148,7 +159,7 @@ contract CouponScheduler is Ownable, HederaScheduleService {
         uint256 startDate,
         uint256 maturityDate,
         address issuer
-    ) external onlyOwner returns (uint256 bondId) {
+    ) external onlyOwner whenNotPaused returns (uint256 bondId) {
         if (token == address(0) || paymentToken == address(0) || issuer == address(0)) {
             revert ZeroAddress();
         }
@@ -187,6 +198,7 @@ contract CouponScheduler is Ownable, HederaScheduleService {
         bondActive(bondId)
         onlyIssuerOrOwner(bondId)
         onlyAuthorized
+        whenNotPaused
     {
         ScheduledPayment storage payment = _payments[bondId][paymentDate];
         if (payment.bondId == 0 && payment.paymentDate == 0) revert PaymentNotFound(bondId, paymentDate);
@@ -213,6 +225,7 @@ contract CouponScheduler is Ownable, HederaScheduleService {
         bondActive(bondId)
         onlyIssuerOrOwner(bondId)
         onlyAuthorized
+        whenNotPaused
     {
         uint256[] storage dates = _paymentDates[bondId];
         bool scheduled;

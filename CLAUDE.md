@@ -64,7 +64,7 @@ main      ← version stable, déployable (on ne push JAMAIS directement ici)
 - `InstiVaultAccessControl.sol` — RBAC: Admin, Issuer, Investor, Auditor + whitelisting
 - `RWAToken.sol` — ERC-20 with RWA metadata (ISIN, rate, maturity, issuer) + whitelist transfer restrictions
 - `RWATokenFactory.sol` — Factory for creating RWA tokens + fractionalization
-- `VaultManager.sol` — Vault lifecycle (create, deposit, withdraw, allocate) + multi-token
+- `VaultManager.sol` — Vault lifecycle (create, deposit, withdraw, allocate) + multi-token + Pausable
 - `InstitutionRegistry.sol` — Multi-tenant white-label registry + 2-of-N multisig proposals
 - `InstitutionDeployer.sol` — External deployer (EIP-170 workaround)
 
@@ -74,7 +74,7 @@ main      ← version stable, déployable (on ne push JAMAIS directement ici)
 - `AuditRight` — Limited third-party audit access
 
 ### Hedera (Solidity) — Deployed on Hedera Testnet
-- `CouponScheduler.sol` — Scheduled coupon payments via Hedera Schedule Service precompile (0x16b), access-controlled execution (self-call / issuer / owner)
+- `CouponScheduler.sol` — Scheduled coupon payments via Hedera Schedule Service precompile (0x16b), access-controlled execution (self-call / issuer / owner) + Pausable
 - `YieldDistributor.sol` — Snapshot-based pro-rata yield distribution to bond holders
 - `HederaScheduleService.sol` — Abstract base for Hedera precompile interaction (IHRC755 + IHRC1215)
 
