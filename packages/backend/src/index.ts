@@ -1,30 +1,31 @@
 import express from 'express';
 import cors from 'cors';
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import { healthRouter } from './routes/health.js';
+import { cantonRouter } from './routes/canton.js';
+import { aiRouter } from './routes/ai.js';
 import adiRoutes from './routes/adi.js';
 import hederaRoutes from './routes/hedera.js';
 
+dotenv.config({ path: '../../.env' });
+
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
 
-// ─── Health ─────────────────────────────────────────────────────────
-
-app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', service: 'instivault-backend' });
-});
-
-// ─── Routes ─────────────────────────────────────────────────────────
-
+// Routes
+app.use('/api', healthRouter);
 app.use('/api/adi', adiRoutes);
 app.use('/api/hedera', hederaRoutes);
-
-// ─── Start ──────────────────────────────────────────────────────────
+app.use('/api/canton', cantonRouter);
+app.use('/api/ai', aiRouter);
 
 app.listen(PORT, () => {
-    console.log(`InstiVault backend running on port ${PORT}`);
-    console.log(`  ADI endpoints:    http://localhost:${PORT}/api/adi`);
-    console.log(`  Hedera endpoints: http://localhost:${PORT}/api/hedera`);
+  console.log(`InstiVault API running on http://localhost:${PORT}`);
+  console.log(`  ADI endpoints:    http://localhost:${PORT}/api/adi`);
+  console.log(`  Hedera endpoints: http://localhost:${PORT}/api/hedera`);
+  console.log(`  Canton endpoints: http://localhost:${PORT}/api/canton`);
+  console.log(`  AI endpoints:     http://localhost:${PORT}/api/ai`);
 });

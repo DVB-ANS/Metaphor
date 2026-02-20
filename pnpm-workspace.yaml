@@ -1,4 +1,5 @@
 packages:
   - "packages/frontend"
+  - "packages/backend"
   - "packages/contracts-hedera"
   - "packages/ai-engine"

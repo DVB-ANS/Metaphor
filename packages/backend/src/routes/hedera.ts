@@ -1,7 +1,7 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, type Router as RouterType } from 'express';
 import { getAdiSigner, getContract, ADDRESSES } from '../config.js';
 
-const router = Router();
+const router: RouterType = Router();
 
 // ─── Bonds ──────────────────────────────────────────────────────────
 

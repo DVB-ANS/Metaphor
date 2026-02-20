@@ -5,7 +5,9 @@
   "description": "Confidential & Automated RWA Hub for Institutions",
   "scripts": {
     "dev:frontend": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter backend dev",
     "build:frontend": "pnpm --filter frontend build",
+    "build:backend": "pnpm --filter backend build",
     "test:adi": "cd packages/contracts-adi && forge test",
     "test:hedera": "pnpm --filter contracts-hedera test",
     "test:ai": "pnpm --filter ai-engine test",
