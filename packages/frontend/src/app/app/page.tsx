@@ -31,7 +31,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get('/api/demo/dashboard')
+    api.get('/api/v1/dashboard')
       .then((data) => setDashData(data))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -59,6 +59,8 @@ export default function DashboardPage() {
     );
   }
 
+  const isEmpty = dashData.vaults.length === 0 && dashData.stats.tokenizedAssets === 0;
+
   const stats = [
     {
       label: 'Total Asset Value',
@@ -67,7 +69,7 @@ export default function DashboardPage() {
     },
     {
       label: 'YTD Return',
-      value: `+${dashData.stats.yieldYTD}%`,
+      value: dashData.stats.yieldYTD ? `+${dashData.stats.yieldYTD}%` : '--',
       icon: TrendingUp,
     },
     {
@@ -111,6 +113,17 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      {isEmpty ? (
+        <BentoCard>
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <Vault className="mb-4 h-12 w-12 text-muted-foreground/50" />
+            <p className="text-muted-foreground">No data yet. Issue your first RWA token to get started.</p>
+            <Link href="/issue" className="mt-4 flex items-center gap-1 text-sm text-primary hover:underline">
+              Issue a token <ArrowUpRight className="h-3 w-3" />
+            </Link>
+          </CardContent>
+        </BentoCard>
+      ) : (
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Vaults List */}
         <BentoCard className="lg:col-span-2">
@@ -128,7 +141,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {dashData.vaults.map((vault: any) => (
+              {dashData.vaults.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">No vaults created yet.</p>
+              ) : dashData.vaults.map((vault: any) => (
                 <Link
                   key={vault.id}
                   href={`/vaults/${vault.id}`}
@@ -148,11 +163,11 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-6">
                     <div className="text-right">
                       <p className="font-medium">{formatCurrency(vault.totalValue)}</p>
-                      <p className="text-sm text-green-500">+{vault.yieldYTD}%</p>
+                      <p className="text-sm text-green-500">{vault.yieldYTD != null ? `+${vault.yieldYTD}%` : '--'}</p>
                     </div>
                     <div className="text-right">
                       <p className={`text-sm font-medium ${getRiskColor(vault.riskLevel)}`}>
-                        Risk: {vault.riskScore}
+                        Risk: {vault.riskScore ?? '--'}
                       </p>
                     </div>
                     <Badge variant={getStatusBadgeVariant(vault.status)}>
@@ -180,7 +195,9 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {dashData.upcomingPayments.map((payment: any) => (
+              {dashData.upcomingPayments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No upcoming payments.</p>
+              ) : dashData.upcomingPayments.map((payment: any) => (
                 <div key={payment.id} className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium">{payment.assetName}</p>
@@ -206,6 +223,7 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {dashData.latestAIAnalysis ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium">{dashData.latestAIAnalysis.vaultName}</p>
@@ -223,10 +241,14 @@ export default function DashboardPage() {
                   View report <ArrowUpRight className="h-3 w-3" />
                 </Link>
               </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No AI analysis yet. Trigger one from a vault detail page.</p>
+              )}
             </CardContent>
           </BentoCard>
         </div>
       </div>
+      )}
     </BentoGrid>
   );
 }

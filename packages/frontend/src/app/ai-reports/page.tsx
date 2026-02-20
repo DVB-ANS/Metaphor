@@ -82,9 +82,9 @@ export default function AIReportsPage() {
 
   useEffect(() => {
     Promise.all([
-      api.get<any[]>('/api/demo/ai/reports'),
-      api.get<any[]>('/api/demo/ai/score-history'),
-      api.get<any[]>('/api/demo/vaults'),
+      api.get<any[]>('/api/v1/ai/reports'),
+      api.get<any[]>('/api/v1/ai/score-history'),
+      api.get<any[]>('/api/v1/vaults'),
     ])
       .then(([reportsData, historyData, vaultsData]) => {
         setReports(reportsData);
@@ -96,7 +96,7 @@ export default function AIReportsPage() {
   }, []);
 
   useEffect(() => {
-    const historyUrl = vaultFilter === 'all' ? '/api/demo/ai/score-history' : `/api/demo/ai/score-history?vaultId=${vaultFilter}`;
+    const historyUrl = vaultFilter === 'all' ? '/api/v1/ai/score-history' : `/api/v1/ai/score-history?vaultId=${vaultFilter}`;
     api.get<any[]>(historyUrl).then(setScoreHistory).catch(() => {});
   }, [vaultFilter]);
 
@@ -255,6 +255,14 @@ export default function AIReportsPage() {
       )}
 
       {/* Reports */}
+      {filteredReports.length === 0 ? (
+        <BentoCard>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Brain className="mb-4 h-12 w-12 text-muted-foreground/50" />
+            <p className="text-muted-foreground">No AI reports yet. Trigger an analysis from a vault detail page.</p>
+          </CardContent>
+        </BentoCard>
+      ) : (
       <div className="space-y-4">
         {filteredReports.map((report) => (
           <BentoCard key={report.id}>
@@ -396,6 +404,7 @@ export default function AIReportsPage() {
           </BentoCard>
         ))}
       </div>
+      )}
 
       {/* Approval Dialog */}
       <Dialog

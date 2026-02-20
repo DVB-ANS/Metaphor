@@ -58,7 +58,7 @@ export default function AdminPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get<any[]>('/api/demo/admin/wallets')
+    api.get<any[]>('/api/v1/admin/wallets')
       .then(setWallets)
       .catch((err) => setFetchError(err.message))
       .finally(() => setLoading(false));
@@ -260,7 +260,13 @@ export default function AdminPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {wallets.map((wallet: any) => (
+              {wallets.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                    No whitelisted wallets found on-chain.
+                  </TableCell>
+                </TableRow>
+              ) : wallets.map((wallet: any) => (
                 <TableRow key={wallet.address}>
                   <TableCell className="font-mono text-sm">{wallet.address}</TableCell>
                   <TableCell>{wallet.label}</TableCell>

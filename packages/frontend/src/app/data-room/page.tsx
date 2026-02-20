@@ -90,7 +90,7 @@ export default function DataRoomPage() {
   const [tradeLoading, setTradeLoading] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get<any[]>('/api/demo/canton/vaults')
+    api.get<any[]>('/api/v1/canton/vaults')
       .then(setConfidentialVaults)
       .catch((err) => setFetchError(err.message))
       .finally(() => setLoading(false));
@@ -281,7 +281,14 @@ export default function DataRoomPage() {
       </BentoCard>
 
       {/* Confidential Vaults */}
-      {confidentialVaults.map((cv: any) => (
+      {confidentialVaults.length === 0 ? (
+        <BentoCard>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <FolderLock className="mb-4 h-12 w-12 text-muted-foreground/50" />
+            <p className="text-muted-foreground">No confidential vaults. Canton Network may not be connected.</p>
+          </CardContent>
+        </BentoCard>
+      ) : confidentialVaults.map((cv: any) => (
         <BentoCard key={cv.id}>
           <CardHeader>
             <div className="flex items-start justify-between">
@@ -422,5 +429,6 @@ export default function DataRoomPage() {
         </BentoCard>
       ))}
     </BentoGrid>
+
   );
 }

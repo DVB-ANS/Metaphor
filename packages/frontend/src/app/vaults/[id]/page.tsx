@@ -111,10 +111,10 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
 
   useEffect(() => {
     Promise.all([
-      api.get<Vault>(`/api/demo/vaults/${id}`),
-      api.get<Payment[]>(`/api/demo/payments?vaultId=${id}`),
-      api.get<any[]>(`/api/demo/ai/reports?vaultId=${id}`),
-      api.get<ScoreHistory[]>(`/api/demo/ai/score-history?vaultId=${id}`),
+      api.get<Vault>(`/api/v1/vaults/${id}`),
+      api.get<Payment[]>(`/api/v1/payments?vaultId=${id}`),
+      api.get<any[]>(`/api/v1/ai/reports?vaultId=${id}`),
+      api.get<ScoreHistory[]>(`/api/v1/ai/score-history?vaultId=${id}`),
     ])
       .then(([vaultData, paymentsData, reportsData, historyData]) => {
         setVault(vaultData);
@@ -275,7 +275,7 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
         <BentoCard>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">YTD Return</p>
-            <p className="text-2xl font-bold text-green-500">+{vault.yieldYTD}%</p>
+            <p className="text-2xl font-bold text-green-500">{vault.yieldYTD != null ? `+${vault.yieldYTD}%` : '--'}</p>
           </CardContent>
         </BentoCard>
         <BentoCard>
@@ -283,10 +283,10 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
             <p className="text-sm text-muted-foreground">Risk Score</p>
             <div className="flex items-center gap-2">
               <p className={`text-2xl font-bold ${getRiskColor(vault.riskLevel)}`}>
-                {vault.riskScore}/100
+                {vault.riskScore != null ? `${vault.riskScore}/100` : '--'}
               </p>
             </div>
-            <Progress value={vault.riskScore} className="mt-2" />
+            {vault.riskScore != null && <Progress value={vault.riskScore} className="mt-2" />}
           </CardContent>
         </BentoCard>
         <BentoCard>

@@ -40,7 +40,7 @@ export default function VaultsPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get<any[]>('/api/demo/vaults')
+    api.get<any[]>('/api/v1/vaults')
       .then(setAllVaults)
       .catch((err) => setFetchError(err.message))
       .finally(() => setLoading(false));
@@ -117,7 +117,14 @@ export default function VaultsPage() {
       </div>
 
       {/* Results */}
-      {filteredVaults.length === 0 ? (
+      {allVaults.length === 0 ? (
+        <BentoCard>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Vault className="mb-4 h-12 w-12 text-muted-foreground/50" />
+            <p className="text-muted-foreground">No vaults created yet.</p>
+          </CardContent>
+        </BentoCard>
+      ) : filteredVaults.length === 0 ? (
         <BentoCard>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Vault className="mb-4 h-12 w-12 text-muted-foreground/50" />
@@ -155,13 +162,13 @@ export default function VaultsPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">YTD Return</span>
                     <span className="text-sm font-medium text-green-500">
-                      +{vault.yieldYTD}%
+                      {vault.yieldYTD != null ? `+${vault.yieldYTD}%` : '--'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Risk Score</span>
                     <span className={`text-sm font-bold ${getRiskColor(vault.riskLevel)}`}>
-                      {vault.riskScore}/100
+                      {vault.riskScore != null ? `${vault.riskScore}/100` : '--'}
                     </span>
                   </div>
                   <div className="flex items-center gap-1 pt-2 text-xs text-primary">

@@ -43,8 +43,8 @@ export default function YieldCalendarPage() {
 
   useEffect(() => {
     Promise.all([
-      api.get<any[]>('/api/demo/payments'),
-      api.get<any[]>('/api/demo/vaults'),
+      api.get<any[]>('/api/v1/payments'),
+      api.get<any[]>('/api/v1/vaults'),
     ])
       .then(([payData, vaultData]) => {
         setAllPayments(payData);
@@ -56,6 +56,21 @@ export default function YieldCalendarPage() {
 
   if (loading) return <BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading yield calendar...</p></div></BentoGrid>;
   if (error) return <BentoGrid className="space-y-6"><div className="flex h-64 flex-col items-center justify-center gap-2"><p className="text-sm text-red-400">Failed to load data</p><p className="text-xs text-neutral-600">{error}</p></div></BentoGrid>;
+
+  if (allPayments.length === 0) {
+    return (
+      <BentoGrid className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Yield Calendar</h1>
+          <p className="text-muted-foreground">Automated coupon payments via Hedera Schedule Service</p>
+        </div>
+        <div className="flex flex-col items-center justify-center py-16">
+          <CalendarDays className="mb-4 h-12 w-12 text-muted-foreground/50" />
+          <p className="text-muted-foreground">No coupon payments scheduled yet.</p>
+        </div>
+      </BentoGrid>
+    );
+  }
 
   const filteredPayments = vaultFilter === 'all'
     ? allPayments
