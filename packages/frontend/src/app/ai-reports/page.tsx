@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { BentoGrid, BentoCard } from '@/components/ui/magic-bento';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -44,13 +44,11 @@ import {
   ReferenceLine,
 } from 'recharts';
 import {
-  mockAIReports,
-  mockScoreHistory,
-  mockVaults,
   getRiskColor,
   getRiskBg,
   type RiskLevel,
 } from '@/lib/mock-data';
+import { api } from '@/lib/api';
 
 function getRiskIcon(level: RiskLevel) {
   switch (level) {
@@ -72,22 +70,48 @@ export default function AIReportsPage() {
     impact: string;
   }>({ open: false, action: '', detail: '', impact: '' });
 
+  const [reports, setReports] = useState<any[]>([]);
+  const [scoreHistory, setScoreHistory] = useState<any[]>([]);
+  const [vaults, setVaults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      api.get<any[]>('/api/demo/ai/reports'),
+      api.get<any[]>('/api/demo/ai/score-history'),
+      api.get<any[]>('/api/demo/vaults'),
+    ])
+      .then(([reportsData, historyData, vaultsData]) => {
+        setReports(reportsData);
+        setScoreHistory(historyData);
+        setVaults(vaultsData);
+      })
+      .catch((err) => setFetchError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const historyUrl = vaultFilter === 'all' ? '/api/demo/ai/score-history' : `/api/demo/ai/score-history?vaultId=${vaultFilter}`;
+    api.get<any[]>(historyUrl).then(setScoreHistory).catch(() => {});
+  }, [vaultFilter]);
+
   const filteredReports =
     vaultFilter === 'all'
-      ? mockAIReports
-      : mockAIReports.filter((r) => r.vaultId === vaultFilter);
+      ? reports
+      : reports.filter((r) => r.vaultId === vaultFilter);
 
-  const selectedHistory =
-    vaultFilter === 'all'
-      ? Object.values(mockScoreHistory).flat().sort((a, b) => a.date.localeCompare(b.date))
-      : mockScoreHistory[vaultFilter] || [];
+  const selectedHistory = scoreHistory;
 
   const handleExportPdf = (reportId: string) => {
     alert(`PDF export for report ${reportId} (mock). Will be implemented with a PDF library.`);
   };
 
+  if (loading) return <BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading AI reports...</p></div></BentoGrid>;
+  if (fetchError) return <BentoGrid className="space-y-6"><div className="flex h-64 flex-col items-center justify-center gap-2"><p className="text-sm text-red-400">Failed to load reports</p><p className="text-xs text-neutral-600">{fetchError}</p></div></BentoGrid>;
+
   return (
-    <div className="space-y-6">
+    <BentoGrid className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">AI Reports</h1>
@@ -99,7 +123,7 @@ export default function AIReportsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All vaults</SelectItem>
-            {mockVaults.map((v) => (
+            {vaults.map((v) => (
               <SelectItem key={v.id} value={v.id}>
                 {v.name}
               </SelectItem>
@@ -110,7 +134,7 @@ export default function AIReportsPage() {
 
       {/* Score Evolution Chart */}
       {selectedHistory.length > 0 && (
-        <Card>
+        <BentoCard>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
@@ -119,7 +143,7 @@ export default function AIReportsPage() {
             <CardDescription>
               {vaultFilter === 'all'
                 ? 'Aggregate score trend across all vaults'
-                : `Score trend for ${mockVaults.find((v) => v.id === vaultFilter)?.name}`}
+                : `Score trend for ${vaults.find((v: any) => v.id === vaultFilter)?.name}`}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -158,13 +182,13 @@ export default function AIReportsPage() {
               </div>
             </div>
           </CardContent>
-        </Card>
+        </BentoCard>
       )}
 
       {/* Reports */}
       <div className="space-y-4">
         {filteredReports.map((report) => (
-          <Card key={report.id}>
+          <BentoCard key={report.id}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -194,7 +218,7 @@ export default function AIReportsPage() {
               <div>
                 <p className="mb-2 text-sm font-medium">Position Analysis</p>
                 <div className="space-y-2">
-                  {report.positionAnalysis.map((pos) => (
+                  {report.positionAnalysis.map((pos: any) => (
                     <div
                       key={pos.name}
                       className="flex items-center justify-between rounded-lg border p-3"
@@ -218,7 +242,7 @@ export default function AIReportsPage() {
               <div>
                 <p className="mb-2 text-sm font-medium">Stress Tests</p>
                 <div className="grid gap-2 sm:grid-cols-3">
-                  {report.stressTests.map((test, i) => (
+                  {report.stressTests.map((test: any, i: number) => (
                     <div key={i} className="rounded-lg border p-3">
                       <p className="text-xs text-muted-foreground">{test.scenario}</p>
                       <p className="text-sm font-bold text-red-400">{test.impact}</p>
@@ -234,7 +258,7 @@ export default function AIReportsPage() {
                     Recommendations ({report.recommendations.length})
                   </p>
                   <div className="space-y-3">
-                    {report.recommendations.map((rec) => (
+                    {report.recommendations.map((rec: any) => (
                       <div
                         key={rec.id}
                         className="flex items-start justify-between rounded-lg border p-4"
@@ -278,7 +302,7 @@ export default function AIReportsPage() {
                 )}
               </div>
             </CardContent>
-          </Card>
+          </BentoCard>
         ))}
       </div>
 
@@ -318,6 +342,6 @@ export default function AIReportsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </BentoGrid>
   );
 }

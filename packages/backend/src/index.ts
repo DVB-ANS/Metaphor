@@ -7,6 +7,7 @@ import { cantonRouter } from './routes/canton.js';
 import { aiRouter } from './routes/ai.js';
 import adiRoutes from './routes/adi.js';
 import hederaRoutes from './routes/hedera.js';
+import demoRoutes from './routes/demo.js';
 
 dotenv.config({ path: '../../.env' });
 
@@ -23,6 +24,7 @@ app.use('/api/adi', adiRoutes);
 app.use('/api/hedera', hederaRoutes);
 app.use('/api/canton', cantonRouter);
 app.use('/api/ai', aiRouter);
+app.use('/api/demo', demoRoutes);
 
 app.listen(PORT, () => {
   console.log(`Metaphor API running on http://localhost:${PORT}`);

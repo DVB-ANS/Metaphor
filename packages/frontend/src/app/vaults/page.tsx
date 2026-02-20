@@ -1,14 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
-  Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { BentoGrid, BentoCard } from '@/components/ui/magic-bento';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
@@ -20,7 +20,6 @@ import {
 } from '@/components/ui/select';
 import { Vault, Search, ArrowUpRight } from 'lucide-react';
 import {
-  mockVaults,
   formatCurrency,
   getRiskColor,
   getStatusBadgeVariant,
@@ -28,6 +27,7 @@ import {
   type VaultStatus,
   type AssetType,
 } from '@/lib/mock-data';
+import { api } from '@/lib/api';
 
 export default function VaultsPage() {
   const [search, setSearch] = useState('');
@@ -35,16 +35,30 @@ export default function VaultsPage() {
   const [statusFilter, setStatusFilter] = useState<VaultStatus | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<AssetType | 'all'>('all');
 
-  const filteredVaults = mockVaults.filter((vault) => {
+  const [allVaults, setAllVaults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.get<any[]>('/api/demo/vaults')
+      .then(setAllVaults)
+      .catch((err) => setFetchError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading vaults...</p></div></BentoGrid>;
+  if (fetchError) return <BentoGrid className="space-y-6"><div className="flex h-64 flex-col items-center justify-center gap-2"><p className="text-sm text-red-400">Failed to load vaults</p><p className="text-xs text-neutral-600">{fetchError}</p></div></BentoGrid>;
+
+  const filteredVaults = allVaults.filter((vault: any) => {
     if (search && !vault.name.toLowerCase().includes(search.toLowerCase())) return false;
     if (riskFilter !== 'all' && vault.riskLevel !== riskFilter) return false;
     if (statusFilter !== 'all' && vault.status !== statusFilter) return false;
-    if (typeFilter !== 'all' && !vault.assets.some((a) => a.type === typeFilter)) return false;
+    if (typeFilter !== 'all' && !vault.assets.some((a: any) => a.type === typeFilter)) return false;
     return true;
   });
 
   return (
-    <div className="space-y-6">
+    <BentoGrid className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">My Vaults</h1>
         <p className="text-muted-foreground">
@@ -104,17 +118,17 @@ export default function VaultsPage() {
 
       {/* Results */}
       {filteredVaults.length === 0 ? (
-        <Card>
+        <BentoCard>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Vault className="mb-4 h-12 w-12 text-muted-foreground/50" />
             <p className="text-muted-foreground">No vaults match your filters</p>
           </CardContent>
-        </Card>
+        </BentoCard>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredVaults.map((vault) => (
+          {filteredVaults.map((vault: any) => (
             <Link key={vault.id} href={`/vaults/${vault.id}`}>
-              <Card className="h-full cursor-pointer transition-shadow hover:shadow-lg">
+              <BentoCard className="h-full cursor-pointer">
                 <CardHeader className="flex flex-row items-start justify-between">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
@@ -154,11 +168,11 @@ export default function VaultsPage() {
                     View details <ArrowUpRight className="h-3 w-3" />
                   </div>
                 </CardContent>
-              </Card>
+              </BentoCard>
             </Link>
           ))}
         </div>
       )}
-    </div>
+    </BentoGrid>
   );
 }

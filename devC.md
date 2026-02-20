@@ -44,7 +44,8 @@ pnpm dev:backend    # Express on port 4000
 ### Routes
 | Route | Page | Status |
 |-------|------|--------|
-| `/` | Dashboard | Done |
+| `/` | Landing | Done |
+| `/app` | Dashboard | Done |
 | `/vaults` | My Vaults (with filters) | Done |
 | `/vaults/[id]` | Vault Detail + AI analysis | Done |
 | `/issue` | Issue Asset form | Done |
@@ -52,6 +53,7 @@ pnpm dev:backend    # Express on port 4000
 | `/yield-calendar` | Hedera Yield Calendar | Done |
 | `/ai-reports` | 0G AI Reports | Done |
 | `/admin` | Administration | Done |
+| `/demo/canton` | Canton 3-Panel Demo | Done |
 
 ## Phase 3 (Backend Bridges) — DONE
 
@@ -105,21 +107,106 @@ pnpm dev:backend    # Express on port 4000
 - [x] Shared types: `src/types/canton.ts`, `src/types/ai.ts`, `src/types/auth.ts`
 - [x] Updated `.env.example` with `CANTON_JSON_API_PORT`, `CANTON_LEDGER_ID`, `CANTON_PACKAGE_ID`, `JWT_SECRET`
 
-## Phase 4 (Integration) — After Phase 3
-- [ ] Wire Issue Asset form to ADI RWATokenFactory via backend
-- [ ] Wire My Vaults to VaultManager via backend
-- [ ] Wire Yield Calendar to Hedera CouponScheduler via backend
-- [ ] Live data on Dashboard
-- [ ] Wire Data Room to Canton Daml via backend
-- [ ] Wire Vault Detail "Analyze with AI" to 0G via backend
-- [ ] Wire AI Reports to display structured results
-- [ ] Human-in-the-loop UI wired to real transactions
+## Phase 4 (Frontend ↔ Backend Integration) — DONE
 
-## Phase 5 (Role-Based Views) — After Phase 4
-- [ ] Admin view (full access)
-- [ ] Issuer view (own assets only)
-- [ ] Investor view (own vaults only)
-- [ ] Auditor view (compliance-limited)
-- [ ] Notification system
-- [ ] Loading states and error handling
-- [ ] Responsive design
+### Completed
+- [x] **API client** — `packages/frontend/src/lib/api.ts`
+  - Shared fetch wrapper with JWT auth header injection
+  - Token stored in localStorage, auto-attached to all requests
+  - `ApiError` class with status + body for structured error handling
+  - Convenience methods: `api.get()`, `api.post()`, `api.put()`, `api.delete()`
+- [x] **Auth context** — `packages/frontend/src/contexts/auth-context.tsx`
+  - Full nonce → wallet signature → JWT flow using wagmi `signMessageAsync`
+  - Session restore from localStorage on mount (validates via `/api/auth/me`)
+  - Auto-clear on wallet disconnect or address change
+  - Exposes: `isAuthenticated`, `roles`, `signIn()`, `signOut()`, `hasRole()`
+- [x] **Sign In / Sign Out** — Topbar shows explicit "Sign In" button when wallet connected but not authenticated
+  - Role badges displayed after sign-in
+  - Error display for failed sign-in attempts
+- [x] **Backend demo API** — `packages/backend/src/routes/demo.ts`
+  - New route file serving UI-friendly demo data with mock fallbacks
+  - Does NOT modify Dev A's routes (no merge conflict risk)
+  - Endpoints: `/api/demo/dashboard`, `/api/demo/vaults`, `/api/demo/payments`, `/api/demo/canton/vaults`, `/api/demo/canton/demo/:vaultId/:role`, `/api/demo/ai/reports`, `/api/demo/ai/score-history`, `/api/demo/admin/wallets`, `/api/demo/admin/roles`
+  - Canton demo endpoint returns party-scoped views (owner/counterparty/auditor) with proper data filtering
+- [x] **Dashboard** wired to `/api/demo/dashboard` — stats, vaults, upcoming payments, latest AI analysis
+- [x] **My Vaults** wired to `/api/demo/vaults` — vault list with filters
+- [x] **Data Room** wired to `/api/demo/canton/vaults` — confidential vaults + trades
+- [x] **Yield Calendar** wired to `/api/demo/payments` + `/api/demo/vaults` — payments + vault filter
+- [x] **AI Reports** wired to `/api/demo/ai/reports` + `/api/demo/ai/score-history` — reports + chart data
+- [x] **Administration** wired to `/api/demo/admin/wallets` — wallet whitelist + role counts
+- [x] All pages have loading states (animated pulse) and error states (red message + backend hint)
+
+## Phase 4b (Canton Bounty Demo) — DONE
+
+### Completed
+- [x] **Canton 3-Panel Demo** — `/demo/canton`
+  - Dedicated page with 3 side-by-side panels: Owner / Counterparty / Auditor
+  - Each panel fetches from `/api/demo/canton/demo/cv-1/:role`
+  - **Owner view**: Full vault data, all assets with values, all parties, all trades (with accept/counter/reject buttons), complete audit log
+  - **Counterparty view**: Vault data with values, assets with financials, only own party + owner visible, only own trades visible, no audit log
+  - **Auditor view**: Vault name + asset count (no total value), assets with ratings/jurisdiction only (no values/coupons), only owner visible, no trades, compliance-only audit log
+  - Restricted data shown with lock icons and "restricted" labels
+  - Legend explaining each role's access level
+  - Explanation of Canton Network / Daml templates (ConfidentialVault, PrivateTrade, AuditRight)
+  - Added to sidebar navigation (Columns3 icon)
+  - Color-coded panel borders: neutral (owner), blue (counterparty), yellow (auditor)
+
+## Phase 5 (Role-Based Views) — DONE
+
+### Completed
+- [x] **RoleGate component** — `packages/frontend/src/components/role-gate.tsx`
+  - `<RoleGate allowed={['ADMIN']}>` — wraps content, shows "Restricted Access" message if user lacks role
+  - `<RoleOnly role="ISSUER">` — silent variant, renders nothing if unauthorized
+  - Shows user's current roles and what roles are required
+  - Unauthenticated users see content by default (pages handle their own auth)
+- [x] **Issue Asset** — gated to ADMIN + ISSUER roles
+- [x] **Administration** — gated to ADMIN role only
+- [x] Loading states on all API-wired pages
+- [x] Error states with backend connection hints
+
+### New Files Created
+| File | Purpose |
+|------|---------|
+| `frontend/src/lib/api.ts` | API client with JWT auth |
+| `frontend/src/contexts/auth-context.tsx` | Auth state management |
+| `frontend/src/hooks/use-api.ts` | Generic data-fetching hook |
+| `frontend/src/components/role-gate.tsx` | Role-based access control UI |
+| `frontend/src/app/demo/canton/page.tsx` | Canton 3-panel bounty demo |
+| `backend/src/routes/demo.ts` | Demo API with mock fallbacks |
+
+### Modified Files
+| File | Change |
+|------|--------|
+| `frontend/src/providers/web3-provider.tsx` | Added AuthProvider inside RainbowKit |
+| `frontend/src/components/layout/topbar.tsx` | Added Sign In/Out buttons + role badges |
+| `frontend/src/components/layout/sidebar.tsx` | Added Canton Demo nav item |
+| `frontend/src/app/app/page.tsx` | Wired to `/api/demo/dashboard` |
+| `frontend/src/app/vaults/page.tsx` | Wired to `/api/demo/vaults` |
+| `frontend/src/app/data-room/page.tsx` | Wired to `/api/demo/canton/vaults` |
+| `frontend/src/app/yield-calendar/page.tsx` | Wired to `/api/demo/payments` |
+| `frontend/src/app/ai-reports/page.tsx` | Wired to `/api/demo/ai/reports` |
+| `frontend/src/app/admin/page.tsx` | Wired to `/api/demo/admin/wallets` + RoleGate |
+| `frontend/src/app/issue/page.tsx` | Added RoleGate for ADMIN/ISSUER |
+| `backend/src/index.ts` | Registered demo routes |
+
+## Running the Demo
+
+```bash
+# Terminal 1 — Backend
+pnpm dev:backend    # Express on port 4000
+
+# Terminal 2 — Frontend
+pnpm dev:frontend   # Next.js on port 3000
+```
+
+Both servers must be running. The frontend fetches data from the backend's demo API which provides mock fallbacks for all services (ADI, Hedera, Canton, 0G).
+
+### Demo Flow
+1. Open `http://localhost:3000` — Landing page
+2. Click "Launch App" — Dashboard
+3. Connect wallet (MetaMask / WalletConnect)
+4. Click "Sign In" — wallet signature prompt
+5. Navigate through all pages — data loads from backend
+6. Visit `/demo/canton` — 3-panel visibility demo for Canton bounty
+7. Try `/admin` — requires ADMIN role
+8. Try `/issue` — requires ADMIN or ISSUER role

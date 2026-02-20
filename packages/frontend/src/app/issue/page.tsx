@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { RoleGate } from '@/components/role-gate';
 
 interface AssetForm {
   assetType: string;
@@ -78,6 +79,7 @@ export default function IssueAssetPage() {
   };
 
   return (
+    <RoleGate allowed={['ADMIN', 'ISSUER']}>
     <div className="mx-auto max-w-2xl">
       <div className="shadow-input rounded-none bg-white p-4 md:rounded-2xl md:p-8 dark:bg-black">
         <h2 className="text-xl font-bold text-neutral-800 dark:text-neutral-200">
@@ -280,5 +282,6 @@ export default function IssueAssetPage() {
         </form>
       </div>
     </div>
+    </RoleGate>
   );
 }

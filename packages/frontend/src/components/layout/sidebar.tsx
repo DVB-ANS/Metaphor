@@ -10,6 +10,7 @@ import {
   CalendarDays,
   Brain,
   Shield,
+  Columns3,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import {
@@ -27,6 +28,7 @@ const navItems = [
   { href: '/yield-calendar', label: 'Yield Calendar', icon: CalendarDays },
   { href: '/ai-reports', label: 'AI Reports', icon: Brain },
   { href: '/admin', label: 'Administration', icon: Shield },
+  { href: '/demo/canton', label: 'Canton Demo', icon: Columns3 },
 ];
 
 const Logo = () => (

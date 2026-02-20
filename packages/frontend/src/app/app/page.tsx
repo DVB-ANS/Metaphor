@@ -1,10 +1,13 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import {
-  Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { BentoGrid, BentoCard } from '@/components/ui/magic-bento';
 import { Badge } from '@/components/ui/badge';
 import {
   Vault,
@@ -15,47 +18,77 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import Link from 'next/link';
+import { api } from '@/lib/api';
 import {
-  mockVaults,
-  mockPayments,
-  mockAIAnalysis,
-  mockPortfolioStats,
   formatCurrency,
   getRiskColor,
   getStatusBadgeVariant,
 } from '@/lib/mock-data';
 
-const stats = [
-  {
-    label: 'Total Asset Value',
-    value: formatCurrency(mockPortfolioStats.totalValue),
-    icon: Coins,
-  },
-  {
-    label: 'YTD Return',
-    value: `+${mockPortfolioStats.yieldYTD}%`,
-    icon: TrendingUp,
-  },
-  {
-    label: 'Active Vaults',
-    value: mockPortfolioStats.activeVaults.toString(),
-    icon: Vault,
-  },
-  {
-    label: 'Tokenized Assets',
-    value: mockPortfolioStats.tokenizedAssets.toString(),
-    icon: Coins,
-  },
-  {
-    label: 'Upcoming Payments',
-    value: mockPortfolioStats.upcomingPayments.toString(),
-    icon: CalendarClock,
-  },
-];
-
 export default function DashboardPage() {
+  const [dashData, setDashData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.get('/api/demo/dashboard')
+      .then((data) => setDashData(data))
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <BentoGrid className="space-y-6">
+        <div className="flex h-64 items-center justify-center">
+          <p className="text-sm text-neutral-500 animate-pulse">Loading dashboard...</p>
+        </div>
+      </BentoGrid>
+    );
+  }
+
+  if (error) {
+    return (
+      <BentoGrid className="space-y-6">
+        <div className="flex h-64 flex-col items-center justify-center gap-2">
+          <p className="text-sm text-red-400">Failed to load dashboard</p>
+          <p className="text-xs text-neutral-600">{error}</p>
+          <p className="text-xs text-neutral-600">Make sure the backend is running on port 4000</p>
+        </div>
+      </BentoGrid>
+    );
+  }
+
+  const stats = [
+    {
+      label: 'Total Asset Value',
+      value: formatCurrency(dashData.stats.totalValue),
+      icon: Coins,
+    },
+    {
+      label: 'YTD Return',
+      value: `+${dashData.stats.yieldYTD}%`,
+      icon: TrendingUp,
+    },
+    {
+      label: 'Active Vaults',
+      value: dashData.stats.activeVaults.toString(),
+      icon: Vault,
+    },
+    {
+      label: 'Tokenized Assets',
+      value: dashData.stats.tokenizedAssets.toString(),
+      icon: Coins,
+    },
+    {
+      label: 'Upcoming Payments',
+      value: dashData.stats.upcomingPayments.toString(),
+      icon: CalendarClock,
+    },
+  ];
+
   return (
-    <div className="space-y-6">
+    <BentoGrid className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">Portfolio overview and key metrics</p>
@@ -64,7 +97,7 @@ export default function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
         {stats.map((stat) => (
-          <Card key={stat.label}>
+          <BentoCard key={stat.label}>
             <CardContent className="flex items-center gap-4 pt-6">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                 <stat.icon className="h-5 w-5 text-primary" />
@@ -74,13 +107,13 @@ export default function DashboardPage() {
                 <p className="text-xl font-bold">{stat.value}</p>
               </div>
             </CardContent>
-          </Card>
+          </BentoCard>
         ))}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Vaults List */}
-        <Card className="lg:col-span-2">
+        <BentoCard className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle>Vaults</CardTitle>
@@ -95,7 +128,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {mockVaults.map((vault) => (
+              {dashData.vaults.map((vault: any) => (
                 <Link
                   key={vault.id}
                   href={`/vaults/${vault.id}`}
@@ -134,12 +167,12 @@ export default function DashboardPage() {
               ))}
             </div>
           </CardContent>
-        </Card>
+        </BentoCard>
 
         {/* Right Column */}
         <div className="space-y-6">
           {/* Upcoming Payments */}
-          <Card>
+          <BentoCard>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CalendarClock className="h-4 w-4" />
@@ -147,7 +180,7 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {mockPayments.filter((p) => p.status === 'scheduled').slice(0, 3).map((payment) => (
+              {dashData.upcomingPayments.map((payment: any) => (
                 <div key={payment.id} className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium">{payment.assetName}</p>
@@ -162,10 +195,10 @@ export default function DashboardPage() {
                 </div>
               ))}
             </CardContent>
-          </Card>
+          </BentoCard>
 
           {/* Last AI Analysis */}
-          <Card>
+          <BentoCard>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Brain className="h-4 w-4" />
@@ -175,13 +208,13 @@ export default function DashboardPage() {
             <CardContent>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">{mockAIAnalysis.vaultName}</p>
-                  <p className={`text-sm font-bold ${getRiskColor(mockAIAnalysis.riskLevel)}`}>
-                    Score: {mockAIAnalysis.score}/100
+                  <p className="text-sm font-medium">{dashData.latestAIAnalysis.vaultName}</p>
+                  <p className={`text-sm font-bold ${getRiskColor(dashData.latestAIAnalysis.riskLevel)}`}>
+                    Score: {dashData.latestAIAnalysis.score}/100
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {mockAIAnalysis.recommendations} recommendation(s) pending
+                  {dashData.latestAIAnalysis.recommendations} recommendation(s) pending
                 </p>
                 <Link
                   href="/ai-reports"
@@ -191,9 +224,9 @@ export default function DashboardPage() {
                 </Link>
               </div>
             </CardContent>
-          </Card>
+          </BentoCard>
         </div>
       </div>
-    </div>
+    </BentoGrid>
   );
 }

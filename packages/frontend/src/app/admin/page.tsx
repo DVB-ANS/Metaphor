@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { BentoGrid, BentoCard } from '@/components/ui/magic-bento';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,38 +37,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Shield, Key, Palette, UserPlus, Trash2, Upload } from 'lucide-react';
-import { mockWhitelistedWallets, type Role } from '@/lib/mock-data';
-
-const roles = [
-  {
-    name: 'Admin',
-    count: mockWhitelistedWallets.filter((w) => w.role === 'admin').length,
-    permissions: ['Issue', 'Invest', 'Audit', 'Administer'],
-    variant: 'default' as const,
-    description: 'Full access to all platform features',
-  },
-  {
-    name: 'Issuer',
-    count: mockWhitelistedWallets.filter((w) => w.role === 'issuer').length,
-    permissions: ['Issue'],
-    variant: 'secondary' as const,
-    description: 'Can tokenize and manage own assets',
-  },
-  {
-    name: 'Investor',
-    count: mockWhitelistedWallets.filter((w) => w.role === 'investor').length,
-    permissions: ['Invest'],
-    variant: 'secondary' as const,
-    description: 'Can invest in vaults and view holdings',
-  },
-  {
-    name: 'Auditor',
-    count: mockWhitelistedWallets.filter((w) => w.role === 'auditor').length,
-    permissions: ['Audit (limited)'],
-    variant: 'outline' as const,
-    description: 'Read-only compliance access',
-  },
-];
+import { RoleGate } from '@/components/role-gate';
+import { type Role } from '@/lib/mock-data';
+import { api } from '@/lib/api';
 
 export default function AdminPage() {
   const [addWalletOpen, setAddWalletOpen] = useState(false);
@@ -78,8 +49,54 @@ export default function AdminPage() {
     domain: '',
   });
 
+  const [wallets, setWallets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.get<any[]>('/api/demo/admin/wallets')
+      .then(setWallets)
+      .catch((err) => setFetchError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const roles = [
+    {
+      name: 'Admin',
+      count: wallets.filter((w: any) => w.role === 'admin').length,
+      permissions: ['Issue', 'Invest', 'Audit', 'Administer'],
+      variant: 'default' as const,
+      description: 'Full access to all platform features',
+    },
+    {
+      name: 'Issuer',
+      count: wallets.filter((w: any) => w.role === 'issuer').length,
+      permissions: ['Issue'],
+      variant: 'secondary' as const,
+      description: 'Can tokenize and manage own assets',
+    },
+    {
+      name: 'Investor',
+      count: wallets.filter((w: any) => w.role === 'investor').length,
+      permissions: ['Invest'],
+      variant: 'secondary' as const,
+      description: 'Can invest in vaults and view holdings',
+    },
+    {
+      name: 'Auditor',
+      count: wallets.filter((w: any) => w.role === 'auditor').length,
+      permissions: ['Audit (limited)'],
+      variant: 'outline' as const,
+      description: 'Read-only compliance access',
+    },
+  ];
+
+  if (loading) return <BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading admin data...</p></div></BentoGrid>;
+  if (fetchError) return <BentoGrid className="space-y-6"><div className="flex h-64 flex-col items-center justify-center gap-2"><p className="text-sm text-red-400">Failed to load admin data</p><p className="text-xs text-neutral-600">{fetchError}</p></div></BentoGrid>;
+
   return (
-    <div className="space-y-6">
+    <RoleGate allowed={['ADMIN']}>
+    <BentoGrid className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Administration</h1>
         <p className="text-muted-foreground">
@@ -88,7 +105,7 @@ export default function AdminPage() {
       </div>
 
       {/* RBAC Section */}
-      <Card>
+      <BentoCard>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Shield className="h-4 w-4" />
@@ -116,10 +133,10 @@ export default function AdminPage() {
             ))}
           </div>
         </CardContent>
-      </Card>
+      </BentoCard>
 
       {/* Wallet Whitelist */}
-      <Card>
+      <BentoCard>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
@@ -196,7 +213,7 @@ export default function AdminPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockWhitelistedWallets.map((wallet) => (
+              {wallets.map((wallet: any) => (
                 <TableRow key={wallet.address}>
                   <TableCell className="font-mono text-sm">{wallet.address}</TableCell>
                   <TableCell>{wallet.label}</TableCell>
@@ -225,10 +242,10 @@ export default function AdminPage() {
             </TableBody>
           </Table>
         </CardContent>
-      </Card>
+      </BentoCard>
 
       {/* White-Label Configuration */}
-      <Card>
+      <BentoCard>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Palette className="h-4 w-4" />
@@ -312,7 +329,8 @@ export default function AdminPage() {
             Save Configuration
           </Button>
         </CardContent>
-      </Card>
-    </div>
+      </BentoCard>
+    </BentoGrid>
+    </RoleGate>
   );
 }

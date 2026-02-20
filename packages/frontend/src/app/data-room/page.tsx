@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { BentoGrid, BentoCard } from '@/components/ui/magic-bento';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,11 +49,11 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import {
-  mockConfidentialVaults,
   formatCurrency,
   getTradeStatusVariant,
   type VisibilityLevel,
 } from '@/lib/mock-data';
+import { api } from '@/lib/api';
 
 function getVisibilityIcon(role: VisibilityLevel) {
   switch (role) {
@@ -79,9 +79,22 @@ function getVisibilityDescription(role: VisibilityLevel): string {
 
 export default function DataRoomPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [confidentialVaults, setConfidentialVaults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.get<any[]>('/api/demo/canton/vaults')
+      .then(setConfidentialVaults)
+      .catch((err) => setFetchError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading data room...</p></div></BentoGrid>;
+  if (fetchError) return <BentoGrid className="space-y-6"><div className="flex h-64 flex-col items-center justify-center gap-2"><p className="text-sm text-red-400">Failed to load data room</p><p className="text-xs text-neutral-600">{fetchError}</p></div></BentoGrid>;
 
   return (
-    <div className="space-y-6">
+    <BentoGrid className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Data Room</h1>
@@ -111,7 +124,7 @@ export default function DataRoomPage() {
                     <SelectValue placeholder="Select vault" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockConfidentialVaults.map((v) => (
+                    {confidentialVaults.map((v: any) => (
                       <SelectItem key={v.id} value={v.id}>
                         {v.name}
                       </SelectItem>
@@ -158,7 +171,7 @@ export default function DataRoomPage() {
       </div>
 
       {/* Visibility Model Explainer */}
-      <Card>
+      <BentoCard>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <EyeOff className="h-4 w-4" />
@@ -190,11 +203,11 @@ export default function DataRoomPage() {
             </div>
           </div>
         </CardContent>
-      </Card>
+      </BentoCard>
 
       {/* Confidential Vaults */}
-      {mockConfidentialVaults.map((cv) => (
-        <Card key={cv.id}>
+      {confidentialVaults.map((cv: any) => (
+        <BentoCard key={cv.id}>
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -228,7 +241,7 @@ export default function DataRoomPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {cv.parties.map((party) => (
+                  {cv.parties.map((party: any) => (
                     <TableRow key={party.id}>
                       <TableCell>
                         <div>
@@ -269,7 +282,7 @@ export default function DataRoomPage() {
                 <p className="text-sm text-muted-foreground">No trade proposals yet</p>
               ) : (
                 <div className="space-y-3">
-                  {cv.trades.map((trade) => (
+                  {cv.trades.map((trade: any) => (
                     <div key={trade.id} className="rounded-lg border p-4">
                       <div className="flex items-start justify-between">
                         <div>
@@ -315,8 +328,8 @@ export default function DataRoomPage() {
               )}
             </div>
           </CardContent>
-        </Card>
+        </BentoCard>
       ))}
-    </div>
+    </BentoGrid>
   );
 }
