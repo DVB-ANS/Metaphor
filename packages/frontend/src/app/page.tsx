@@ -17,7 +17,7 @@ import {
 import Link from 'next/link';
 import {
   mockVaults,
-  mockUpcomingPayments,
+  mockPayments,
   mockAIAnalysis,
   mockPortfolioStats,
   formatCurrency,
@@ -96,9 +96,10 @@ export default function DashboardPage() {
           <CardContent>
             <div className="space-y-3">
               {mockVaults.map((vault) => (
-                <div
+                <Link
                   key={vault.id}
-                  className="flex items-center justify-between rounded-lg border p-4"
+                  href={`/vaults/${vault.id}`}
+                  className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/50"
                 >
                   <div className="flex items-center gap-4">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
@@ -129,7 +130,7 @@ export default function DashboardPage() {
                           : 'Matured'}
                     </Badge>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </CardContent>
@@ -146,7 +147,7 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {mockUpcomingPayments.map((payment) => (
+              {mockPayments.filter((p) => p.status === 'scheduled').slice(0, 3).map((payment) => (
                 <div key={payment.id} className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium">{payment.assetName}</p>

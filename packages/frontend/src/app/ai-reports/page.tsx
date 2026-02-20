@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -6,56 +9,50 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Brain, TrendingDown, AlertTriangle, CheckCircle } from 'lucide-react';
-import { getRiskColor } from '@/lib/mock-data';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Brain,
+  TrendingDown,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Download,
+  TrendingUp,
+} from 'lucide-react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  ReferenceLine,
+} from 'recharts';
+import {
+  mockAIReports,
+  mockScoreHistory,
+  mockVaults,
+  getRiskColor,
+  getRiskBg,
+  type RiskLevel,
+} from '@/lib/mock-data';
 
-const mockReports = [
-  {
-    id: 'report-1',
-    vaultName: 'EM Corporate',
-    date: '2026-02-18',
-    score: 67,
-    riskLevel: 'high' as const,
-    summary: 'Geographic concentration risk in Italian invoices. Recommend reducing exposure.',
-    recommendations: [
-      'Reduce Italy exposure from 25% to 15%',
-      'Reallocate 10% to French sovereign bonds',
-    ],
-    stressTests: [
-      { scenario: 'ECB rate +1%', impact: '-2.8%' },
-      { scenario: 'ECB rate +2%', impact: '-5.4%' },
-      { scenario: 'Italy default', impact: '-18.2%' },
-    ],
-  },
-  {
-    id: 'report-2',
-    vaultName: 'Fixed Income EU',
-    date: '2026-02-15',
-    score: 42,
-    riskLevel: 'moderate' as const,
-    summary: 'Well-diversified portfolio with moderate duration risk.',
-    recommendations: ['Consider adding interest rate hedging (swap)'],
-    stressTests: [
-      { scenario: 'ECB rate +1%', impact: '-1.2%' },
-      { scenario: 'ECB rate +2%', impact: '-2.5%' },
-    ],
-  },
-  {
-    id: 'report-3',
-    vaultName: 'US Treasury Pool',
-    date: '2026-02-10',
-    score: 18,
-    riskLevel: 'low' as const,
-    summary: 'Low-risk sovereign portfolio. No action required.',
-    recommendations: [],
-    stressTests: [
-      { scenario: 'Fed rate +1%', impact: '-0.8%' },
-      { scenario: 'Fed rate +2%', impact: '-1.6%' },
-    ],
-  },
-];
-
-function getRiskIcon(level: 'low' | 'moderate' | 'high') {
+function getRiskIcon(level: RiskLevel) {
   switch (level) {
     case 'low':
       return <CheckCircle className="h-4 w-4 text-green-500" />;
@@ -67,17 +64,106 @@ function getRiskIcon(level: 'low' | 'moderate' | 'high') {
 }
 
 export default function AIReportsPage() {
+  const [vaultFilter, setVaultFilter] = useState<string>('all');
+  const [approveDialog, setApproveDialog] = useState<{
+    open: boolean;
+    action: string;
+    detail: string;
+    impact: string;
+  }>({ open: false, action: '', detail: '', impact: '' });
+
+  const filteredReports =
+    vaultFilter === 'all'
+      ? mockAIReports
+      : mockAIReports.filter((r) => r.vaultId === vaultFilter);
+
+  const selectedHistory =
+    vaultFilter === 'all'
+      ? Object.values(mockScoreHistory).flat().sort((a, b) => a.date.localeCompare(b.date))
+      : mockScoreHistory[vaultFilter] || [];
+
+  const handleExportPdf = (reportId: string) => {
+    alert(`PDF export for report ${reportId} (mock). Will be implemented with a PDF library.`);
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">AI Reports</h1>
-        <p className="text-muted-foreground">
-          Risk analysis powered by 0G Compute
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">AI Reports</h1>
+          <p className="text-muted-foreground">Risk analysis powered by 0G Compute</p>
+        </div>
+        <Select value={vaultFilter} onValueChange={setVaultFilter}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Filter by vault" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All vaults</SelectItem>
+            {mockVaults.map((v) => (
+              <SelectItem key={v.id} value={v.id}>
+                {v.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
+      {/* Score Evolution Chart */}
+      {selectedHistory.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Risk Score Evolution
+            </CardTitle>
+            <CardDescription>
+              {vaultFilter === 'all'
+                ? 'Aggregate score trend across all vaults'
+                : `Score trend for ${mockVaults.find((v) => v.id === vaultFilter)?.name}`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={250}>
+              <LineChart data={selectedHistory}>
+                <XAxis dataKey="date" tick={{ fill: '#888', fontSize: 12 }} />
+                <YAxis domain={[0, 100]} tick={{ fill: '#888', fontSize: 12 }} />
+                <RechartsTooltip
+                  contentStyle={{
+                    background: '#1c1c1c',
+                    border: '1px solid #333',
+                    borderRadius: 8,
+                  }}
+                  formatter={(value) => [`${value}/100`, 'Risk Score']}
+                />
+                <ReferenceLine y={30} stroke="#22c55e" strokeDasharray="3 3" label="" />
+                <ReferenceLine y={60} stroke="#eab308" strokeDasharray="3 3" label="" />
+                <Line
+                  type="monotone"
+                  dataKey="score"
+                  stroke="#6366f1"
+                  strokeWidth={2}
+                  dot={{ fill: '#6366f1', r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+            <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <div className="h-2 w-2 rounded-full bg-green-500" /> Low (&lt;30)
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="h-2 w-2 rounded-full bg-yellow-500" /> Moderate (30-60)
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="h-2 w-2 rounded-full bg-red-500" /> High (&gt;60)
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Reports */}
       <div className="space-y-4">
-        {mockReports.map((report) => (
+        {filteredReports.map((report) => (
           <Card key={report.id}>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -88,34 +174,47 @@ export default function AIReportsPage() {
                     <CardDescription>{report.date}</CardDescription>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {getRiskIcon(report.riskLevel)}
-                  <span className={`text-lg font-bold ${getRiskColor(report.riskLevel)}`}>
-                    {report.score}/100
-                  </span>
+                <div className="flex items-center gap-3">
+                  <Button variant="outline" size="sm" onClick={() => handleExportPdf(report.id)}>
+                    <Download className="mr-1 h-3 w-3" /> PDF
+                  </Button>
+                  <div className="flex items-center gap-2">
+                    {getRiskIcon(report.riskLevel)}
+                    <span className={`text-lg font-bold ${getRiskColor(report.riskLevel)}`}>
+                      {report.score}/100
+                    </span>
+                  </div>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm">{report.summary}</p>
 
-              {report.recommendations.length > 0 && (
-                <div>
-                  <p className="mb-2 text-sm font-medium">Recommendations</p>
-                  <ul className="space-y-1">
-                    {report.recommendations.map((rec, i) => (
-                      <li
-                        key={i}
-                        className="flex items-start gap-2 text-sm text-muted-foreground"
-                      >
-                        <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                        {rec}
-                      </li>
-                    ))}
-                  </ul>
+              {/* Position Analysis */}
+              <div>
+                <p className="mb-2 text-sm font-medium">Position Analysis</p>
+                <div className="space-y-2">
+                  {report.positionAnalysis.map((pos) => (
+                    <div
+                      key={pos.name}
+                      className="flex items-center justify-between rounded-lg border p-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`h-2 w-2 rounded-full ${getRiskBg(pos.riskLevel)}`} />
+                        <div>
+                          <p className="text-sm font-medium">{pos.name}</p>
+                          <p className="text-xs text-muted-foreground">{pos.comment}</p>
+                        </div>
+                      </div>
+                      <span className={`text-sm font-bold ${getRiskColor(pos.riskLevel)}`}>
+                        {pos.score}/100
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
 
+              {/* Stress Tests */}
               <div>
                 <p className="mb-2 text-sm font-medium">Stress Tests</p>
                 <div className="grid gap-2 sm:grid-cols-3">
@@ -127,6 +226,48 @@ export default function AIReportsPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Recommendations with Approve/Reject */}
+              {report.recommendations.length > 0 && (
+                <div>
+                  <p className="mb-2 text-sm font-medium">
+                    Recommendations ({report.recommendations.length})
+                  </p>
+                  <div className="space-y-3">
+                    {report.recommendations.map((rec) => (
+                      <div
+                        key={rec.id}
+                        className="flex items-start justify-between rounded-lg border p-4"
+                      >
+                        <div className="flex-1">
+                          <p className="font-medium">{rec.action}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">{rec.detail}</p>
+                          <p className="mt-1 text-xs text-primary">{rec.impact}</p>
+                        </div>
+                        <div className="ml-4 flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() =>
+                              setApproveDialog({
+                                open: true,
+                                action: rec.action,
+                                detail: rec.detail,
+                                impact: rec.impact,
+                              })
+                            }
+                          >
+                            <CheckCircle className="mr-1 h-3 w-3" /> Approve
+                          </Button>
+                          <Button size="sm" variant="outline">
+                            <XCircle className="mr-1 h-3 w-3" /> Reject
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-2 pt-2">
                 <Badge variant="outline">0G Compute</Badge>
@@ -140,6 +281,43 @@ export default function AIReportsPage() {
           </Card>
         ))}
       </div>
+
+      {/* Approval Dialog */}
+      <Dialog
+        open={approveDialog.open}
+        onOpenChange={(open) => setApproveDialog((prev) => ({ ...prev, open }))}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm AI Recommendation</DialogTitle>
+            <DialogDescription>
+              You are about to approve an AI-recommended action. This will prepare a transaction.
+              Review carefully before confirming.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border bg-muted/50 p-4">
+            <p className="font-medium">{approveDialog.action}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{approveDialog.detail}</p>
+            <p className="mt-2 text-sm text-primary">Expected: {approveDialog.impact}</p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setApproveDialog((prev) => ({ ...prev, open: false }))}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setApproveDialog((prev) => ({ ...prev, open: false }));
+                alert('Action approved (mock). Will execute via 0G + backend bridge.');
+              }}
+            >
+              Confirm & Execute
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
