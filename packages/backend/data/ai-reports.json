@@ -1,0 +1,35 @@
+[
+  {
+    "reportId": "report-001",
+    "vaultId": "vault-0",
+    "riskScore": 55,
+    "riskLevel": "moderate",
+    "summary": "[Mock] Analysis for vault vault-0. 1 assets, total nominal $1 000 000. Risk score: 55.",
+    "recommendations": [],
+    "stressTests": [
+      {
+        "scenario": "Interest rate +1%",
+        "impact": "-2.0%"
+      },
+      {
+        "scenario": "Credit spread widening +100bps",
+        "impact": "-4.0%"
+      },
+      {
+        "scenario": "Sovereign default (largest exposure)",
+        "impact": "-15.0%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "0x935C",
+        "name": "TestBond",
+        "score": 60,
+        "riskLevel": "moderate",
+        "comment": "[Mock] Coupon rate 5%, nominal $1 000 000."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-20T22:26:55.340Z"
+  }
+]
