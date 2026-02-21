@@ -1,4 +1,4 @@
-# Outward — Hub RWA Confidentiel et Automatisé pour les Institutions
+# Metaphor — Hub RWA Confidentiel et Automatisé pour les Institutions
 
 ## Contexte
 
@@ -14,7 +14,7 @@ Les institutions financières souhaitant tokeniser et gérer des actifs du monde
 2. **Automatisation** — Le versement des rendements/coupons dépend de serveurs centralisés (off-chain), créant des points de défaillance
 3. **Intelligence décisionnelle** — L'analyse de risque des portefeuilles RWA reste manuelle et fragmentée
 
-### Solution : Outward
+### Solution : Metaphor
 Un hub intégré où les institutions peuvent :
 - **Tokeniser** des RWA sur une infrastructure dédiée
 - **Négocier** ces actifs en toute confidentialité
@@ -27,7 +27,7 @@ Un hub intégré où les institutions peuvent :
 
 ### Vue d'ensemble produit
 
-Outward se présente comme une **plateforme SaaS white-label** destinée aux asset managers, banques privées et family offices. L'interface est un dashboard institutionnel unique qui orchestre les 4 couches techniques de manière transparente pour l'utilisateur final.
+Metaphor se présente comme une **plateforme SaaS white-label** destinée aux asset managers, banques privées et family offices. L'interface est un dashboard institutionnel unique qui orchestre les 4 couches techniques de manière transparente pour l'utilisateur final.
 
 ### F1 — Émission & Tokenisation d'actifs (ADI)
 
@@ -191,7 +191,7 @@ Vault : "Fixed Income Europe Q1"
 **Vue principale — Portfolio Overview :**
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Outward           [Vault: Fixed Income EU]  [🔔] [Admin] │
+│  Metaphor           [Vault: Fixed Income EU]  [🔔] [Admin] │
 ├──────────────────────────────────────────────────────────────┤
 │                                                              │
 │  VALEUR TOTALE DES ACTIFS          RENDEMENT YTD             │
@@ -246,7 +246,7 @@ Le système définit **4 rôles** avec des permissions strictes :
 | **Auditor** | ❌ | ❌ | ✅ | ❌ | ⚠️ (vue compliance limitée) |
 
 **Cas d'usage concrets :**
-- Un `Admin` de BNP déploie l'instance Outward avec le branding BNP
+- Un `Admin` de BNP déploie l'instance Metaphor avec le branding BNP
 - Un `Issuer` tokenise un portefeuille de créances et crée un vault
 - Un `Investor` (BlackRock) achète des tokens et suit ses rendements
 - Un `Auditor` (Deloitte) vérifie la conformité sans voir les stratégies
@@ -259,7 +259,7 @@ Ce scénario sera utilisé pour la vidéo de démonstration et la présentation 
 
 ```
 00:00 - 00:20  INTRO
-  "Outward permet aux institutions de tokeniser, négocier en confidentialité,
+  "Metaphor permet aux institutions de tokeniser, négocier en confidentialité,
    automatiser les rendements et analyser les risques de leurs actifs réels."
 
 00:20 - 00:50  TOKENISATION (ADI)
@@ -285,7 +285,7 @@ Ce scénario sera utilisé pour la vidéo de démonstration et la présentation 
 
 02:30 - 02:50  RÉCAP
   "4 couches, 1 plateforme. Tokenisation, confidentialité, automatisation, intelligence.
-   Outward — le hub RWA institutionnel."
+   Metaphor — le hub RWA institutionnel."
 ```
 
 ---
@@ -428,7 +428,7 @@ Dashboard utilisateur → Bouton "Approuver & Exécuter" ou "Rejeter"
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                        FLUX OUTWARD                          │
+│                        FLUX METAPHOR                          │
 │                                                                  │
 │  1. LOGIN                                                        │
 │     └─ Connexion wallet institutionnel (rôle assigné via RBAC)   │
