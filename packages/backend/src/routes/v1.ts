@@ -6,7 +6,7 @@ import { ethers } from 'ethers';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { getContract, ADDRESSES } from '../config.js';
+import { getContract, getHederaProvider, ADDRESSES, ABIS } from '../config.js';
 import { listReports, getReport } from '../services/ai-client.js';
 import { cantonClient } from '../services/canton-client.js';
 import type { AIReport } from '../types/ai.js';
@@ -375,6 +375,22 @@ async function fetchAllVaults() {
   return vaults;
 }
 
+// PaymentStatus enum from CouponScheduler.sol
+const PAYMENT_STATUS: Record<number, string> = {
+  0: 'scheduled', // Pending
+  1: 'scheduled', // Scheduled (on Hedera Schedule Service)
+  2: 'completed', // Executed
+  3: 'failed',    // Failed
+  4: 'suspended', // Suspended
+};
+
+const FREQUENCY_LABEL: Record<number, string> = {
+  0: 'Monthly',
+  1: 'Quarterly',
+  2: 'Semi-Annual',
+  3: 'Annual',
+};
+
 async function fetchAllPayments() {
   try {
     const scheduler = getContract('CouponScheduler', ADDRESSES.couponScheduler);
@@ -388,29 +404,54 @@ async function fetchAllPayments() {
         const dates: bigint[] = await scheduler.getPaymentDates(i);
         const couponAmount = await scheduler.getCouponAmount(i);
 
-        // Try to resolve token name
+        // bond.token is the RWA bond token address on Hedera
+        const tokenAddr = bond.token;
         let tokenName = `Bond #${i}`;
         try {
-          const tokenAddr = bond.tokenAddress || bond[0];
           if (tokenAddr && tokenAddr !== ethers.ZeroAddress) {
-            const token = getContract('RWAToken', tokenAddr);
+            // Use Hedera provider since these tokens live on Hedera testnet
+            const hederaProvider = getHederaProvider();
+            const token = new ethers.Contract(tokenAddr, ABIS.RWAToken, hederaProvider);
             tokenName = await token.name();
           }
         } catch { /* keep default */ }
+
+        // Determine decimals: use paymentToken decimals (typically 6 for USDC-like)
+        // CouponScheduler stores faceValue in paymentToken scale
+        let decimals = 6;
+        try {
+          const ptAddr = bond.paymentToken;
+          if (ptAddr && ptAddr !== ethers.ZeroAddress) {
+            const hederaProvider = getHederaProvider();
+            const pt = new ethers.Contract(ptAddr, ['function decimals() view returns (uint8)'], hederaProvider);
+            decimals = Number(await pt.decimals());
+          }
+        } catch { /* default 6 */ }
+
+        const rate = Number(bond.rate);
+        const freq = Number(bond.frequency);
+        const freqLabel = FREQUENCY_LABEL[freq] || 'Quarterly';
 
         for (const date of dates) {
           const ts = Number(date);
           const dateStr = new Date(ts * 1000).toISOString().slice(0, 10);
           const daysUntil = Math.max(0, Math.ceil((ts - now) / 86400));
-          const status = ts <= now ? 'completed' : 'scheduled';
+
+          // Get on-chain payment status
+          let status = ts <= now ? 'completed' : 'scheduled';
+          try {
+            const payment = await scheduler.getPayment(i, date);
+            status = PAYMENT_STATUS[Number(payment.status)] || status;
+          } catch { /* fall back to time-based */ }
+
           payments.push({
-            id: `pay-${i}-${ts}`,
+            id: `hedera-pay-${i}-${ts}`,
             assetName: tokenName,
-            amount: Number(ethers.formatUnits(couponAmount, 18)),
+            amount: Number(ethers.formatUnits(couponAmount, decimals)),
             date: dateStr,
             daysUntil,
             vaultId: `bond-${i}`,
-            vaultName: tokenName,
+            vaultName: `${tokenName} (${freqLabel}, ${rate / 100}%)`,
             status,
             recipients: 1,
           });
