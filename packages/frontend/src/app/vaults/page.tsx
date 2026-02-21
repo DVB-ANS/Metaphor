@@ -16,6 +16,7 @@ import {
   type AssetType,
 } from '@/lib/mock-data';
 import { api } from '@/lib/api';
+import { RoleGate } from '@/components/role-gate';
 
 interface VaultForm {
   name: string;
@@ -109,18 +110,22 @@ export default function VaultsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto py-16 text-sm text-black/30 animate-pulse">
-        Loading vaults...
-      </div>
+      <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
+        <div className="max-w-4xl mx-auto py-16 text-sm text-black/30 animate-pulse">
+          Loading vaults...
+        </div>
+      </RoleGate>
     );
   }
 
   if (fetchError) {
     return (
-      <div className="max-w-4xl mx-auto py-16 space-y-1">
-        <p className="text-sm text-black/45">Failed to load vaults</p>
-        <p className="text-xs text-black/30">{fetchError}</p>
-      </div>
+      <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
+        <div className="max-w-4xl mx-auto py-16 space-y-1">
+          <p className="text-sm text-black/45">Failed to load vaults</p>
+          <p className="text-xs text-black/30">{fetchError}</p>
+        </div>
+      </RoleGate>
     );
   }
 
@@ -133,6 +138,7 @@ export default function VaultsPage() {
   });
 
   return (
+    <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
     <div className="max-w-4xl mx-auto space-y-16 py-12">
 
       {/* Header */}
@@ -413,5 +419,6 @@ export default function VaultsPage() {
       </div>
 
     </div>
+    </RoleGate>
   );
 }

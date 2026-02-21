@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/mock-data';
 import { api } from '@/lib/api';
+import { RoleGate } from '@/components/role-gate';
 
 const months = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -39,33 +40,39 @@ export default function YieldCalendarPage() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto flex h-64 items-center justify-center">
-        <p className="text-sm text-black/30 animate-pulse">Loading yield calendar...</p>
-      </div>
+      <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
+        <div className="max-w-4xl mx-auto flex h-64 items-center justify-center">
+          <p className="text-sm text-black/30 animate-pulse">Loading yield calendar...</p>
+        </div>
+      </RoleGate>
     );
   }
 
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto flex h-64 flex-col items-center justify-center gap-2">
-        <p className="text-sm text-black/45">Failed to load data</p>
-        <p className="text-xs text-black/30">{error}</p>
-      </div>
+      <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
+        <div className="max-w-4xl mx-auto flex h-64 flex-col items-center justify-center gap-2">
+          <p className="text-sm text-black/45">Failed to load data</p>
+          <p className="text-xs text-black/30">{error}</p>
+        </div>
+      </RoleGate>
     );
   }
 
   if (allPayments.length === 0) {
     return (
-      <div className="max-w-4xl mx-auto space-y-16">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-widest text-black/30 mb-2">Hedera Schedule Service</p>
-          <h1 className="text-2xl font-semibold text-black">Yield Calendar</h1>
-          <p className="mt-1 text-sm text-black/45">Automated coupon payments via Hedera Schedule Service</p>
+      <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
+        <div className="max-w-4xl mx-auto space-y-16">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-widest text-black/30 mb-2">Hedera Schedule Service</p>
+            <h1 className="text-2xl font-semibold text-black">Yield Calendar</h1>
+            <p className="mt-1 text-sm text-black/45">Automated coupon payments via Hedera Schedule Service</p>
+          </div>
+          <div className="flex flex-col items-center justify-center py-16 border border-black/[0.06]">
+            <p className="text-sm text-black/30">No coupon payments scheduled yet.</p>
+          </div>
         </div>
-        <div className="flex flex-col items-center justify-center py-16 border border-black/[0.06]">
-          <p className="text-sm text-black/30">No coupon payments scheduled yet.</p>
-        </div>
-      </div>
+      </RoleGate>
     );
   }
 
@@ -99,6 +106,7 @@ export default function YieldCalendarPage() {
   ];
 
   return (
+    <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
     <div className="max-w-4xl mx-auto space-y-16">
       {/* Header */}
       <div className="flex items-start justify-between">
@@ -298,5 +306,6 @@ export default function YieldCalendarPage() {
         )}
       </div>
     </div>
+    </RoleGate>
   );
 }

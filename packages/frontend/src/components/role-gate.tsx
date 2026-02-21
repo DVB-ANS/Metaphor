@@ -16,16 +16,26 @@ interface RoleGateProps {
 
 /**
  * Conditionally renders children based on the user's role.
- * If the user is not authenticated, shows nothing (users need to sign in first).
+ * If the user is not authenticated, blocks access (sign-in required).
  * If authenticated but lacking the required role, shows a restricted access message.
  */
 export function RoleGate({ allowed, children, fallback, silent }: RoleGateProps) {
   const { isAuthenticated, roles } = useAuth();
 
-  // If not authenticated, show children by default (pages have their own auth prompts)
-  // Role gating only applies to authenticated users
   if (!isAuthenticated) {
-    return <>{children}</>;
+    if (silent) return null;
+    if (fallback) return <>{fallback}</>;
+    return (
+      <div className="flex flex-col items-center justify-center rounded-lg border border-black/10 bg-white p-12 text-center">
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-black/10">
+          <Lock className="h-5 w-5 text-black/40" />
+        </div>
+        <h3 className="text-lg font-semibold text-black">Sign In Required</h3>
+        <p className="mt-1 text-sm text-black/50">
+          Connect your wallet and sign in to access this section.
+        </p>
+      </div>
+    );
   }
 
   // Check if user has at least one of the allowed roles
@@ -44,15 +54,15 @@ export function RoleGate({ allowed, children, fallback, silent }: RoleGateProps)
   }
 
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-neutral-800 bg-neutral-900 p-12 text-center">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-neutral-800">
-        <Lock className="h-6 w-6 text-neutral-500" />
+    <div className="flex flex-col items-center justify-center rounded-lg border border-black/10 bg-white p-12 text-center">
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-black/10">
+        <Lock className="h-5 w-5 text-black/40" />
       </div>
-      <h3 className="text-lg font-semibold text-neutral-200">Restricted Access</h3>
-      <p className="mt-1 text-sm text-neutral-500">
+      <h3 className="text-lg font-semibold text-black">Restricted Access</h3>
+      <p className="mt-1 text-sm text-black/50">
         This section requires {allowed.join(' or ')} role.
       </p>
-      <div className="mt-3 flex items-center gap-1.5 text-xs text-neutral-600">
+      <div className="mt-3 flex items-center gap-1.5 text-xs text-black/30">
         <Shield className="h-3.5 w-3.5" />
         Your role{roles.length !== 1 ? 's' : ''}: {roles.length > 0 ? roles.join(', ') : 'none'}
       </div>
