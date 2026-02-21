@@ -1,6 +1,8 @@
-// ─── Canton JSON API Client ──────────────────────────────────
-// HTTP client for the Daml JSON API (default port 7575)
-// Docs: https://docs.daml.com/json-api/
+// ─── Canton JSON Ledger API V2 Client ─────────────────────────────
+// HTTP client for the Daml JSON Ledger API V2 (SDK 3.4.11+, default port 7575)
+// Docs: https://docs.digitalasset.com/build/3.4/explanations/json-api/index.html
+
+import { randomUUID } from 'crypto';
 
 const CANTON_JSON_API_HOST = process.env.CANTON_LEDGER_HOST || 'localhost';
 const CANTON_JSON_API_PORT = process.env.CANTON_JSON_API_PORT || '7575';
@@ -9,8 +11,10 @@ const BASE_URL = `http://${CANTON_JSON_API_HOST}:${CANTON_JSON_API_PORT}`;
 // Daml package ID (hash) — from `daml damlc inspect` on the compiled .dar
 const PACKAGE_ID = process.env.CANTON_PACKAGE_ID || 'instivault-canton';
 
+// User ID for the JSON API V2 (no JWT needed in sandbox mode)
+const USER_ID = process.env.CANTON_USER_ID || 'ledger-api-user';
+
 // Mapping: entity name → Daml module name
-// Each Daml file defines a module, and templates live inside modules.
 const ENTITY_MODULE_MAP: Record<string, string> = {
   ConfidentialVault: 'ConfidentialVault',
   VaultInvitation: 'ConfidentialVault',
@@ -23,65 +27,82 @@ const ENTITY_MODULE_MAP: Record<string, string> = {
   AuditRight: 'AuditRight',
 };
 
-// JSON API expects templateId as string: "packageId:ModuleName:EntityName"
+// V2 templateId format: "packageHash:ModuleName:EntityName"
+// Note: The # prefix is for package NAMES, not hashes. Use raw hash.
 function templateId(entityName: string): string {
   const moduleName = ENTITY_MODULE_MAP[entityName] || entityName;
   return `${PACKAGE_ID}:${moduleName}:${entityName}`;
 }
 
-async function damlRequest<T>(path: string, body: unknown, party: string): Promise<T> {
-  const token = partyToken(party);
+// ─── Low-level HTTP helpers ──────────────────────────────────────
 
+async function v2Post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Canton JSON API error (${res.status}): ${text}`);
+    throw new Error(`Canton JSON API V2 error (${res.status}): ${text}`);
   }
 
   return res.json() as Promise<T>;
 }
 
-// Canton sandbox uses simple unsigned JWT tokens for party auth
-function partyToken(party: string): string {
-  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-  const payload = Buffer.from(
-    JSON.stringify({
-      'https://daml.com/ledger-api': {
-        ledgerId: process.env.CANTON_LEDGER_ID || 'sandbox',
-        applicationId: 'instivault',
-        actAs: [party],
-        readAs: [party],
-      },
-    }),
-  ).toString('base64url');
-  // Unsigned token — Canton sandbox with --allow-insecure-tokens accepts this
-  return `${header}.${payload}.`;
+async function v2Get<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Canton JSON API V2 error (${res.status}): ${text}`);
+  }
+
+  return res.json() as Promise<T>;
 }
 
-// ─── Public API ──────────────────────────────────────────────
+// Build the V2 commands wrapper
+function makeCommands(actAs: string[], commands: unknown[]) {
+  return {
+    commands,
+    userId: USER_ID,
+    commandId: `instivault-${randomUUID()}`,
+    actAs,
+    readAs: actAs,
+  };
+}
+
+// Get current ledger offset (needed for active-contracts query)
+async function getLedgerEnd(): Promise<number> {
+  const resp = await v2Get<{ offset: number }>('/v2/state/ledger-end');
+  return resp.offset;
+}
+
+// ─── Public API ──────────────────────────────────────────────────
 
 export const cantonClient = {
   /**
    * Create a new contract instance
+   * V2: POST /v2/commands/submit-and-wait with CreateCommand
    */
   async create(entity: string, payload: Record<string, unknown>, party: string) {
-    const body = {
-      templateId: templateId(entity),
-      payload,
+    const command = {
+      CreateCommand: {
+        templateId: templateId(entity),
+        createArguments: payload,
+      },
     };
-    return damlRequest('/v1/create', body, party);
+    const body = makeCommands([party], [command]);
+    return v2Post('/v2/commands/submit-and-wait', body);
   },
 
   /**
    * Exercise a choice on a contract
+   * V2: POST /v2/commands/submit-and-wait with ExerciseCommand
    */
   async exercise(
     entity: string,
@@ -90,35 +111,108 @@ export const cantonClient = {
     argument: Record<string, unknown>,
     party: string,
   ) {
-    const body = {
-      templateId: templateId(entity),
-      contractId,
-      choice,
-      argument,
+    const command = {
+      ExerciseCommand: {
+        templateId: templateId(entity),
+        contractId,
+        choice,
+        choiceArgument: argument,
+      },
     };
-    return damlRequest('/v1/exercise', body, party);
+    const body = makeCommands([party], [command]);
+    return v2Post('/v2/commands/submit-and-wait', body);
   },
 
   /**
-   * Query contracts by template (party-scoped)
+   * Query active contracts by template (party-scoped via actAs filter)
+   * V2: POST /v2/state/active-contracts
+   *
+   * Returns an array of CreatedEvent objects with { contractId, templateId, createArgument }
    */
-  async query(entity: string, party: string, filter?: Record<string, unknown>) {
+  async query(entity: string, party: string, _filter?: Record<string, unknown>) {
+    const offset = await getLedgerEnd();
+
     const body = {
-      templateIds: [templateId(entity)],
-      query: filter,
+      eventFormat: {
+        filtersByParty: {
+          [party]: {
+            cumulative: [
+              {
+                identifierFilter: {
+                  TemplateFilter: {
+                    value: {
+                      templateId: templateId(entity),
+                      includeCreatedEventBlob: false,
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+        verbose: true,
+      },
+      activeAtOffset: offset,
     };
-    return damlRequest('/v1/query', body, party);
+
+    const rawResponse = await v2Post<unknown[]>('/v2/state/active-contracts', body);
+
+    // V2 returns an array of responses, each with contractEntry.JsActiveContract.createdEvent
+    const contracts = (rawResponse || [])
+      .filter((item: any) => item?.contractEntry?.JsActiveContract?.createdEvent)
+      .map((item: any) => {
+        const evt = item.contractEntry.JsActiveContract.createdEvent;
+        return {
+          contractId: evt.contractId,
+          templateId: evt.templateId,
+          payload: evt.createArgument || {},
+        };
+      });
+
+    // Return in a shape compatible with our route handlers
+    return { result: contracts };
   },
 
   /**
    * Fetch a specific contract by ID
+   * V2: POST /v2/events/events-by-contract-id
    */
   async fetch(entity: string, contractId: string, party: string) {
     const body = {
       contractId,
-      templateId: templateId(entity),
+      eventFormat: {
+        filtersByParty: {
+          [party]: {
+            cumulative: [
+              {
+                identifierFilter: {
+                  TemplateFilter: {
+                    value: {
+                      templateId: templateId(entity),
+                      includeCreatedEventBlob: false,
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+        verbose: true,
+      },
     };
-    return damlRequest('/v1/fetch', body, party);
+    return v2Post('/v2/events/events-by-contract-id', body);
+  },
+
+  /**
+   * Allocate a new party on the ledger
+   * V2: POST /v2/parties
+   */
+  async allocateParty(hint: string): Promise<string> {
+    const resp = await v2Post<{ partyDetails: { party: string } }>('/v2/parties', {
+      partyIdHint: hint,
+      identityProviderId: '',
+    });
+    return resp.partyDetails.party;
   },
 
   /**
@@ -131,5 +225,17 @@ export const cantonClient = {
       throw new Error(`Missing env var ${envKey} — required for Canton party resolution`);
     }
     return party;
+  },
+
+  /**
+   * Health check — is the JSON API running?
+   */
+  async isHealthy(): Promise<boolean> {
+    try {
+      const res = await fetch(`${BASE_URL}/livez`);
+      return res.ok;
+    } catch {
+      return false;
+    }
   },
 };

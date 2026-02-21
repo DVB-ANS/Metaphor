@@ -806,149 +806,269 @@ router.get('/ai/score-history', (req: Request, res: Response) => {
   }
 });
 
-// ─── Canton Data Room — party & trade persistence ────────────────────
+// ─── Canton Data Room — live sandbox integration ─────────────────────
 
-interface CantonParty {
-  id: string;
-  name: string;
-  role: 'owner' | 'counterparty' | 'auditor';
-  publicKey: string;
-  joinedAt: string;
+// Extract display name from Canton party ID: "Admin::1220abc..." → "Admin"
+function partyDisplayName(partyId: string): string {
+  const hint = partyId.split('::')[0];
+  return hint || partyId.slice(0, 12);
 }
 
-interface CantonTrade {
-  id: string;
-  from: string;
-  to: string;
-  assetName: string;
-  amount: number;
-  price: number;
-  status: string;
-  createdAt: string;
-  message?: string;
+// Shorten a Canton party ID for display: "Admin::1220abcdef..." → "Admin::1220ab..."
+function partyShort(partyId: string): string {
+  const parts = partyId.split('::');
+  if (parts.length === 2 && parts[1].length > 10) {
+    return `${parts[0]}::${parts[1].slice(0, 8)}...`;
+  }
+  return partyId;
 }
 
-interface CantonVaultOverlay {
-  vaultId: string;
-  parties: CantonParty[];
-  trades: CantonTrade[];
+// Resolve the admin party, return null if Canton env not configured
+function resolveAdminParty(): string | null {
+  try { return cantonClient.resolveParty('admin'); } catch { return null; }
 }
-
-const CANTON_OVERLAY_FILE = resolve(VAULT_META_DIR, 'canton-overlay.json');
-
-function loadCantonOverlays(): Map<string, CantonVaultOverlay> {
-  try {
-    if (existsSync(CANTON_OVERLAY_FILE)) {
-      const data = JSON.parse(readFileSync(CANTON_OVERLAY_FILE, 'utf-8')) as CantonVaultOverlay[];
-      return new Map(data.map((o) => [o.vaultId, o]));
-    }
-  } catch { /* start fresh */ }
-  return new Map();
-}
-
-function saveCantonOverlays(): void {
-  try {
-    if (!existsSync(VAULT_META_DIR)) mkdirSync(VAULT_META_DIR, { recursive: true });
-    writeFileSync(CANTON_OVERLAY_FILE, JSON.stringify(Array.from(cantonOverlays.values()), null, 2));
-  } catch { /* non-critical */ }
-}
-
-const cantonOverlays = loadCantonOverlays();
 
 // ─── GET /v1/canton/vaults ───────────────────────────────────────────
 
 router.get('/canton/vaults', async (_req: Request, res: Response) => {
-  // Try Canton first
-  try {
-    const result = await cantonClient.query('ConfidentialVault', 'admin');
-    if (Array.isArray(result) && result.length > 0) {
-      res.json(result);
-      return;
-    }
-  } catch { /* fall through */ }
+  const adminParty = resolveAdminParty();
 
-  // Build from real on-chain ADI vaults
-  try {
-    const vaults = await fetchAllVaults();
-    if (vaults.length > 0) {
-      const confidentialVaults = vaults.map((v) => {
-        const overlay = cantonOverlays.get(v.id);
-        const ownerShort = typeof v.owner === 'string'
-          ? `${v.owner.slice(0, 6)}...${v.owner.slice(-4)}`
-          : 'Unknown';
+  // Try Canton sandbox first
+  if (adminParty) {
+    try {
+      const vaultResp = await cantonClient.query('ConfidentialVault', adminParty) as any;
+      const vaultContracts = vaultResp?.result ?? [];
 
-        // Default owner party if no overlay exists
-        const defaultParties: CantonParty[] = [{
-          id: `party-${v.id}-owner`,
-          name: ownerShort,
-          role: 'owner',
-          publicKey: typeof v.owner === 'string' ? v.owner : '0x0',
-          joinedAt: v.createdAt,
-        }];
+      if (Array.isArray(vaultContracts) && vaultContracts.length > 0) {
+        // Also query trade requests visible to admin
+        let tradeContracts: any[] = [];
+        try {
+          const tradeResp = await cantonClient.query('TradeRequest', adminParty) as any;
+          tradeContracts = tradeResp?.result ?? [];
+        } catch { /* no trades */ }
 
-        return {
-          id: v.id,
-          name: `${v.name} — Data Room`,
-          owner: ownerShort,
-          parties: overlay?.parties ?? defaultParties,
-          trades: overlay?.trades ?? [],
-          assets: v.assets,
-          assetCount: v.assetCount,
-          totalValue: v.totalValue,
-          createdAt: v.createdAt,
-        };
-      });
-      res.json(confidentialVaults);
-      return;
-    }
-  } catch { /* fall through */ }
+        // Also query trade proposals
+        let proposalContracts: any[] = [];
+        try {
+          const proposalResp = await cantonClient.query('TradeProposal', adminParty) as any;
+          proposalContracts = proposalResp?.result ?? [];
+        } catch { /* no proposals */ }
 
+        // Transform Canton contracts → frontend shape
+        const vaults = vaultContracts.map((c: any) => {
+          const p = c.payload;
+          const contractId = c.contractId;
+
+          // Build parties list from owner + counterparties
+          const parties = [
+            {
+              id: `party-owner-${p.vaultId}`,
+              name: partyDisplayName(p.owner),
+              role: 'owner' as const,
+              publicKey: partyShort(p.owner),
+              joinedAt: new Date().toISOString().slice(0, 10),
+            },
+            ...(p.counterparties || []).map((cp: string, i: number) => ({
+              id: `party-cp-${i}-${p.vaultId}`,
+              name: partyDisplayName(cp),
+              role: 'counterparty' as const,
+              publicKey: partyShort(cp),
+              joinedAt: new Date().toISOString().slice(0, 10),
+            })),
+          ];
+
+          // Find trades for this vault
+          const trades = [
+            ...tradeContracts
+              .filter((t: any) => t.payload.vaultId === p.vaultId)
+              .map((t: any) => ({
+                id: t.contractId,
+                from: partyDisplayName(t.payload.requester),
+                to: partyDisplayName(t.payload.vaultOwner),
+                assetName: t.payload.assetId,
+                amount: 1,
+                price: Number(t.payload.offeredPrice),
+                status: 'pending',
+                createdAt: new Date().toISOString().slice(0, 10),
+                message: t.payload.notes || undefined,
+              })),
+            ...proposalContracts
+              .filter((t: any) => t.payload.vaultId === p.vaultId)
+              .map((t: any) => ({
+                id: t.contractId,
+                from: partyDisplayName(t.payload.proposer),
+                to: partyDisplayName(t.payload.receiver),
+                assetName: t.payload.assetName || t.payload.assetId,
+                amount: 1,
+                price: Number(t.payload.proposedPrice),
+                status: 'pending',
+                createdAt: new Date().toISOString().slice(0, 10),
+                message: t.payload.notes || undefined,
+              })),
+          ];
+
+          // Transform assets
+          const assets = (p.assets || []).map((a: any) => ({
+            id: a.assetId,
+            name: a.name,
+            type: (a.assetType || 'Bond').toLowerCase(),
+            allocation: 0,
+            value: Number(a.nominalValue),
+            rating: 'N/A',
+            couponRate: Number(a.couponRate) * 100,
+            maturityDate: a.maturityDate,
+            jurisdiction: a.issuerName,
+          }));
+
+          // Compute allocation percentages
+          const total = Number(p.totalValue) || 1;
+          assets.forEach((a: any) => { a.allocation = Math.round((a.value / total) * 100); });
+
+          return {
+            id: contractId,
+            name: p.vaultName,
+            owner: partyDisplayName(p.owner),
+            status: p.status,
+            parties,
+            trades,
+            assets,
+            assetCount: (p.assets || []).length,
+            totalValue: Number(p.totalValue),
+            createdAt: new Date().toISOString().slice(0, 10),
+          };
+        });
+
+        res.json(vaults);
+        return;
+      }
+    } catch { /* Canton not available, fall through */ }
+  }
+
+  // Fallback to demo data when sandbox is not running
   res.json(DEMO_CONFIDENTIAL_VAULTS);
 });
 
-// ─── POST /v1/canton/vaults/:vaultId/parties — add party to overlay ──
+// ─── POST /v1/canton/vaults/:vaultId/parties — add counterparty via Canton ──
 
-router.post('/canton/vaults/:vaultId/parties', (req: Request, res: Response) => {
-  const vaultId = req.params.vaultId as string;
+router.post('/canton/vaults/:vaultId/parties', async (req: Request, res: Response) => {
+  const contractId = req.params.vaultId as string;
   const { name, role, publicKey } = req.body ?? {};
-  if (!name || !role || !publicKey) {
-    res.status(400).json({ error: 'name, role, and publicKey are required' });
+  if (!name || !role) {
+    res.status(400).json({ error: 'name and role are required' });
     return;
   }
 
-  if (!cantonOverlays.has(vaultId)) {
-    cantonOverlays.set(vaultId, { vaultId, parties: [], trades: [] });
-  }
-  const overlay = cantonOverlays.get(vaultId)!;
+  const adminParty = resolveAdminParty();
 
-  const party: CantonParty = {
+  // Try to add counterparty on Canton ledger
+  if (adminParty && role === 'counterparty') {
+    try {
+      // Resolve the party ID from role name or use publicKey as party ID
+      let counterpartyId = publicKey;
+      try {
+        const resolved = cantonClient.resolveParty(name.toLowerCase() as any);
+        if (resolved) counterpartyId = resolved;
+      } catch { /* use publicKey as-is */ }
+
+      await cantonClient.exercise(
+        'ConfidentialVault',
+        contractId,
+        'AddCounterparty',
+        { newCounterparty: counterpartyId },
+        adminParty,
+      );
+
+      const party = {
+        id: `party-${Date.now()}`,
+        name,
+        role,
+        publicKey: partyShort(counterpartyId),
+        joinedAt: new Date().toISOString().slice(0, 10),
+      };
+      res.json(party);
+      return;
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+      return;
+    }
+  }
+
+  // Fallback for non-Canton or auditor role
+  const party = {
     id: `party-${Date.now()}`,
     name,
     role,
-    publicKey,
+    publicKey: publicKey || '0x0',
     joinedAt: new Date().toISOString().slice(0, 10),
   };
-  overlay.parties.push(party);
-  saveCantonOverlays();
   res.json(party);
 });
 
-// ─── POST /v1/canton/vaults/:vaultId/trades — add trade to overlay ───
+// ─── POST /v1/canton/vaults/:vaultId/trades — create trade via Canton ───
 
-router.post('/canton/vaults/:vaultId/trades', (req: Request, res: Response) => {
-  const vaultId = req.params.vaultId as string;
+router.post('/canton/vaults/:vaultId/trades', async (req: Request, res: Response) => {
+  const contractId = req.params.vaultId as string;
   const { from, to, assetName, amount, price, message } = req.body ?? {};
   if (!from || !to || !assetName || !amount || !price) {
     res.status(400).json({ error: 'from, to, assetName, amount, and price are required' });
     return;
   }
 
-  if (!cantonOverlays.has(vaultId)) {
-    cantonOverlays.set(vaultId, { vaultId, parties: [], trades: [] });
-  }
-  const overlay = cantonOverlays.get(vaultId)!;
+  const adminParty = resolveAdminParty();
 
-  const trade: CantonTrade = {
+  // Try creating a TradeProposal on Canton
+  if (adminParty) {
+    try {
+      // Resolve proposer party
+      let proposerParty = adminParty;
+      try {
+        const resolved = cantonClient.resolveParty(from.toLowerCase() as any);
+        if (resolved) proposerParty = resolved;
+      } catch { /* use admin */ }
+
+      let receiverParty = adminParty;
+      try {
+        const resolved = cantonClient.resolveParty(to.toLowerCase() as any);
+        if (resolved) receiverParty = resolved;
+      } catch { /* use admin */ }
+
+      const result = await cantonClient.create(
+        'TradeProposal',
+        {
+          proposer: proposerParty,
+          receiver: receiverParty,
+          vaultId: contractId,
+          assetId: assetName,
+          assetName,
+          proposedPrice: String(price),
+          notes: message || '',
+          roundNumber: '1',
+        },
+        proposerParty,
+      ) as any;
+
+      const trade = {
+        id: result?.result?.contractId || `trade-${Date.now()}`,
+        from,
+        to,
+        assetName,
+        amount: Number(amount),
+        price: Number(price),
+        status: 'pending',
+        createdAt: new Date().toISOString().slice(0, 10),
+        message,
+      };
+      res.json(trade);
+      return;
+    } catch (err) {
+      // If Canton fails, return the error
+      res.status(500).json({ error: (err as Error).message });
+      return;
+    }
+  }
+
+  // Fallback when Canton is not available
+  const trade = {
     id: `trade-${Date.now()}`,
     from,
     to,
@@ -959,28 +1079,45 @@ router.post('/canton/vaults/:vaultId/trades', (req: Request, res: Response) => {
     createdAt: new Date().toISOString().slice(0, 10),
     message,
   };
-  overlay.trades.push(trade);
-  saveCantonOverlays();
   res.json(trade);
 });
 
-// ─── POST /v1/canton/trades/:tradeId/status — update trade status ────
+// ─── POST /v1/canton/trades/:tradeId/status — accept/reject via Canton ────
 
-router.post('/canton/trades/:tradeId/status', (req: Request, res: Response) => {
-  const { tradeId } = req.params;
+router.post('/canton/trades/:tradeId/status', async (req: Request, res: Response) => {
+  const tradeId = req.params.tradeId as string;
   const { status } = req.body ?? {};
   if (!status) { res.status(400).json({ error: 'status is required' }); return; }
 
-  for (const overlay of cantonOverlays.values()) {
-    const trade = overlay.trades.find((t) => t.id === tradeId);
-    if (trade) {
-      trade.status = status;
-      saveCantonOverlays();
-      res.json(trade);
+  const adminParty = resolveAdminParty();
+
+  // Try to exercise on Canton ledger
+  if (adminParty) {
+    try {
+      if (status === 'accepted') {
+        // Try TradeRequest first, then TradeProposal
+        try {
+          await cantonClient.exercise('TradeRequest', tradeId, 'AcceptTrade', {}, adminParty);
+        } catch {
+          await cantonClient.exercise('TradeProposal', tradeId, 'AcceptProposal', {}, adminParty);
+        }
+      } else if (status === 'rejected') {
+        try {
+          await cantonClient.exercise('TradeRequest', tradeId, 'RejectTrade', {}, adminParty);
+        } catch {
+          await cantonClient.exercise('TradeProposal', tradeId, 'RejectProposal', {}, adminParty);
+        }
+      }
+
+      res.json({ id: tradeId, status });
+      return;
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
       return;
     }
   }
-  res.status(404).json({ error: 'Trade not found' });
+
+  res.status(404).json({ error: 'Canton not configured' });
 });
 
 // ─── Wallet registry (persistent JSON) ───────────────────────────────

@@ -10,8 +10,10 @@
     "build:backend": "pnpm --filter backend build",
     "test:adi": "cd packages/contracts-adi && forge test",
     "test:hedera": "pnpm --filter contracts-hedera test",
+    "test:canton": "pnpm --filter contracts-canton test",
     "test:ai": "pnpm --filter ai-engine test",
-    "test": "pnpm test:adi && pnpm test:hedera && pnpm test:ai",
+    "build:canton": "pnpm --filter contracts-canton build",
+    "test": "pnpm test:adi && pnpm test:hedera && pnpm test:canton && pnpm test:ai",
     "lint": "pnpm -r lint",
     "format": "prettier --write \"packages/**/*.{ts,tsx,js,jsx,json,css,md}\""
   },

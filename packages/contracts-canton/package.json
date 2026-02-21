@@ -1,0 +1,12 @@
+{
+  "name": "contracts-canton",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Daml smart contracts for Canton Network — confidential RWA vaults",
+  "scripts": {
+    "build": "dpm build",
+    "test": "dpm test",
+    "clean": "dpm clean",
+    "sandbox": "dpm sandbox --dar .daml/dist/instivault-canton-0.1.0.dar --ledger-api-port 6865 --json-api-port 7575"
+  }
+}
