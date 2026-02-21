@@ -39,6 +39,7 @@ import {
 } from '@/lib/mock-data';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { RoleGate } from '@/components/role-gate';
 
 const BottomGradient = () => (
   <>
@@ -138,8 +139,8 @@ export default function VaultsPage() {
     }
   };
 
-  if (loading) return <BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading vaults...</p></div></BentoGrid>;
-  if (fetchError) return <BentoGrid className="space-y-6"><div className="flex h-64 flex-col items-center justify-center gap-2"><p className="text-sm text-red-400">Failed to load vaults</p><p className="text-xs text-neutral-600">{fetchError}</p></div></BentoGrid>;
+  if (loading) return <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}><BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading vaults...</p></div></BentoGrid></RoleGate>;
+  if (fetchError) return <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}><BentoGrid className="space-y-6"><div className="flex h-64 flex-col items-center justify-center gap-2"><p className="text-sm text-red-400">Failed to load vaults</p><p className="text-xs text-neutral-600">{fetchError}</p></div></BentoGrid></RoleGate>;
 
   const filteredVaults = allVaults.filter((vault: any) => {
     if (search && !vault.name.toLowerCase().includes(search.toLowerCase())) return false;
@@ -150,14 +151,16 @@ export default function VaultsPage() {
   });
 
   return (
-    <BentoGrid className="space-y-6">
-      <div className="flex items-center justify-between">
+    <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
+      <BentoGrid className="space-y-6">
+        <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">My Vaults</h1>
           <p className="text-muted-foreground">
             Manage your institutional vaults and monitor risk
           </p>
         </div>
+        <RoleGate allowed={['ADMIN', 'ISSUER']} silent>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -350,6 +353,7 @@ export default function VaultsPage() {
             </form>
           </DialogContent>
         </Dialog>
+        </RoleGate>
       </div>
 
       {/* Filters */}
@@ -466,6 +470,7 @@ export default function VaultsPage() {
           ))}
         </div>
       )}
-    </BentoGrid>
+      </BentoGrid>
+    </RoleGate>
   );
 }

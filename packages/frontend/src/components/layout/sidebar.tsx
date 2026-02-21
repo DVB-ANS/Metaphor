@@ -19,15 +19,21 @@ import {
   SidebarLink,
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
+import { useAuth, type RoleName } from '@/contexts/auth-context';
 
-const navItems = [
+const navItems: {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  roles?: RoleName[];
+}[] = [
   { href: '/app', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/vaults', label: 'My Vaults', icon: Vault },
-  { href: '/issue', label: 'Issue Asset', icon: PlusCircle },
+  { href: '/vaults', label: 'My Vaults', icon: Vault, roles: ['ADMIN', 'ISSUER', 'INVESTOR'] },
+  { href: '/issue', label: 'Issue Asset', icon: PlusCircle, roles: ['ADMIN', 'ISSUER'] },
   { href: '/data-room', label: 'Data Room', icon: FolderLock },
-  { href: '/yield-calendar', label: 'Yield Calendar', icon: CalendarDays },
-  { href: '/ai-reports', label: 'AI Reports', icon: Brain },
-  { href: '/admin', label: 'Administration', icon: Shield },
+  { href: '/yield-calendar', label: 'Yield Calendar', icon: CalendarDays, roles: ['ADMIN', 'ISSUER', 'INVESTOR'] },
+  { href: '/ai-reports', label: 'AI Reports', icon: Brain, roles: ['ADMIN', 'ISSUER', 'AUDITOR'] },
+  { href: '/admin', label: 'Administration', icon: Shield, roles: ['ADMIN'] },
   { href: '/demo/canton', label: 'Canton Demo', icon: Columns3 },
 ];
 
@@ -59,8 +65,16 @@ const LogoIcon = () => (
 export function Sidebar() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const { isAuthenticated, roles } = useAuth();
 
-  const links = navItems.map((item) => {
+  // Filter nav items based on user roles
+  // Unauthenticated users see all items (so they can browse)
+  const visibleItems = navItems.filter((item) => {
+    if (!item.roles || !isAuthenticated) return true;
+    return item.roles.some((role) => roles.includes(role));
+  });
+
+  const links = visibleItems.map((item) => {
     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
 
     return {

@@ -50,6 +50,7 @@ import {
   type RiskLevel,
 } from '@/lib/mock-data';
 import { api } from '@/lib/api';
+import { RoleGate } from '@/components/role-gate';
 
 function getRiskIcon(level: RiskLevel) {
   switch (level) {
@@ -183,11 +184,12 @@ export default function AIReportsPage() {
     }
   };
 
-  if (loading) return <BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading AI reports...</p></div></BentoGrid>;
-  if (fetchError) return <BentoGrid className="space-y-6"><div className="flex h-64 flex-col items-center justify-center gap-2"><p className="text-sm text-red-400">Failed to load reports</p><p className="text-xs text-neutral-600">{fetchError}</p></div></BentoGrid>;
+  if (loading) return <RoleGate allowed={['ADMIN', 'ISSUER', 'AUDITOR']}><BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading AI reports...</p></div></BentoGrid></RoleGate>;
+  if (fetchError) return <RoleGate allowed={['ADMIN', 'ISSUER', 'AUDITOR']}><BentoGrid className="space-y-6"><div className="flex h-64 flex-col items-center justify-center gap-2"><p className="text-sm text-red-400">Failed to load reports</p><p className="text-xs text-neutral-600">{fetchError}</p></div></BentoGrid></RoleGate>;
 
   return (
-    <BentoGrid className="space-y-6">
+    <RoleGate allowed={['ADMIN', 'ISSUER', 'AUDITOR']}>
+      <BentoGrid className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">AI Reports</h1>
@@ -363,6 +365,7 @@ export default function AIReportsPage() {
                             <p className="mt-1 text-xs text-primary">{rec.impact}</p>
                           </div>
                           {recStatus === 'pending' && (
+                            <RoleGate allowed={['ADMIN', 'ISSUER']} silent>
                             <div className="ml-4 flex gap-2">
                               <Button
                                 size="sm"
@@ -391,6 +394,7 @@ export default function AIReportsPage() {
                                 Reject
                               </Button>
                             </div>
+                            </RoleGate>
                           )}
                         </div>
                       );
@@ -450,6 +454,7 @@ export default function AIReportsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </BentoGrid>
+      </BentoGrid>
+    </RoleGate>
   );
 }

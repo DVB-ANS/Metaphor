@@ -36,7 +36,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Shield, Key, Palette, UserPlus, Trash2, Upload, Loader2 } from 'lucide-react';
+import { Shield, Key, Palette, UserPlus, Trash2, Upload, Loader2, CheckCircle } from 'lucide-react';
 import { RoleGate } from '@/components/role-gate';
 import { type Role } from '@/lib/mock-data';
 import { api } from '@/lib/api';
@@ -90,6 +90,24 @@ export default function AdminPage() {
       setWalletError(err.message || 'Failed to add wallet. Check that the backend is running.');
     } finally {
       setWalletSubmitting(false);
+    }
+  };
+
+  const [kycLoading, setKycLoading] = useState<string | null>(null);
+
+  const handleApproveKyc = async (address: string) => {
+    setKycLoading(address);
+    try {
+      await api.post('/api/adi/whitelist', { address });
+      setWallets((prev) =>
+        prev.map((w: any) =>
+          w.address === address ? { ...w, kycStatus: 'verified' } : w,
+        ),
+      );
+    } catch (err: any) {
+      alert(`KYC approval failed: ${err.message}`);
+    } finally {
+      setKycLoading(null);
     }
   };
 
@@ -276,11 +294,29 @@ export default function AdminPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant={wallet.kycStatus === 'verified' ? 'default' : 'secondary'}
-                    >
-                      {wallet.kycStatus === 'verified' ? 'Verified' : 'Pending'}
-                    </Badge>
+                    {wallet.kycStatus === 'verified' ? (
+                      <Badge variant="default">
+                        <CheckCircle className="mr-1 h-3 w-3" /> Verified
+                      </Badge>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">Pending</Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          disabled={kycLoading === wallet.address}
+                          onClick={() => handleApproveKyc(wallet.address)}
+                        >
+                          {kycLoading === wallet.address ? (
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          ) : (
+                            <CheckCircle className="mr-1 h-3 w-3" />
+                          )}
+                          Approve KYC
+                        </Button>
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {wallet.addedAt}

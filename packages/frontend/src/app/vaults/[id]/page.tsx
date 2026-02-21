@@ -62,6 +62,7 @@ import {
   type ScoreHistory,
 } from '@/lib/mock-data';
 import { api } from '@/lib/api';
+import { RoleGate } from '@/components/role-gate';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe'];
 
@@ -96,6 +97,11 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
   const { id } = use(params);
   const router = useRouter();
 
+  // Role gate — must check before any other rendering
+  const gateContent = (content: React.ReactNode) => (
+    <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>{content}</RoleGate>
+  );
+
   const [vault, setVault] = useState<Vault | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [existingReport, setExistingReport] = useState<AIReport | null>(null);
@@ -129,7 +135,7 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
   }, [id]);
 
   if (loading) {
-    return (
+    return gateContent(
       <BentoGrid className="space-y-6">
         <div className="flex h-64 items-center justify-center">
           <p className="text-sm text-neutral-500 animate-pulse">Loading vault...</p>
@@ -139,7 +145,7 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   if (error || !vault) {
-    return (
+    return gateContent(
       <div className="flex flex-col items-center justify-center py-20">
         <p className="text-lg text-muted-foreground">{error || 'Vault not found'}</p>
         <Button variant="ghost" className="mt-4" onClick={() => router.push('/vaults')}>
@@ -225,7 +231,7 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
     }
   };
 
-  return (
+  return gateContent(
     <BentoGrid className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between">

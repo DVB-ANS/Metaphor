@@ -55,6 +55,8 @@ import {
   type VisibilityLevel,
 } from '@/lib/mock-data';
 import { api } from '@/lib/api';
+import { useAuth } from '@/contexts/auth-context';
+import { RoleGate } from '@/components/role-gate';
 
 function getVisibilityIcon(role: VisibilityLevel) {
   switch (role) {
@@ -79,6 +81,8 @@ function getVisibilityDescription(role: VisibilityLevel): string {
 }
 
 export default function DataRoomPage() {
+  const { hasRole, isAuthenticated } = useAuth();
+  const isAuditorOnly = isAuthenticated && hasRole('AUDITOR') && !hasRole('ADMIN') && !hasRole('ISSUER') && !hasRole('INVESTOR');
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState({ vaultId: '', publicKey: '', name: '', role: '' });
   const [inviteLoading, setInviteLoading] = useState(false);
@@ -178,6 +182,7 @@ export default function DataRoomPage() {
             Confidential vaults on Canton Network — party-scoped visibility
           </p>
         </div>
+        <RoleGate allowed={['ADMIN', 'ISSUER']} silent>
         <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -258,6 +263,7 @@ export default function DataRoomPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </RoleGate>
       </div>
 
       {/* Visibility Model Explainer */}
@@ -301,6 +307,40 @@ export default function DataRoomPage() {
           <CardContent className="flex flex-col items-center justify-center py-12">
             <FolderLock className="mb-4 h-12 w-12 text-muted-foreground/50" />
             <p className="text-muted-foreground">No confidential vaults. Canton Network may not be connected.</p>
+          </CardContent>
+        </BentoCard>
+      ) : isAuditorOnly ? (
+        /* Auditor Limited View — compliance summary only */
+        <BentoCard>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Shield className="h-4 w-4 text-yellow-400" />
+              Compliance Summary
+            </CardTitle>
+            <CardDescription>Auditor view — aggregate data only</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-lg border p-4 text-center">
+                <p className="text-sm text-muted-foreground">Total Vaults</p>
+                <p className="text-2xl font-bold">{confidentialVaults.length}</p>
+              </div>
+              <div className="rounded-lg border p-4 text-center">
+                <p className="text-sm text-muted-foreground">Total Assets</p>
+                <p className="text-2xl font-bold">
+                  {confidentialVaults.reduce((s: number, v: any) => s + (v.assetCount || 0), 0)}
+                </p>
+              </div>
+              <div className="rounded-lg border p-4 text-center">
+                <p className="text-sm text-muted-foreground">Aggregate Value</p>
+                <p className="text-2xl font-bold">
+                  {formatCurrency(confidentialVaults.reduce((s: number, v: any) => s + (v.totalValue || 0), 0))}
+                </p>
+              </div>
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">
+              Counterparty names, trade details, and party information are not visible in auditor view.
+            </p>
           </CardContent>
         </BentoCard>
       ) : confidentialVaults.map((cv: any) => (
@@ -407,6 +447,7 @@ export default function DataRoomPage() {
                         </div>
                       )}
                       {trade.status === 'pending' && (
+                        <RoleGate allowed={['ADMIN', 'ISSUER']} silent>
                         <div className="mt-3 flex gap-2">
                           <Button
                             size="sm"
@@ -438,6 +479,7 @@ export default function DataRoomPage() {
                             Reject
                           </Button>
                         </div>
+                        </RoleGate>
                       )}
                     </div>
                   ))}

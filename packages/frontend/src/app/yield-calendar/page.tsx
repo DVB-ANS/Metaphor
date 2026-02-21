@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/mock-data';
 import { api } from '@/lib/api';
+import { RoleGate } from '@/components/role-gate';
 
 const months = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -54,11 +55,12 @@ export default function YieldCalendarPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading yield calendar...</p></div></BentoGrid>;
-  if (error) return <BentoGrid className="space-y-6"><div className="flex h-64 flex-col items-center justify-center gap-2"><p className="text-sm text-red-400">Failed to load data</p><p className="text-xs text-neutral-600">{error}</p></div></BentoGrid>;
+  if (loading) return <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}><BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading yield calendar...</p></div></BentoGrid></RoleGate>;
+  if (error) return <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}><BentoGrid className="space-y-6"><div className="flex h-64 flex-col items-center justify-center gap-2"><p className="text-sm text-red-400">Failed to load data</p><p className="text-xs text-neutral-600">{error}</p></div></BentoGrid></RoleGate>;
 
   if (allPayments.length === 0) {
     return (
+      <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
       <BentoGrid className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Yield Calendar</h1>
@@ -69,6 +71,7 @@ export default function YieldCalendarPage() {
           <p className="text-muted-foreground">No coupon payments scheduled yet.</p>
         </div>
       </BentoGrid>
+      </RoleGate>
     );
   }
 
@@ -97,8 +100,9 @@ export default function YieldCalendarPage() {
   const completedByMonth = groupByMonth(completed);
 
   return (
-    <BentoGrid className="space-y-6">
-      <div className="flex items-start justify-between">
+    <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
+      <BentoGrid className="space-y-6">
+        <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Yield Calendar</h1>
           <p className="text-muted-foreground">
@@ -351,6 +355,7 @@ export default function YieldCalendarPage() {
           )}
         </div>
       )}
-    </BentoGrid>
+      </BentoGrid>
+    </RoleGate>
   );
 }

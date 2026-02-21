@@ -24,6 +24,7 @@ import {
   getRiskColor,
   getStatusBadgeVariant,
 } from '@/lib/mock-data';
+import { RoleGate } from '@/components/role-gate';
 
 export default function DashboardPage() {
   const [dashData, setDashData] = useState<any>(null);
@@ -118,9 +119,11 @@ export default function DashboardPage() {
           <CardContent className="flex flex-col items-center justify-center py-16">
             <Vault className="mb-4 h-12 w-12 text-muted-foreground/50" />
             <p className="text-muted-foreground">No data yet. Issue your first RWA token to get started.</p>
-            <Link href="/issue" className="mt-4 flex items-center gap-1 text-sm text-primary hover:underline">
-              Issue a token <ArrowUpRight className="h-3 w-3" />
-            </Link>
+            <RoleGate allowed={['ADMIN', 'ISSUER']} silent>
+              <Link href="/issue" className="mt-4 flex items-center gap-1 text-sm text-primary hover:underline">
+                Issue a token <ArrowUpRight className="h-3 w-3" />
+              </Link>
+            </RoleGate>
           </CardContent>
         </BentoCard>
       ) : (
