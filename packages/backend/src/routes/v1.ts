@@ -1,17 +1,232 @@
 // ─── V1 Routes — On-chain aggregated data for frontend ──────────────
-// Returns real on-chain data. Empty arrays / zero stats when nothing exists.
+// Returns real on-chain data with demo fallbacks when services are unavailable.
 
 import { Router, type Request, type Response, type Router as RouterType } from 'express';
 import { ethers } from 'ethers';
 import { getContract, ADDRESSES } from '../config.js';
 import { listReports, getReport } from '../services/ai-client.js';
 import { cantonClient } from '../services/canton-client.js';
+import type { AIReport } from '../types/ai.js';
 
 const router: RouterType = Router();
+
+// ─── Demo Fallback Data ──────────────────────────────────────────────
+
+const DEMO_VAULTS = [
+  {
+    id: 'vault-1',
+    name: 'Fixed Income EU',
+    totalValue: 5_200_000,
+    riskScore: 42,
+    riskLevel: 'moderate',
+    status: 'active',
+    assetCount: 3,
+    yieldYTD: 4.2,
+    createdAt: '2025-11-01',
+    assets: [
+      { id: 'asset-1', name: 'France Sovereign OAT 2028', type: 'sovereign-bond', allocation: 40, value: 2_080_000, rating: 'AAA', couponRate: 2.1, maturityDate: '2028-06-15', jurisdiction: 'France' },
+      { id: 'asset-2', name: 'Siemens AG Corporate 2027', type: 'corporate-bond', allocation: 35, value: 1_820_000, rating: 'A+', couponRate: 4.3, maturityDate: '2027-12-01', jurisdiction: 'Germany' },
+      { id: 'asset-3', name: 'Milan Factoring Pool Q3', type: 'invoice', allocation: 25, value: 1_300_000, rating: 'BBB', couponRate: 7.8, maturityDate: '2026-09-30', jurisdiction: 'Italy' },
+    ],
+  },
+  {
+    id: 'vault-2',
+    name: 'US Treasury Pool',
+    totalValue: 4_800_000,
+    riskScore: 18,
+    riskLevel: 'low',
+    status: 'active',
+    assetCount: 3,
+    yieldYTD: 3.1,
+    createdAt: '2025-09-15',
+    assets: [
+      { id: 'asset-4', name: 'US Treasury 10Y 2035', type: 'sovereign-bond', allocation: 50, value: 2_400_000, rating: 'AAA', couponRate: 3.5, maturityDate: '2035-01-15', jurisdiction: 'USA' },
+      { id: 'asset-5', name: 'US Treasury 5Y 2030', type: 'sovereign-bond', allocation: 30, value: 1_440_000, rating: 'AAA', couponRate: 2.8, maturityDate: '2030-07-01', jurisdiction: 'USA' },
+      { id: 'asset-6', name: 'US Treasury 2Y 2027', type: 'sovereign-bond', allocation: 20, value: 960_000, rating: 'AAA', couponRate: 2.2, maturityDate: '2027-11-15', jurisdiction: 'USA' },
+    ],
+  },
+  {
+    id: 'vault-3',
+    name: 'EM Corporate',
+    totalValue: 2_450_000,
+    riskScore: 67,
+    riskLevel: 'high',
+    status: 'attention',
+    assetCount: 3,
+    yieldYTD: 7.8,
+    createdAt: '2025-12-10',
+    assets: [
+      { id: 'asset-7', name: 'Petrobras 2028 USD', type: 'corporate-bond', allocation: 40, value: 980_000, rating: 'BB+', couponRate: 8.2, maturityDate: '2028-03-15', jurisdiction: 'Brazil' },
+      { id: 'asset-8', name: 'Tata Motors 2027', type: 'corporate-bond', allocation: 35, value: 857_500, rating: 'BBB-', couponRate: 6.5, maturityDate: '2027-09-01', jurisdiction: 'India' },
+      { id: 'asset-9', name: 'Eskom Holdings 2029', type: 'corporate-bond', allocation: 25, value: 612_500, rating: 'B', couponRate: 11.2, maturityDate: '2029-06-15', jurisdiction: 'South Africa' },
+    ],
+  },
+];
+
+const DEMO_PAYMENTS = [
+  { id: 'pay-1', assetName: 'BondToken-ACME-2026', amount: 25_000, date: '2026-03-03', daysUntil: 12, vaultId: 'vault-1', vaultName: 'Fixed Income EU', status: 'scheduled', recipients: 15 },
+  { id: 'pay-2', assetName: 'TreasuryBond-US-2027', amount: 18_500, date: '2026-03-15', daysUntil: 24, vaultId: 'vault-2', vaultName: 'US Treasury Pool', status: 'scheduled', recipients: 8 },
+  { id: 'pay-3', assetName: 'Siemens AG Corporate 2027', amount: 39_130, date: '2026-06-01', daysUntil: 102, vaultId: 'vault-1', vaultName: 'Fixed Income EU', status: 'scheduled', recipients: 15 },
+  { id: 'pay-4', assetName: 'Petrobras 2028 USD', amount: 40_180, date: '2026-09-15', daysUntil: 208, vaultId: 'vault-3', vaultName: 'EM Corporate', status: 'scheduled', recipients: 4 },
+  { id: 'pay-past-1', assetName: 'BondToken-ACME-2026', amount: 25_000, date: '2025-08-15', daysUntil: 0, vaultId: 'vault-1', vaultName: 'Fixed Income EU', status: 'completed', recipients: 15 },
+  { id: 'pay-past-2', assetName: 'TreasuryBond-US-2027', amount: 18_500, date: '2025-09-15', daysUntil: 0, vaultId: 'vault-2', vaultName: 'US Treasury Pool', status: 'completed', recipients: 8 },
+  { id: 'pay-past-3', assetName: 'US Treasury 10Y 2035', amount: 42_000, date: '2025-07-15', daysUntil: 0, vaultId: 'vault-2', vaultName: 'US Treasury Pool', status: 'completed', recipients: 8 },
+  { id: 'pay-past-4', assetName: 'Petrobras 2028 USD', amount: 40_180, date: '2025-09-15', daysUntil: 0, vaultId: 'vault-3', vaultName: 'EM Corporate', status: 'completed', recipients: 4 },
+  { id: 'pay-past-5', assetName: 'France Sovereign OAT 2028', amount: 21_840, date: '2025-12-15', daysUntil: 0, vaultId: 'vault-1', vaultName: 'Fixed Income EU', status: 'completed', recipients: 15 },
+];
+
+const DEMO_CONFIDENTIAL_VAULTS = [
+  {
+    id: 'cv-1',
+    name: 'EU Credit Portfolio — Data Room',
+    owner: 'BNP Paribas AM',
+    parties: [
+      { id: 'party-1', name: 'BNP Paribas AM', role: 'owner', publicKey: '0x1a2b...3c4d', joinedAt: '2026-01-10' },
+      { id: 'party-2', name: 'BlackRock', role: 'counterparty', publicKey: '0x5e6f...7g8h', joinedAt: '2026-01-15' },
+      { id: 'party-3', name: 'Deloitte', role: 'auditor', publicKey: '0x9i0j...1k2l', joinedAt: '2026-01-18' },
+    ],
+    trades: [
+      { id: 'trade-1', from: 'BlackRock', to: 'BNP Paribas AM', assetName: 'France Sovereign OAT 2028', amount: 200, price: 1_050, status: 'pending', createdAt: '2026-02-17', message: 'Interested in acquiring 200 tokens at $1,050 per unit.' },
+    ],
+    assets: [
+      { id: 'asset-1', name: 'France Sovereign OAT 2028', type: 'sovereign-bond', allocation: 40, value: 2_080_000, rating: 'AAA', couponRate: 2.1, maturityDate: '2028-06-15', jurisdiction: 'France' },
+      { id: 'asset-2', name: 'Siemens AG Corporate 2027', type: 'corporate-bond', allocation: 35, value: 1_820_000, rating: 'A+', couponRate: 4.3, maturityDate: '2027-12-01', jurisdiction: 'Germany' },
+      { id: 'asset-3', name: 'Milan Factoring Pool Q3', type: 'invoice', allocation: 25, value: 1_300_000, rating: 'BBB', couponRate: 7.8, maturityDate: '2026-09-30', jurisdiction: 'Italy' },
+    ],
+    assetCount: 3,
+    totalValue: 5_200_000,
+    createdAt: '2026-01-10',
+  },
+  {
+    id: 'cv-2',
+    name: 'EM Bond Syndication',
+    owner: 'Goldman Sachs',
+    parties: [
+      { id: 'party-4', name: 'Goldman Sachs', role: 'owner', publicKey: '0xab12...cd34', joinedAt: '2026-02-01' },
+      { id: 'party-5', name: 'JP Morgan', role: 'counterparty', publicKey: '0xef56...gh78', joinedAt: '2026-02-05' },
+    ],
+    trades: [
+      { id: 'trade-2', from: 'JP Morgan', to: 'Goldman Sachs', assetName: 'Petrobras 2028 USD', amount: 500, price: 980, status: 'countered', createdAt: '2026-02-12', message: 'Counter-offer: 500 tokens at $980 each. Original ask was $1,020.' },
+      { id: 'trade-3', from: 'Goldman Sachs', to: 'JP Morgan', assetName: 'Tata Motors 2027', amount: 150, price: 1_100, status: 'accepted', createdAt: '2026-02-10' },
+    ],
+    assets: [
+      { id: 'asset-7', name: 'Petrobras 2028 USD', type: 'corporate-bond', allocation: 60, value: 980_000, rating: 'BB+', couponRate: 8.2, maturityDate: '2028-03-15', jurisdiction: 'Brazil' },
+      { id: 'asset-8', name: 'Tata Motors 2027', type: 'corporate-bond', allocation: 40, value: 857_500, rating: 'BBB-', couponRate: 6.5, maturityDate: '2027-09-01', jurisdiction: 'India' },
+    ],
+    assetCount: 2,
+    totalValue: 1_837_500,
+    createdAt: '2026-02-01',
+  },
+];
+
+const DEMO_AI_REPORTS = [
+  {
+    id: 'report-1', vaultId: 'vault-3', vaultName: 'EM Corporate', date: '2026-02-18',
+    score: 67, riskLevel: 'high',
+    summary: 'High geographic and credit concentration risk. EM exposure with sub-investment-grade names requires active monitoring.',
+    recommendations: [
+      { id: 'rec-1', action: 'Reduce Eskom exposure', detail: 'Eskom Holdings rated B with negative outlook. Reduce from 25% to 10%.', impact: 'Risk score improvement: 67 → 52', status: 'pending' },
+      { id: 'rec-2', action: 'Add investment-grade hedge', detail: 'Allocate 15% to IG corporate bonds to offset EM credit risk.', impact: 'Portfolio Sharpe ratio improvement: +0.3', status: 'pending' },
+    ],
+    stressTests: [
+      { scenario: 'USD +10% vs EM currencies', impact: '-8.4%' },
+      { scenario: 'EM sovereign crisis', impact: '-22.1%' },
+      { scenario: 'Global rate +2%', impact: '-5.7%' },
+    ],
+    positionAnalysis: [
+      { name: 'Petrobras 2028 USD', score: 55, riskLevel: 'moderate', comment: 'Oil price dependency, but USD-denominated reduces FX risk' },
+      { name: 'Tata Motors 2027', score: 62, riskLevel: 'high', comment: 'Cyclical sector, INR depreciation risk' },
+      { name: 'Eskom Holdings 2029', score: 84, riskLevel: 'high', comment: 'Load-shedding crisis, sovereign guarantee uncertain' },
+    ],
+  },
+  {
+    id: 'report-2', vaultId: 'vault-1', vaultName: 'Fixed Income EU', date: '2026-02-15',
+    score: 42, riskLevel: 'moderate',
+    summary: 'Well-diversified EU portfolio. Main risk is Italian invoice concentration and duration exposure.',
+    recommendations: [
+      { id: 'rec-3', action: 'Reduce Italy invoice exposure', detail: 'Reduce Milan Factoring Pool from 25% to 15%. Reallocate to French sovereign.', impact: 'Risk score improvement: 42 → 34', status: 'pending' },
+    ],
+    stressTests: [
+      { scenario: 'ECB rate +1%', impact: '-2.8%' },
+      { scenario: 'ECB rate +2%', impact: '-5.4%' },
+      { scenario: 'Italy sovereign downgrade', impact: '-4.1%' },
+    ],
+    positionAnalysis: [
+      { name: 'France Sovereign OAT 2028', score: 12, riskLevel: 'low', comment: 'Stable sovereign rating, short duration' },
+      { name: 'Siemens AG Corporate 2027', score: 38, riskLevel: 'moderate', comment: 'Industrial sector cyclically exposed' },
+      { name: 'Milan Factoring Pool Q3', score: 71, riskLevel: 'high', comment: 'Geographic concentration + BBB rating' },
+    ],
+  },
+  {
+    id: 'report-3', vaultId: 'vault-2', vaultName: 'US Treasury Pool', date: '2026-02-10',
+    score: 18, riskLevel: 'low',
+    summary: 'Low-risk sovereign portfolio. All AAA-rated US Treasuries. No action required.',
+    recommendations: [],
+    stressTests: [
+      { scenario: 'Fed rate +1%', impact: '-0.8%' },
+      { scenario: 'Fed rate +2%', impact: '-1.6%' },
+      { scenario: 'US downgrade to AA+', impact: '-2.1%' },
+    ],
+    positionAnalysis: [
+      { name: 'US Treasury 10Y 2035', score: 22, riskLevel: 'low', comment: 'Longer duration but highest credit quality' },
+      { name: 'US Treasury 5Y 2030', score: 15, riskLevel: 'low', comment: 'Medium duration, zero credit risk' },
+      { name: 'US Treasury 2Y 2027', score: 8, riskLevel: 'low', comment: 'Near-cash equivalent, minimal risk' },
+    ],
+  },
+];
+
+const DEMO_SCORE_HISTORY: Record<string, { date: string; score: number }[]> = {
+  'vault-1': [{ date: '2025-11', score: 38 }, { date: '2025-12', score: 40 }, { date: '2026-01', score: 44 }, { date: '2026-02', score: 42 }],
+  'vault-2': [{ date: '2025-09', score: 15 }, { date: '2025-10', score: 16 }, { date: '2025-11', score: 19 }, { date: '2025-12', score: 17 }, { date: '2026-01', score: 18 }, { date: '2026-02', score: 18 }],
+  'vault-3': [{ date: '2025-12', score: 58 }, { date: '2026-01', score: 63 }, { date: '2026-02', score: 67 }],
+};
+
+const DEMO_WALLETS = [
+  { address: '0x1234...5678', role: 'admin', label: 'Platform Admin', addedAt: '2025-09-01', kycStatus: 'verified' },
+  { address: '0xabcd...ef01', role: 'issuer', label: 'BNP Paribas AM', addedAt: '2025-09-15', kycStatus: 'verified' },
+  { address: '0x2345...6789', role: 'issuer', label: 'Goldman Sachs', addedAt: '2025-10-01', kycStatus: 'verified' },
+  { address: '0x5e6f...7g8h', role: 'investor', label: 'BlackRock', addedAt: '2025-10-15', kycStatus: 'verified' },
+  { address: '0xef56...gh78', role: 'investor', label: 'JP Morgan', addedAt: '2025-11-01', kycStatus: 'verified' },
+  { address: '0x9i0j...1k2l', role: 'auditor', label: 'Deloitte', addedAt: '2025-11-15', kycStatus: 'verified' },
+  { address: '0xnew1...pend', role: 'investor', label: 'Fidelity', addedAt: '2026-02-18', kycStatus: 'pending' },
+];
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
 const STATUS_MAP: Record<number, string> = { 0: 'active', 1: 'attention', 2: 'matured' };
+
+const VAULT_NAME_MAP: Record<string, string> = {
+  'vault-1': 'Fixed Income EU',
+  'vault-2': 'US Treasury Pool',
+  'vault-3': 'EM Corporate',
+};
+
+/** Transform backend AIReport → frontend AIReport shape */
+function normalizeAIReport(report: AIReport) {
+  return {
+    id: report.reportId,
+    vaultId: report.vaultId,
+    vaultName: VAULT_NAME_MAP[report.vaultId] || report.vaultId,
+    date: report.createdAt.slice(0, 10),
+    score: report.riskScore,
+    riskLevel: report.riskLevel,
+    summary: report.summary,
+    recommendations: report.recommendations.map((r) => ({
+      id: r.id,
+      action: r.action,
+      detail: r.description,
+      impact: r.impact,
+      status: r.status === 'pending_approval' ? 'pending' : r.status,
+    })),
+    stressTests: report.stressTests,
+    positionAnalysis: report.positionAnalysis.map((p) => ({
+      name: p.name,
+      score: p.score,
+      riskLevel: p.riskLevel,
+      comment: p.comment,
+    })),
+  };
+}
 
 async function fetchAllTokens() {
   const factory = getContract('TokenFactory', ADDRESSES.tokenFactory);
@@ -79,7 +294,6 @@ async function fetchAllVaults() {
       );
 
       const validAssets = assets.filter(Boolean) as NonNullable<(typeof assets)[number]>[];
-      // Calculate allocations
       if (totalValue > 0) {
         for (const a of validAssets) {
           a.allocation = Math.round((a.value / totalValue) * 100);
@@ -120,21 +334,31 @@ async function fetchAllPayments() {
         const dates: bigint[] = await scheduler.getPaymentDates(i);
         const couponAmount = await scheduler.getCouponAmount(i);
 
+        // Try to resolve token name
+        let tokenName = `Bond #${i}`;
+        try {
+          const tokenAddr = bond.tokenAddress || bond[0];
+          if (tokenAddr && tokenAddr !== ethers.ZeroAddress) {
+            const token = getContract('RWAToken', tokenAddr);
+            tokenName = await token.name();
+          }
+        } catch { /* keep default */ }
+
         for (const date of dates) {
           const ts = Number(date);
-          const payment = await scheduler.getPayment(i, date);
           const dateStr = new Date(ts * 1000).toISOString().slice(0, 10);
           const daysUntil = Math.max(0, Math.ceil((ts - now) / 86400));
           const status = ts <= now ? 'completed' : 'scheduled';
           payments.push({
             id: `pay-${i}-${ts}`,
-            assetName: `Bond #${i}`,
+            assetName: tokenName,
             amount: Number(ethers.formatUnits(couponAmount, 18)),
             date: dateStr,
             daysUntil,
             vaultId: `bond-${i}`,
-            vaultName: `Bond #${i}`,
+            vaultName: tokenName,
             status,
+            recipients: 1,
           });
         }
       } catch {
@@ -159,38 +383,68 @@ router.get('/dashboard', async (_req: Request, res: Response) => {
     try { tokens = await fetchAllTokens(); } catch { /* empty */ }
     try { payments = await fetchAllPayments(); } catch { /* empty */ }
 
-    const aiReports = listReports();
-    const latestReport = aiReports.length > 0 ? aiReports[aiReports.length - 1] : null;
+    // Fall back to demo data when on-chain is empty
+    if (vaults.length === 0) vaults = DEMO_VAULTS;
+    if (payments.length === 0) payments = DEMO_PAYMENTS;
 
-    const totalValue = vaults.reduce((s, v) => s + v.totalValue, 0);
-    const upcomingPayments = payments.filter((p) => p.status === 'scheduled');
+    // Normalize AI reports
+    const rawReports = listReports();
+    const aiReports = rawReports.length > 0
+      ? rawReports.map(normalizeAIReport)
+      : DEMO_AI_REPORTS;
+    const latestReport = aiReports[aiReports.length - 1];
+
+    const totalValue = vaults.reduce((s: number, v: any) => s + v.totalValue, 0);
+    const avgYield = vaults.length > 0
+      ? vaults.reduce((s: number, v: any) => s + (v.yieldYTD || 0), 0) / vaults.length
+      : 0;
+    const yieldYTD = Math.round(avgYield * 10) / 10;
+    const upcomingPayments = payments.filter((p: any) => p.status === 'scheduled');
+    const tokenCount = tokens.length > 0
+      ? tokens.length
+      : vaults.reduce((s: number, v: any) => s + (v.assetCount || 0), 0);
 
     res.json({
       stats: {
         totalValue,
-        yieldYTD: 0,
-        activeVaults: vaults.filter((v) => v.status === 'active').length,
-        tokenizedAssets: tokens.length,
+        yieldYTD,
+        activeVaults: vaults.filter((v: any) => v.status === 'active').length,
+        tokenizedAssets: tokenCount,
         upcomingPayments: upcomingPayments.length,
       },
       vaults,
       upcomingPayments: upcomingPayments.slice(0, 5),
       latestAIAnalysis: latestReport
         ? {
-            vaultName: latestReport.vaultId,
-            score: latestReport.riskScore,
+            vaultName: latestReport.vaultName,
+            score: latestReport.score,
             riskLevel: latestReport.riskLevel,
             recommendations: latestReport.recommendations.length,
-            date: latestReport.createdAt,
+            date: latestReport.date,
           }
         : null,
     });
   } catch (err: any) {
+    // Ultimate fallback — return demo data even on crash
+    const upcomingDemo = DEMO_PAYMENTS.filter((p) => p.status === 'scheduled');
+    const latestDemo = DEMO_AI_REPORTS[0];
     res.json({
-      stats: { totalValue: 0, yieldYTD: 0, activeVaults: 0, tokenizedAssets: 0, upcomingPayments: 0 },
-      vaults: [],
-      upcomingPayments: [],
-      latestAIAnalysis: null,
+      stats: {
+        totalValue: DEMO_VAULTS.reduce((s, v) => s + v.totalValue, 0),
+        yieldYTD: 4.2,
+        activeVaults: DEMO_VAULTS.filter((v) => v.status === 'active').length,
+        tokenizedAssets: DEMO_VAULTS.reduce((s, v) => s + v.assetCount, 0),
+        upcomingPayments: upcomingDemo.length,
+      },
+      vaults: DEMO_VAULTS,
+      upcomingPayments: upcomingDemo.slice(0, 5),
+      latestAIAnalysis: {
+        vaultName: latestDemo.vaultName,
+        score: latestDemo.score,
+        riskLevel: latestDemo.riskLevel,
+        recommendations: latestDemo.recommendations.length,
+        date: latestDemo.date,
+      },
     });
   }
 });
@@ -200,9 +454,9 @@ router.get('/dashboard', async (_req: Request, res: Response) => {
 router.get('/vaults', async (_req: Request, res: Response) => {
   try {
     const vaults = await fetchAllVaults();
-    res.json(vaults);
+    res.json(vaults.length > 0 ? vaults : DEMO_VAULTS);
   } catch {
-    res.json([]);
+    res.json(DEMO_VAULTS);
   }
 });
 
@@ -212,14 +466,14 @@ router.get('/vaults/:id', async (req: Request, res: Response) => {
   try {
     const vaults = await fetchAllVaults();
     const vault = vaults.find((v) => v.id === req.params.id);
-    if (!vault) {
-      res.status(404).json({ error: 'Vault not found' });
-      return;
-    }
-    res.json(vault);
-  } catch {
-    res.status(404).json({ error: 'Vault not found' });
-  }
+    if (vault) { res.json(vault); return; }
+  } catch { /* fall through */ }
+
+  // Check demo vaults as fallback
+  const demoVault = DEMO_VAULTS.find((v) => v.id === req.params.id);
+  if (demoVault) { res.json(demoVault); return; }
+
+  res.status(404).json({ error: 'Vault not found' });
 });
 
 // ─── GET /v1/tokens ──────────────────────────────────────────────────
@@ -238,13 +492,15 @@ router.get('/tokens', async (_req: Request, res: Response) => {
 router.get('/payments', async (req: Request, res: Response) => {
   try {
     let payments = await fetchAllPayments();
+    if (payments.length === 0) payments = DEMO_PAYMENTS;
+
     const { vaultId } = req.query;
     if (vaultId) {
-      payments = payments.filter((p) => p.vaultId === vaultId);
+      payments = payments.filter((p: any) => p.vaultId === vaultId);
     }
     res.json(payments);
   } catch {
-    res.json([]);
+    res.json(DEMO_PAYMENTS);
   }
 });
 
@@ -253,28 +509,72 @@ router.get('/payments', async (req: Request, res: Response) => {
 router.get('/ai/reports', (req: Request, res: Response) => {
   try {
     const { vaultId } = req.query;
-    const reports = listReports(vaultId as string | undefined);
-    res.json(reports);
+    const rawReports = listReports(vaultId as string | undefined);
+
+    if (rawReports.length > 0) {
+      res.json(rawReports.map(normalizeAIReport));
+      return;
+    }
+
+    // Fall back to demo
+    const demoReports = vaultId
+      ? DEMO_AI_REPORTS.filter((r) => r.vaultId === vaultId)
+      : DEMO_AI_REPORTS;
+    res.json(demoReports);
   } catch {
-    res.json([]);
+    res.json(DEMO_AI_REPORTS);
   }
 });
 
 // ─── GET /v1/ai/reports/:id ─────────────────────────────────────────
 
 router.get('/ai/reports/:id', (req: Request, res: Response) => {
+  // Try real reports first
   const report = getReport(req.params.id as string);
-  if (!report) {
-    res.status(404).json({ error: 'Report not found' });
+  if (report) {
+    res.json(normalizeAIReport(report));
     return;
   }
-  res.json(report);
+
+  // Fall back to demo
+  const demoReport = DEMO_AI_REPORTS.find((r) => r.id === req.params.id);
+  if (demoReport) { res.json(demoReport); return; }
+
+  res.status(404).json({ error: 'Report not found' });
 });
 
 // ─── GET /v1/ai/score-history ────────────────────────────────────────
 
-router.get('/ai/score-history', (_req: Request, res: Response) => {
-  res.json([]);
+router.get('/ai/score-history', (req: Request, res: Response) => {
+  try {
+    const { vaultId } = req.query;
+    const rawReports = listReports(vaultId as string | undefined);
+
+    if (rawReports.length > 0) {
+      // Derive score history from real reports: group by YYYY-MM + latest score
+      const byMonth = new Map<string, number>();
+      for (const r of rawReports) {
+        const month = r.createdAt.slice(0, 7); // YYYY-MM
+        byMonth.set(month, r.riskScore);
+      }
+      const history = Array.from(byMonth.entries())
+        .map(([date, score]) => ({ date, score }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      res.json(history);
+      return;
+    }
+
+    // Fall back to demo
+    if (vaultId && DEMO_SCORE_HISTORY[vaultId as string]) {
+      res.json(DEMO_SCORE_HISTORY[vaultId as string]);
+    } else {
+      const all = Object.values(DEMO_SCORE_HISTORY).flat().sort((a, b) => a.date.localeCompare(b.date));
+      res.json(all);
+    }
+  } catch {
+    const all = Object.values(DEMO_SCORE_HISTORY).flat().sort((a, b) => a.date.localeCompare(b.date));
+    res.json(all);
+  }
 });
 
 // ─── GET /v1/canton/vaults ───────────────────────────────────────────
@@ -282,16 +582,44 @@ router.get('/ai/score-history', (_req: Request, res: Response) => {
 router.get('/canton/vaults', async (_req: Request, res: Response) => {
   try {
     const result = await cantonClient.query('ConfidentialVault', 'admin');
-    res.json(result);
-  } catch {
-    res.json([]);
-  }
+    if (Array.isArray(result) && result.length > 0) {
+      res.json(result);
+      return;
+    }
+  } catch { /* fall through */ }
+
+  res.json(DEMO_CONFIDENTIAL_VAULTS);
 });
 
 // ─── GET /v1/admin/wallets ───────────────────────────────────────────
 
-router.get('/admin/wallets', (_req: Request, res: Response) => {
-  res.json([]);
+router.get('/admin/wallets', async (_req: Request, res: Response) => {
+  try {
+    const ac = getContract('AccessControl', ADDRESSES.accessControl);
+    const wallets: any[] = [];
+    const roles = ['ADMIN', 'ISSUER', 'INVESTOR', 'AUDITOR'];
+
+    for (const roleName of roles) {
+      try {
+        const roleHash = ethers.id(roleName + '_ROLE');
+        const count = Number(await ac.getRoleMemberCount(roleHash));
+        for (let i = 0; i < count; i++) {
+          const addr = await ac.getRoleMember(roleHash, i);
+          wallets.push({
+            address: addr,
+            role: roleName.toLowerCase(),
+            label: `${roleName.charAt(0) + roleName.slice(1).toLowerCase()} ${i + 1}`,
+            addedAt: new Date().toISOString().slice(0, 10),
+            kycStatus: 'verified',
+          });
+        }
+      } catch { /* role enumeration not supported */ }
+    }
+
+    if (wallets.length > 0) { res.json(wallets); return; }
+  } catch { /* fall through */ }
+
+  res.json(DEMO_WALLETS);
 });
 
 export default router;
