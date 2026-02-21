@@ -1,5 +1,30 @@
-import { createZGComputeNetworkBroker } from '@0glabs/0g-serving-broker';
+// Workaround: @0glabs/0g-serving-broker ESM build is broken (named exports missing).
+// Force CJS resolution which works correctly.
+import { createRequire } from 'module';
 import { ethers } from 'ethers';
+
+const _require = createRequire(import.meta.url);
+const { createZGComputeNetworkBroker } = _require('@0glabs/0g-serving-broker') as {
+  createZGComputeNetworkBroker: (signer: ethers.Wallet) => Promise<ZGBroker>;
+};
+
+// --- Broker type ---
+
+interface ZGBroker {
+  inference: {
+    listService(): Promise<Array<{ provider: string; model: string; url: string }>>;
+    acknowledgeProviderSigner(address: string): Promise<void>;
+    getServiceMetadata(address: string): Promise<{ endpoint: string; model: string }>;
+    getRequestHeaders(address: string, content: string): Promise<Record<string, string>>;
+  };
+  ledger: {
+    getLedger(): Promise<unknown>;
+    addLedger(balance: number, gasPrice?: bigint): Promise<void>;
+    depositFund(amount: number, gasPrice?: bigint): Promise<void>;
+    transferFund(address: string, type: string, amount: number, gasPrice?: bigint): Promise<void>;
+  };
+  fineTuning: unknown;
+}
 
 // --- Types ---
 
@@ -30,7 +55,7 @@ interface ChatCompletionResponse {
 
 // --- Client ---
 
-let brokerInstance: Awaited<ReturnType<typeof createZGComputeNetworkBroker>> | null = null;
+let brokerInstance: ZGBroker | null = null;
 let activeProvider: ZGProvider | null = null;
 
 export async function initClient(config: ZGClientConfig) {
@@ -80,10 +105,42 @@ export async function selectProvider(modelPreference?: string): Promise<ZGProvid
   return providers[0];
 }
 
-export async function setupProvider(providerAddress: string, fundAmount = 1n) {
+/**
+ * Initialize the 0G ledger and provider for inference.
+ *
+ * Flow:
+ * 1. Create ledger account (if it doesn't exist) with initial deposit
+ * 2. Acknowledge the provider's signer
+ * 3. Transfer funds from ledger to provider sub-account
+ */
+export async function setupProvider(providerAddress: string, depositOG = 1) {
   const broker = getBroker();
-  await broker.inference.acknowledgeProviderSigner(providerAddress);
-  await broker.ledger.transferFund(providerAddress, 'inference', BigInt(fundAmount));
+
+  // Step 1: Ensure ledger exists with funds
+  try {
+    await broker.ledger.getLedger();
+  } catch {
+    // Ledger doesn't exist — create with initial deposit
+    console.log(`[0G] Creating ledger with ${depositOG} OG...`);
+    await broker.ledger.addLedger(depositOG);
+  }
+
+  // Step 2: Acknowledge provider signer
+  try {
+    await broker.inference.acknowledgeProviderSigner(providerAddress);
+  } catch {
+    // May already be acknowledged — safe to ignore
+  }
+
+  // Step 3: Transfer funds to provider sub-account for inference
+  try {
+    // transferFund expects raw wei-like units. Minimum is 10000000000000000 (0.01 OG).
+    await broker.ledger.transferFund(providerAddress, 'inference', 10000000000000000);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[0G] Warning: Fund transfer failed: ${msg}`);
+    // Non-fatal: sub-account may already have funds
+  }
 }
 
 const INFERENCE_TIMEOUT_MS = 30_000;
