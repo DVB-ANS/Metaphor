@@ -9,8 +9,24 @@ import adiRoutes from './routes/adi.js';
 import hederaRoutes from './routes/hedera.js';
 import demoRoutes from './routes/demo.js';
 import v1Routes from './routes/v1.js';
+import { initializeAIEngine } from 'ai-engine';
+import { setUseMock } from './services/ai-client.js';
 
 dotenv.config({ path: '../../.env' });
+
+// ─── Initialize AI Engine (0G Compute or mock) ─────────────────
+const aiUseMock = process.env.ZG_USE_MOCK !== 'false';
+initializeAIEngine({
+  zgRpcUrl: process.env.ZG_RPC_URL || '',
+  zgPrivateKey: process.env.ZG_PRIVATE_KEY || '',
+  useMock: aiUseMock,
+}).then((ai) => {
+  setUseMock(aiUseMock);
+  console.log(`  AI engine:      ${ai.mode} mode`);
+}).catch((err) => {
+  console.warn(`  AI engine:      failed to initialize (${(err as Error).message}), falling back to mock`);
+  setUseMock(true);
+});
 
 const app = express();
 const PORT = process.env.PORT || 4000;
