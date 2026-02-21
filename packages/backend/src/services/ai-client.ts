@@ -1,17 +1,30 @@
 // ─── 0G Compute AI Client + Persistent Store ────────────────
-// Forwards analysis requests to 0G Compute when available.
-// Persists reports to a JSON file so they survive restarts.
+// Adapter layer: converts backend types ↔ ai-engine types,
+// delegates analysis to the ai-engine package (mock or live 0G Compute).
+//
+// IMPORTANT: We avoid static `import ... from 'ai-engine'` because the
+// barrel re-exports from 0g-client, which loads @0glabs/0g-serving-broker
+// — a package with broken ESM distribution. Instead:
+//   - Types use `import type` (erased at compile time, no runtime load)
+//   - Mock mode imports `ai-engine/dist/mock.js` directly (zero deps)
+//   - Live mode dynamically imports the full barrel only when needed
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import type { AIReport, AnalyzeRequestBody } from '../types/ai.js';
+import type { VaultData, RiskReport } from 'ai-engine';
+import type { AnalysisResult } from 'ai-engine';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const ZG_COMPUTE_ENDPOINT = process.env.ZG_COMPUTE_ENDPOINT;
-const ZG_API_KEY = process.env.ZG_API_KEY;
+// ─── Mock mode flag (set from index.ts after initialization) ─────
+let useMock = true;
+
+export function setUseMock(val: boolean): void {
+  useMock = val;
+}
 
 // ─── Persistent report store ─────────────────────────────────
 const DATA_DIR = resolve(__dirname, '../../data');
@@ -43,105 +56,133 @@ function nextReportId(): string {
   return `report-${String(reportCounter).padStart(3, '0')}`;
 }
 
-/**
- * Trigger an analysis via 0G Compute.
- * If 0G is not configured, returns a structured placeholder
- * so Dev B can still test the flow end-to-end.
- */
-export async function analyzeVault(body: AnalyzeRequestBody): Promise<AIReport> {
-  const reportId = nextReportId();
+// ─── Adapter: AnalyzeRequestBody → VaultData ─────────────────
 
-  let report: AIReport;
+function requestBodyToVaultData(body: AnalyzeRequestBody): VaultData {
+  const totalValue = body.assets.reduce((sum, a) => sum + a.nominalValue, 0);
 
-  if (ZG_COMPUTE_ENDPOINT && ZG_API_KEY) {
-    // ─── Forward to 0G Compute ─────────────────────────────
-    const res = await fetch(ZG_COMPUTE_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${ZG_API_KEY}`,
-      },
-      body: JSON.stringify({
-        vaultId: body.vaultId,
-        assets: body.assets,
-      }),
-    });
+  const assets = body.assets.map((a, i) => {
+    const allocationPct = totalValue > 0 ? (a.nominalValue / totalValue) * 100 : 100 / body.assets.length;
+    const maturityTs = a.maturityDate ? Math.floor(new Date(a.maturityDate).getTime() / 1000) : Math.floor(Date.now() / 1000) + 2 * 365 * 86400;
+    const rateBps = Math.round(a.couponRate * 100);
 
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`0G Compute error (${res.status}): ${text}`);
-    }
-
-    const inference = (await res.json()) as {
-      riskScore: number;
-      recommendations: { action: string; description: string; impact: string }[];
-      stressTests: { scenario: string; impact: string }[];
-      positionAnalysis?: { assetId: string; name: string; score: number; riskLevel: string; comment: string }[];
+    return {
+      tokenAddress: a.assetId,
+      name: a.name || a.assetId,
+      symbol: `RWA-${i}`,
+      isin: a.assetId,
+      rate: rateBps,
+      maturity: maturityTs,
+      issuer: a.jurisdiction || 'Unknown',
+      balance: a.nominalValue,
+      totalSupply: a.nominalValue,
+      allocationPct: Math.round(allocationPct * 10) / 10,
     };
+  });
 
-    report = {
-      reportId,
-      vaultId: body.vaultId,
-      riskScore: inference.riskScore,
-      riskLevel: inference.riskScore < 30 ? 'low' : inference.riskScore < 60 ? 'moderate' : 'high',
-      summary: `AI analysis completed for vault ${body.vaultId}. Risk score: ${inference.riskScore}.`,
-      recommendations: inference.recommendations.map((r, i) => ({
-        id: `${reportId}-rec-${i + 1}`,
-        action: r.action,
-        description: r.description,
-        impact: r.impact,
-        status: 'pending_approval' as const,
-      })),
-      stressTests: inference.stressTests,
-      positionAnalysis: inference.positionAnalysis?.map((p) => ({
-        ...p,
-        riskLevel: p.riskLevel as 'low' | 'moderate' | 'high',
-      })) || [],
-      status: 'pending_approval',
-      createdAt: new Date().toISOString(),
-    };
-  } else {
-    // ─── Mock response for dev/testing ─────────────────────
-    const totalNominal = body.assets.reduce((sum, a) => sum + a.nominalValue, 0);
-    const avgCoupon =
-      body.assets.length > 0
-        ? body.assets.reduce((sum, a) => sum + a.couponRate, 0) / body.assets.length
-        : 0;
-    const riskScore = Math.min(100, Math.round(avgCoupon * 10 + body.assets.length * 5));
+  return {
+    vaultId: body.vaultId,
+    vaultName: `Vault ${body.vaultId}`,
+    owner: '0x0000000000000000000000000000000000000000',
+    status: 'Active',
+    totalValue,
+    assets,
+  };
+}
 
-    report = {
-      reportId,
-      vaultId: body.vaultId,
-      riskScore,
-      riskLevel: riskScore < 30 ? 'low' : riskScore < 60 ? 'moderate' : 'high',
-      summary: `[Mock] Analysis for vault ${body.vaultId}. ${body.assets.length} assets, total nominal $${totalNominal.toLocaleString()}. Risk score: ${riskScore}.`,
-      recommendations: body.assets
-        .filter((a) => a.couponRate > 6)
-        .map((a, i) => ({
-          id: `${reportId}-rec-${i + 1}`,
-          action: 'rebalance',
-          description: `High coupon asset ${a.name || a.assetId} (${a.couponRate}%) suggests elevated credit risk. Consider reducing exposure.`,
-          impact: `~${(a.couponRate * 0.5).toFixed(1)}% risk reduction`,
-          status: 'pending_approval' as const,
-        })),
-      stressTests: [
-        { scenario: 'Interest rate +1%', impact: `-${(totalNominal * 0.02 / totalNominal * 100).toFixed(1)}%` },
-        { scenario: 'Credit spread widening +100bps', impact: `-${(totalNominal * 0.04 / totalNominal * 100).toFixed(1)}%` },
-        { scenario: 'Sovereign default (largest exposure)', impact: `-${(totalNominal * 0.15 / totalNominal * 100).toFixed(1)}%` },
-      ],
-      positionAnalysis: body.assets.map((a) => ({
-        assetId: a.assetId,
-        name: a.name || a.assetId,
-        score: Math.min(100, Math.round(a.couponRate * 12)),
-        riskLevel: (a.couponRate < 3 ? 'low' : a.couponRate < 6 ? 'moderate' : 'high') as 'low' | 'moderate' | 'high',
-        comment: `[Mock] Coupon rate ${a.couponRate}%, nominal $${a.nominalValue.toLocaleString()}.`,
-      })),
-      status: 'pending_approval',
-      createdAt: new Date().toISOString(),
+// ─── Call ai-engine (mock or live) ───────────────────────────
+
+async function callAiEngine(vaultData: VaultData): Promise<AnalysisResult> {
+  if (useMock) {
+    // Import mock directly — avoids loading 0g-client + @0glabs/0g-serving-broker
+    const { generateMockRiskReport } = await import('ai-engine/dist/mock.js');
+    const startTime = Date.now();
+    const report: RiskReport = generateMockRiskReport(vaultData);
+    return {
+      report,
+      generatedAt: new Date().toISOString(),
+      model: 'mock-local',
+      provider: 'mock',
+      verifiable: false,
+      durationMs: Date.now() - startTime,
     };
   }
 
-  reports.set(reportId, report);
+  // Live mode — load full ai-engine (includes 0g-client)
+  const { analyzeVault: aiEngineAnalyze } = await import('ai-engine');
+  return aiEngineAnalyze(vaultData, { useMock: false });
+}
+
+// ─── Adapter: AnalysisResult → AIReport ──────────────────────
+
+function analysisResultToAIReport(result: AnalysisResult, body: AnalyzeRequestBody): AIReport {
+  const reportId = nextReportId();
+  const { report } = result;
+
+  // globalScore → riskScore
+  const riskScore = report.globalScore;
+
+  // Risk level: ai-engine uses uppercase + CRITICAL; backend uses lowercase without CRITICAL
+  const rawLevel = report.riskLevel.toLowerCase();
+  const riskLevel = (rawLevel === 'critical' ? 'high' : rawLevel) as 'low' | 'moderate' | 'high';
+
+  // Summary
+  const summary = `AI analysis completed for vault ${body.vaultId}. Risk score: ${riskScore}/100 (${riskLevel}). ${report.assetAnalysis.length} assets analyzed. Provider: ${result.provider}, model: ${result.model}.`;
+
+  // assetAnalysis[] → positionAnalysis[]
+  const positionAnalysis = report.assetAnalysis.map((a) => {
+    const assetScore = a.score;
+    const assetLevel = (assetScore < 30 ? 'low' : assetScore < 60 ? 'moderate' : 'high') as 'low' | 'moderate' | 'high';
+    const bodyAsset = body.assets.find((ba) => ba.assetId === a.isin || ba.name === a.name);
+    return {
+      assetId: bodyAsset?.assetId || a.isin,
+      name: a.name,
+      score: assetScore,
+      riskLevel: assetLevel,
+      comment: a.reasoning,
+    };
+  });
+
+  // recommendations[] → add id + status
+  const recommendations = report.recommendations.map((r, i) => ({
+    id: `${reportId}-rec-${i + 1}`,
+    action: r.action.toLowerCase(),
+    description: r.description,
+    impact: r.impact,
+    status: 'pending_approval' as const,
+  }));
+
+  // stressTests[] → impactPct (number) → impact (string)
+  const stressTests = report.stressTests.map((s) => ({
+    scenario: s.scenario,
+    impact: `${s.impactPct > 0 ? '+' : ''}${s.impactPct.toFixed(1)}%`,
+  }));
+
+  return {
+    reportId,
+    vaultId: body.vaultId,
+    riskScore,
+    riskLevel,
+    summary,
+    recommendations,
+    stressTests,
+    positionAnalysis,
+    status: 'pending_approval',
+    createdAt: new Date().toISOString(),
+  };
+}
+
+// ─── Public API ──────────────────────────────────────────────
+
+/**
+ * Trigger an analysis via ai-engine (0G Compute or mock).
+ */
+export async function analyzeVault(body: AnalyzeRequestBody): Promise<AIReport> {
+  const vaultData = requestBodyToVaultData(body);
+  const result = await callAiEngine(vaultData);
+  const report = analysisResultToAIReport(result, body);
+
+  reports.set(report.reportId, report);
   saveReports();
   return report;
 }

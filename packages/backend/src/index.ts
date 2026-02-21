@@ -9,8 +9,30 @@ import adiRoutes from './routes/adi.js';
 import hederaRoutes from './routes/hedera.js';
 import demoRoutes from './routes/demo.js';
 import v1Routes from './routes/v1.js';
+import { setUseMock } from './services/ai-client.js';
 
 dotenv.config({ path: '../../.env' });
+
+// ─── Initialize AI Engine (0G Compute or mock) ─────────────────
+// Dynamic import avoids loading @0glabs/0g-serving-broker at startup
+// (its ESM distribution is broken). In mock mode we skip it entirely.
+const aiUseMock = process.env.ZG_USE_MOCK !== 'false';
+setUseMock(aiUseMock);
+
+if (!aiUseMock) {
+  import('ai-engine').then(({ initializeAIEngine }) =>
+    initializeAIEngine({
+      zgRpcUrl: process.env.ZG_RPC_URL || '',
+      zgPrivateKey: process.env.ZG_PRIVATE_KEY || '',
+      useMock: false,
+    })
+  ).then((ai) => {
+    console.log(`  AI engine:      ${ai.mode} mode`);
+  }).catch((err) => {
+    console.warn(`  AI engine:      failed to initialize (${(err as Error).message}), falling back to mock`);
+    setUseMock(true);
+  });
+}
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -35,4 +57,5 @@ app.listen(PORT, () => {
   console.log(`  Hedera endpoints: http://localhost:${PORT}/api/hedera`);
   console.log(`  Canton endpoints: http://localhost:${PORT}/api/canton`);
   console.log(`  AI endpoints:     http://localhost:${PORT}/api/ai`);
+  if (aiUseMock) console.log(`  AI engine:      mock mode`);
 });
