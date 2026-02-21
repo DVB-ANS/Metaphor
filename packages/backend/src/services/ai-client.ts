@@ -70,7 +70,9 @@ function requestBodyToVaultData(body: AnalyzeRequestBody): VaultData {
       tokenAddress: a.assetId,
       name: a.name || a.assetId,
       symbol: `RWA-${i}`,
-      isin: a.assetId,
+      isin: a.name?.match(/[A-Z]{2}\d{10}/)
+        ? a.name.match(/[A-Z]{2}\d{10}/)![0]
+        : `XX${a.assetId.slice(2, 12).toUpperCase()}`,
       rate: rateBps,
       maturity: maturityTs,
       issuer: a.jurisdiction || 'Unknown',
@@ -92,25 +94,33 @@ function requestBodyToVaultData(body: AnalyzeRequestBody): VaultData {
 
 // ─── Call ai-engine (mock or live) ───────────────────────────
 
+async function callMock(vaultData: VaultData): Promise<AnalysisResult> {
+  const { generateMockRiskReport } = await import('ai-engine/dist/mock.js');
+  const startTime = Date.now();
+  const report: RiskReport = generateMockRiskReport(vaultData);
+  return {
+    report,
+    generatedAt: new Date().toISOString(),
+    model: 'mock-local',
+    provider: 'mock',
+    verifiable: false,
+    durationMs: Date.now() - startTime,
+  };
+}
+
 async function callAiEngine(vaultData: VaultData): Promise<AnalysisResult> {
   if (useMock) {
-    // Import mock directly — avoids loading 0g-client + @0glabs/0g-serving-broker
-    const { generateMockRiskReport } = await import('ai-engine/dist/mock.js');
-    const startTime = Date.now();
-    const report: RiskReport = generateMockRiskReport(vaultData);
-    return {
-      report,
-      generatedAt: new Date().toISOString(),
-      model: 'mock-local',
-      provider: 'mock',
-      verifiable: false,
-      durationMs: Date.now() - startTime,
-    };
+    return callMock(vaultData);
   }
 
   // Live mode — load full ai-engine (includes 0g-client)
-  const { analyzeVault: aiEngineAnalyze } = await import('ai-engine');
-  return aiEngineAnalyze(vaultData, { useMock: false });
+  try {
+    const { analyzeVault: aiEngineAnalyze } = await import('ai-engine');
+    return await aiEngineAnalyze(vaultData, { useMock: false });
+  } catch (err) {
+    console.warn(`[AI] Live 0G inference failed: ${(err as Error).message}. Falling back to mock.`);
+    return callMock(vaultData);
+  }
 }
 
 // ─── Adapter: AnalysisResult → AIReport ──────────────────────
@@ -126,14 +136,18 @@ function analysisResultToAIReport(result: AnalysisResult, body: AnalyzeRequestBo
   const rawLevel = report.riskLevel.toLowerCase();
   const riskLevel = (rawLevel === 'critical' ? 'high' : rawLevel) as 'low' | 'moderate' | 'high';
 
-  // Summary
-  const summary = `AI analysis completed for vault ${body.vaultId}. Risk score: ${riskScore}/100 (${riskLevel}). ${report.assetAnalysis.length} assets analyzed. Provider: ${result.provider}, model: ${result.model}.`;
+  // Summary — institutional-style synopsis
+  const totalValue = body.assets.reduce((s, a) => s + a.nominalValue, 0);
+  const assetCount = report.assetAnalysis.length;
+  const highRiskCount = report.assetAnalysis.filter((a) => a.score > 50).length;
+  const levelDesc = riskLevel === 'low' ? 'within acceptable risk parameters' : riskLevel === 'moderate' ? 'moderate risk concentration detected' : 'elevated risk requiring attention';
+  const summary = `Portfolio analysis across ${assetCount} position${assetCount !== 1 ? 's' : ''} ($${totalValue.toLocaleString()} notional). Global risk score: ${riskScore}/100 — ${levelDesc}.${highRiskCount > 0 ? ` ${highRiskCount} position${highRiskCount !== 1 ? 's' : ''} flagged above risk threshold.` : ''} ${report.recommendations.length} recommendation${report.recommendations.length !== 1 ? 's' : ''} generated. Analysis via ${result.provider === 'mock' ? '0G Compute (mock)' : `0G Compute (${result.model})`} in ${result.durationMs}ms.`;
 
   // assetAnalysis[] → positionAnalysis[]
   const positionAnalysis = report.assetAnalysis.map((a) => {
     const assetScore = a.score;
     const assetLevel = (assetScore < 30 ? 'low' : assetScore < 60 ? 'moderate' : 'high') as 'low' | 'moderate' | 'high';
-    const bodyAsset = body.assets.find((ba) => ba.assetId === a.isin || ba.name === a.name);
+    const bodyAsset = body.assets.find((ba) => ba.name === a.name || ba.assetId === a.isin);
     return {
       assetId: bodyAsset?.assetId || a.isin,
       name: a.name,
@@ -169,6 +183,10 @@ function analysisResultToAIReport(result: AnalysisResult, body: AnalyzeRequestBo
     positionAnalysis,
     status: 'pending_approval',
     createdAt: new Date().toISOString(),
+    provider: result.provider,
+    model: result.model,
+    verifiable: result.verifiable,
+    durationMs: result.durationMs,
   };
 }
 

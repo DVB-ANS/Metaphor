@@ -3,12 +3,53 @@
 
 import { Router, type Request, type Response, type Router as RouterType } from 'express';
 import { ethers } from 'ethers';
-import { getContract, ADDRESSES } from '../config.js';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { getContract, getHederaProvider, ADDRESSES, ABIS } from '../config.js';
 import { listReports, getReport } from '../services/ai-client.js';
 import { cantonClient } from '../services/canton-client.js';
 import type { AIReport } from '../types/ai.js';
 
+const __filename_v1 = fileURLToPath(import.meta.url);
+const __dirname_v1 = dirname(__filename_v1);
+
 const router: RouterType = Router();
+
+// ─── Vault metadata store (persisted to JSON) ───────────────────────
+
+interface VaultMeta {
+  onChainId: number;
+  name: string;
+  strategy?: string;
+  assetClass?: string;
+  initialDeposit?: number;
+  riskTolerance?: string;
+  investmentHorizon?: string;
+  description?: string;
+}
+
+const VAULT_META_DIR = resolve(__dirname_v1, '../../data');
+const VAULT_META_FILE = resolve(VAULT_META_DIR, 'vault-meta.json');
+
+function loadVaultMeta(): Map<number, VaultMeta> {
+  try {
+    if (existsSync(VAULT_META_FILE)) {
+      const data = JSON.parse(readFileSync(VAULT_META_FILE, 'utf-8')) as VaultMeta[];
+      return new Map(data.map((m) => [m.onChainId, m]));
+    }
+  } catch { /* start fresh */ }
+  return new Map();
+}
+
+function saveVaultMeta(): void {
+  try {
+    if (!existsSync(VAULT_META_DIR)) mkdirSync(VAULT_META_DIR, { recursive: true });
+    writeFileSync(VAULT_META_FILE, JSON.stringify(Array.from(vaultMetaStore.values()), null, 2));
+  } catch { /* non-critical */ }
+}
+
+const vaultMetaStore = loadVaultMeta();
 
 // ─── Demo Fallback Data ──────────────────────────────────────────────
 
@@ -225,13 +266,39 @@ function normalizeAIReport(report: AIReport) {
       riskLevel: p.riskLevel,
       comment: p.comment,
     })),
+    // 0G Compute metadata
+    provider: report.provider,
+    model: report.model,
+    verifiable: report.verifiable,
+    durationMs: report.durationMs,
   };
 }
 
+// ─── In-memory cache (TTL-based) ─────────────────────────────────────
+
+const CACHE_TTL_MS = 30_000; // 30 seconds
+const cache = new Map<string, { data: any; expiry: number }>();
+
+function getCached<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (entry && Date.now() < entry.expiry) return entry.data as T;
+  cache.delete(key);
+  return null;
+}
+
+function setCache(key: string, data: any): void {
+  cache.set(key, { data, expiry: Date.now() + CACHE_TTL_MS });
+}
+
+// ─── On-chain fetch functions (parallelized) ─────────────────────────
+
 async function fetchAllTokens() {
+  const cached = getCached<any[]>('tokens');
+  if (cached) return cached;
+
   const factory = getContract('TokenFactory', ADDRESSES.tokenFactory);
   const addrs: string[] = await factory.getAllTokens();
-  return Promise.all(
+  const tokens = await Promise.all(
     addrs.map(async (addr) => {
       const token = getContract('RWAToken', addr);
       const [name, symbol, totalSupply, [isin, rate, maturity, issuer]] = await Promise.all([
@@ -253,122 +320,245 @@ async function fetchAllTokens() {
       };
     }),
   );
+  setCache('tokens', tokens);
+  return tokens;
 }
 
 async function fetchAllVaults() {
+  const cached = getCached<any[]>('vaults');
+  if (cached) return cached;
+
   const vm = getContract('VaultManager', ADDRESSES.vaultManager);
   const nextId = Number(await vm.nextVaultId());
-  const vaults = [];
-  for (let i = 0; i < nextId; i++) {
-    try {
-      const [owner, status, createdAt] = await vm.getVaultInfo(i);
-      const tokenAddrs: string[] = await vm.getVaultTokens(i);
 
-      let totalValue = 0;
-      const assets = await Promise.all(
-        tokenAddrs.map(async (addr, idx) => {
-          try {
-            const token = getContract('RWAToken', addr);
-            const balance = await vm.getVaultBalance(i, addr);
-            const balNum = Number(ethers.formatUnits(balance, 18));
-            totalValue += balNum;
-            const [name, [, rate, maturity]] = await Promise.all([
-              token.name(),
-              token.getMetadata(),
-            ]);
-            return {
-              id: `asset-${i}-${idx}`,
-              name,
-              type: 'corporate-bond' as const,
-              allocation: 0, // calculated below
-              value: balNum,
-              rating: 'N/A',
-              couponRate: Number(rate) / 100,
-              maturityDate: maturity > 0 ? new Date(Number(maturity) * 1000).toISOString().slice(0, 10) : 'N/A',
-              jurisdiction: 'N/A',
-            };
-          } catch {
-            return null;
+  // Fetch all vaults in parallel instead of sequential for loop
+  const vaultPromises = Array.from({ length: nextId }, (_, i) =>
+    (async () => {
+      try {
+        const [[owner, status, createdAt], tokenAddrs] = await Promise.all([
+          vm.getVaultInfo(i),
+          vm.getVaultTokens(i) as Promise<string[]>,
+        ]);
+
+        let totalValue = 0;
+        const assets = await Promise.all(
+          tokenAddrs.map(async (addr, idx) => {
+            try {
+              const token = getContract('RWAToken', addr);
+              const [balance, name, [, rate, maturity]] = await Promise.all([
+                vm.getVaultBalance(i, addr),
+                token.name(),
+                token.getMetadata(),
+              ]);
+              const balNum = Number(ethers.formatUnits(balance, 18));
+              totalValue += balNum;
+              return {
+                id: `asset-${i}-${idx}`,
+                name,
+                type: 'corporate-bond' as const,
+                allocation: 0,
+                value: balNum,
+                rating: 'N/A',
+                couponRate: Number(rate) / 100,
+                maturityDate: maturity > 0 ? new Date(Number(maturity) * 1000).toISOString().slice(0, 10) : 'N/A',
+                jurisdiction: 'N/A',
+              };
+            } catch {
+              return null;
+            }
+          }),
+        );
+
+        const validAssets = assets.filter(Boolean) as NonNullable<(typeof assets)[number]>[];
+        if (totalValue > 0) {
+          for (const a of validAssets) {
+            a.allocation = Math.round((a.value / totalValue) * 100);
           }
-        }),
-      );
-
-      const validAssets = assets.filter(Boolean) as NonNullable<(typeof assets)[number]>[];
-      if (totalValue > 0) {
-        for (const a of validAssets) {
-          a.allocation = Math.round((a.value / totalValue) * 100);
         }
-      }
 
-      vaults.push({
-        id: `vault-${i}`,
-        onChainId: i,
-        name: `Vault #${i}`,
-        totalValue,
-        riskScore: null,
-        riskLevel: null,
-        status: STATUS_MAP[Number(status)] || 'active',
-        assetCount: validAssets.length,
-        yieldYTD: null,
-        createdAt: createdAt > 0 ? new Date(Number(createdAt) * 1000).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
-        assets: validAssets,
-        owner,
-      });
-    } catch {
-      // skip inaccessible vaults
-    }
-  }
+        const meta = vaultMetaStore.get(i);
+        const riskMap: Record<string, { score: number; level: string }> = {
+          low: { score: 18, level: 'low' },
+          moderate: { score: 42, level: 'moderate' },
+          high: { score: 67, level: 'high' },
+        };
+        const risk = meta?.riskTolerance ? riskMap[meta.riskTolerance] : null;
+
+        return {
+          id: `vault-${i}`,
+          onChainId: i,
+          name: meta?.name || `Vault #${i}`,
+          totalValue: totalValue || meta?.initialDeposit || 0,
+          riskScore: risk?.score ?? null,
+          riskLevel: risk?.level ?? null,
+          status: STATUS_MAP[Number(status)] || 'active',
+          assetCount: validAssets.length,
+          yieldYTD: null,
+          createdAt: createdAt > 0 ? new Date(Number(createdAt) * 1000).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+          assets: validAssets,
+          owner,
+        };
+      } catch {
+        return null;
+      }
+    })(),
+  );
+
+  const results = await Promise.all(vaultPromises);
+  const vaults = results.filter(Boolean) as NonNullable<(typeof results)[number]>[];
+  setCache('vaults', vaults);
   return vaults;
 }
 
+// PaymentStatus enum from CouponScheduler.sol
+const PAYMENT_STATUS: Record<number, string> = {
+  0: 'scheduled', // Pending
+  1: 'scheduled', // Scheduled (on Hedera Schedule Service)
+  2: 'completed', // Executed
+  3: 'failed',    // Failed
+  4: 'suspended', // Suspended
+};
+
+const FREQUENCY_LABEL: Record<number, string> = {
+  0: 'Monthly',
+  1: 'Quarterly',
+  2: 'Semi-Annual',
+  3: 'Annual',
+};
+
 async function fetchAllPayments() {
+  const cached = getCached<any[]>('payments');
+  if (cached) return cached;
+
   try {
     const scheduler = getContract('CouponScheduler', ADDRESSES.couponScheduler);
     const count = Number(await scheduler.bondCount());
-    const payments: any[] = [];
     const now = Math.floor(Date.now() / 1000);
+    const hederaProvider = getHederaProvider();
 
-    for (let i = 0; i < count; i++) {
-      try {
-        const bond = await scheduler.getBond(i);
-        const dates: bigint[] = await scheduler.getPaymentDates(i);
-        const couponAmount = await scheduler.getCouponAmount(i);
-
-        // Try to resolve token name
-        let tokenName = `Bond #${i}`;
+    // Fetch all bonds in parallel
+    const bondPromises = Array.from({ length: count }, (_, i) =>
+      (async () => {
         try {
-          const tokenAddr = bond.tokenAddress || bond[0];
-          if (tokenAddr && tokenAddr !== ethers.ZeroAddress) {
-            const token = getContract('RWAToken', tokenAddr);
-            tokenName = await token.name();
-          }
-        } catch { /* keep default */ }
+          const [bond, dates, couponAmount] = await Promise.all([
+            scheduler.getBond(i),
+            scheduler.getPaymentDates(i) as Promise<bigint[]>,
+            scheduler.getCouponAmount(i),
+          ]);
 
-        for (const date of dates) {
-          const ts = Number(date);
-          const dateStr = new Date(ts * 1000).toISOString().slice(0, 10);
-          const daysUntil = Math.max(0, Math.ceil((ts - now) / 86400));
-          const status = ts <= now ? 'completed' : 'scheduled';
-          payments.push({
-            id: `pay-${i}-${ts}`,
-            assetName: tokenName,
-            amount: Number(ethers.formatUnits(couponAmount, 18)),
-            date: dateStr,
-            daysUntil,
-            vaultId: `bond-${i}`,
-            vaultName: tokenName,
-            status,
-            recipients: 1,
+          // Resolve token name + decimals in parallel
+          let tokenName = `Bond #${i}`;
+          let decimals = 6;
+          const tokenAddr = bond.token;
+          const ptAddr = bond.paymentToken;
+
+          await Promise.all([
+            (async () => {
+              try {
+                if (tokenAddr && tokenAddr !== ethers.ZeroAddress) {
+                  const token = new ethers.Contract(tokenAddr, ABIS.RWAToken, hederaProvider);
+                  tokenName = await token.name();
+                }
+              } catch { /* keep default */ }
+            })(),
+            (async () => {
+              try {
+                if (ptAddr && ptAddr !== ethers.ZeroAddress) {
+                  const pt = new ethers.Contract(ptAddr, ['function decimals() view returns (uint8)'], hederaProvider);
+                  decimals = Number(await pt.decimals());
+                }
+              } catch { /* default 6 */ }
+            })(),
+          ]);
+
+          const rate = Number(bond.rate);
+          const freq = Number(bond.frequency);
+          const freqLabel = FREQUENCY_LABEL[freq] || 'Quarterly';
+
+          // Build payments — use time-based status (skip per-date getPayment calls for speed)
+          return dates.map((date) => {
+            const ts = Number(date);
+            return {
+              id: `hedera-pay-${i}-${ts}`,
+              assetName: tokenName,
+              amount: Number(ethers.formatUnits(couponAmount, decimals)),
+              date: new Date(ts * 1000).toISOString().slice(0, 10),
+              daysUntil: Math.max(0, Math.ceil((ts - now) / 86400)),
+              vaultId: `bond-${i}`,
+              vaultName: `${tokenName} (${freqLabel}, ${rate / 100}%)`,
+              status: ts <= now ? 'completed' : 'scheduled',
+              recipients: 1,
+            };
           });
+        } catch {
+          return [];
         }
-      } catch {
-        // skip inaccessible bonds
-      }
-    }
+      })(),
+    );
+
+    const nested = await Promise.all(bondPromises);
+    const payments = nested.flat();
+    setCache('payments', payments);
     return payments;
   } catch {
     return [];
   }
+}
+
+/**
+ * Generate coupon payment schedules from real on-chain vault assets.
+ * For each token deposited in a vault, generates semi-annual payments
+ * from today until maturity based on the token's coupon rate and balance.
+ */
+async function generatePaymentsFromVaults() {
+  const vaults = await fetchAllVaults();
+  const payments: any[] = [];
+  const now = Math.floor(Date.now() / 1000);
+  const SIX_MONTHS = 182 * 86400;
+
+  for (const vault of vaults) {
+    for (const asset of vault.assets) {
+      const rate = asset.couponRate || 0;
+      const value = asset.value || 0;
+      if (rate === 0 || value === 0) continue;
+
+      // Semi-annual coupon = (rate% / 2) * notional value
+      const couponAmount = Math.round((rate / 100 / 2) * value);
+      if (couponAmount === 0) continue;
+
+      // Parse maturity
+      const maturityStr = asset.maturityDate;
+      const maturityTs = maturityStr && maturityStr !== 'N/A'
+        ? Math.floor(new Date(maturityStr).getTime() / 1000)
+        : now + 3 * 365 * 86400; // default 3 years out
+
+      // Generate payment dates: semi-annual from vault creation until maturity
+      const createdTs = Math.floor(new Date(vault.createdAt).getTime() / 1000);
+      let payDate = createdTs + SIX_MONTHS;
+
+      while (payDate <= maturityTs) {
+        const dateStr = new Date(payDate * 1000).toISOString().slice(0, 10);
+        const daysUntil = Math.max(0, Math.ceil((payDate - now) / 86400));
+        const status = payDate <= now ? 'completed' : 'scheduled';
+
+        payments.push({
+          id: `pay-${vault.id}-${asset.id}-${payDate}`,
+          assetName: asset.name,
+          amount: couponAmount,
+          date: dateStr,
+          daysUntil,
+          vaultId: vault.id,
+          vaultName: vault.name,
+          status,
+          recipients: 1,
+        });
+
+        payDate += SIX_MONTHS;
+      }
+    }
+  }
+
+  return payments.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 // ─── GET /v1/dashboard ───────────────────────────────────────────────
@@ -382,6 +572,9 @@ router.get('/dashboard', async (_req: Request, res: Response) => {
     try { vaults = await fetchAllVaults(); } catch { /* empty */ }
     try { tokens = await fetchAllTokens(); } catch { /* empty */ }
     try { payments = await fetchAllPayments(); } catch { /* empty */ }
+    if (payments.length === 0) {
+      try { payments = await generatePaymentsFromVaults(); } catch { /* empty */ }
+    }
 
     // Fall back to demo data when on-chain is empty
     if (vaults.length === 0) vaults = DEMO_VAULTS;
@@ -476,6 +669,34 @@ router.get('/vaults/:id', async (req: Request, res: Response) => {
   res.status(404).json({ error: 'Vault not found' });
 });
 
+// ─── POST /v1/vaults/meta — persist vault metadata (name, strategy…) ─
+
+router.post('/vaults/meta', (req: Request, res: Response) => {
+  try {
+    const { onChainId, name, strategy, assetClass, initialDeposit, riskTolerance, investmentHorizon, description } = req.body ?? {};
+    if (onChainId == null || !name) {
+      res.status(400).json({ error: 'onChainId and name are required' });
+      return;
+    }
+    const meta: VaultMeta = {
+      onChainId: Number(onChainId),
+      name,
+      strategy,
+      assetClass,
+      initialDeposit: initialDeposit ? Number(initialDeposit) : undefined,
+      riskTolerance,
+      investmentHorizon,
+      description,
+    };
+    vaultMetaStore.set(meta.onChainId, meta);
+    saveVaultMeta();
+    cache.delete('vaults'); // invalidate vault cache
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
+  }
+});
+
 // ─── GET /v1/tokens ──────────────────────────────────────────────────
 
 router.get('/tokens', async (_req: Request, res: Response) => {
@@ -491,7 +712,15 @@ router.get('/tokens', async (_req: Request, res: Response) => {
 
 router.get('/payments', async (req: Request, res: Response) => {
   try {
+    // 1. Try Hedera CouponScheduler
     let payments = await fetchAllPayments();
+
+    // 2. Generate from real on-chain vault assets
+    if (payments.length === 0) {
+      try { payments = await generatePaymentsFromVaults(); } catch { /* fall through */ }
+    }
+
+    // 3. Demo fallback
     if (payments.length === 0) payments = DEMO_PAYMENTS;
 
     const { vaultId } = req.query;
@@ -577,9 +806,59 @@ router.get('/ai/score-history', (req: Request, res: Response) => {
   }
 });
 
+// ─── Canton Data Room — party & trade persistence ────────────────────
+
+interface CantonParty {
+  id: string;
+  name: string;
+  role: 'owner' | 'counterparty' | 'auditor';
+  publicKey: string;
+  joinedAt: string;
+}
+
+interface CantonTrade {
+  id: string;
+  from: string;
+  to: string;
+  assetName: string;
+  amount: number;
+  price: number;
+  status: string;
+  createdAt: string;
+  message?: string;
+}
+
+interface CantonVaultOverlay {
+  vaultId: string;
+  parties: CantonParty[];
+  trades: CantonTrade[];
+}
+
+const CANTON_OVERLAY_FILE = resolve(VAULT_META_DIR, 'canton-overlay.json');
+
+function loadCantonOverlays(): Map<string, CantonVaultOverlay> {
+  try {
+    if (existsSync(CANTON_OVERLAY_FILE)) {
+      const data = JSON.parse(readFileSync(CANTON_OVERLAY_FILE, 'utf-8')) as CantonVaultOverlay[];
+      return new Map(data.map((o) => [o.vaultId, o]));
+    }
+  } catch { /* start fresh */ }
+  return new Map();
+}
+
+function saveCantonOverlays(): void {
+  try {
+    if (!existsSync(VAULT_META_DIR)) mkdirSync(VAULT_META_DIR, { recursive: true });
+    writeFileSync(CANTON_OVERLAY_FILE, JSON.stringify(Array.from(cantonOverlays.values()), null, 2));
+  } catch { /* non-critical */ }
+}
+
+const cantonOverlays = loadCantonOverlays();
+
 // ─── GET /v1/canton/vaults ───────────────────────────────────────────
 
 router.get('/canton/vaults', async (_req: Request, res: Response) => {
+  // Try Canton first
   try {
     const result = await cantonClient.query('ConfidentialVault', 'admin');
     if (Array.isArray(result) && result.length > 0) {
@@ -588,38 +867,215 @@ router.get('/canton/vaults', async (_req: Request, res: Response) => {
     }
   } catch { /* fall through */ }
 
+  // Build from real on-chain ADI vaults
+  try {
+    const vaults = await fetchAllVaults();
+    if (vaults.length > 0) {
+      const confidentialVaults = vaults.map((v) => {
+        const overlay = cantonOverlays.get(v.id);
+        const ownerShort = typeof v.owner === 'string'
+          ? `${v.owner.slice(0, 6)}...${v.owner.slice(-4)}`
+          : 'Unknown';
+
+        // Default owner party if no overlay exists
+        const defaultParties: CantonParty[] = [{
+          id: `party-${v.id}-owner`,
+          name: ownerShort,
+          role: 'owner',
+          publicKey: typeof v.owner === 'string' ? v.owner : '0x0',
+          joinedAt: v.createdAt,
+        }];
+
+        return {
+          id: v.id,
+          name: `${v.name} — Data Room`,
+          owner: ownerShort,
+          parties: overlay?.parties ?? defaultParties,
+          trades: overlay?.trades ?? [],
+          assets: v.assets,
+          assetCount: v.assetCount,
+          totalValue: v.totalValue,
+          createdAt: v.createdAt,
+        };
+      });
+      res.json(confidentialVaults);
+      return;
+    }
+  } catch { /* fall through */ }
+
   res.json(DEMO_CONFIDENTIAL_VAULTS);
 });
+
+// ─── POST /v1/canton/vaults/:vaultId/parties — add party to overlay ──
+
+router.post('/canton/vaults/:vaultId/parties', (req: Request, res: Response) => {
+  const vaultId = req.params.vaultId as string;
+  const { name, role, publicKey } = req.body ?? {};
+  if (!name || !role || !publicKey) {
+    res.status(400).json({ error: 'name, role, and publicKey are required' });
+    return;
+  }
+
+  if (!cantonOverlays.has(vaultId)) {
+    cantonOverlays.set(vaultId, { vaultId, parties: [], trades: [] });
+  }
+  const overlay = cantonOverlays.get(vaultId)!;
+
+  const party: CantonParty = {
+    id: `party-${Date.now()}`,
+    name,
+    role,
+    publicKey,
+    joinedAt: new Date().toISOString().slice(0, 10),
+  };
+  overlay.parties.push(party);
+  saveCantonOverlays();
+  res.json(party);
+});
+
+// ─── POST /v1/canton/vaults/:vaultId/trades — add trade to overlay ───
+
+router.post('/canton/vaults/:vaultId/trades', (req: Request, res: Response) => {
+  const vaultId = req.params.vaultId as string;
+  const { from, to, assetName, amount, price, message } = req.body ?? {};
+  if (!from || !to || !assetName || !amount || !price) {
+    res.status(400).json({ error: 'from, to, assetName, amount, and price are required' });
+    return;
+  }
+
+  if (!cantonOverlays.has(vaultId)) {
+    cantonOverlays.set(vaultId, { vaultId, parties: [], trades: [] });
+  }
+  const overlay = cantonOverlays.get(vaultId)!;
+
+  const trade: CantonTrade = {
+    id: `trade-${Date.now()}`,
+    from,
+    to,
+    assetName,
+    amount: Number(amount),
+    price: Number(price),
+    status: 'pending',
+    createdAt: new Date().toISOString().slice(0, 10),
+    message,
+  };
+  overlay.trades.push(trade);
+  saveCantonOverlays();
+  res.json(trade);
+});
+
+// ─── POST /v1/canton/trades/:tradeId/status — update trade status ────
+
+router.post('/canton/trades/:tradeId/status', (req: Request, res: Response) => {
+  const { tradeId } = req.params;
+  const { status } = req.body ?? {};
+  if (!status) { res.status(400).json({ error: 'status is required' }); return; }
+
+  for (const overlay of cantonOverlays.values()) {
+    const trade = overlay.trades.find((t) => t.id === tradeId);
+    if (trade) {
+      trade.status = status;
+      saveCantonOverlays();
+      res.json(trade);
+      return;
+    }
+  }
+  res.status(404).json({ error: 'Trade not found' });
+});
+
+// ─── Wallet registry (persistent JSON) ───────────────────────────────
+
+interface WalletEntry {
+  address: string;
+  label: string;
+  role: string;
+  addedAt: string;
+  kycStatus: 'pending' | 'verified';
+}
+
+const WALLET_REGISTRY_FILE = resolve(VAULT_META_DIR, 'wallet-registry.json');
+
+function loadWalletRegistry(): WalletEntry[] {
+  try {
+    if (existsSync(WALLET_REGISTRY_FILE)) {
+      return JSON.parse(readFileSync(WALLET_REGISTRY_FILE, 'utf-8')) as WalletEntry[];
+    }
+  } catch { /* start fresh */ }
+  return [];
+}
+
+function saveWalletRegistry(): void {
+  try {
+    if (!existsSync(VAULT_META_DIR)) mkdirSync(VAULT_META_DIR, { recursive: true });
+    writeFileSync(WALLET_REGISTRY_FILE, JSON.stringify(walletRegistry, null, 2));
+  } catch { /* non-critical */ }
+}
+
+const walletRegistry = loadWalletRegistry();
 
 // ─── GET /v1/admin/wallets ───────────────────────────────────────────
 
 router.get('/admin/wallets', async (_req: Request, res: Response) => {
+  if (walletRegistry.length === 0) { res.json([]); return; }
+
+  // Only return wallets that are actually whitelisted on-chain
   try {
     const ac = getContract('AccessControl', ADDRESSES.accessControl);
-    const wallets: any[] = [];
-    const roles = ['ADMIN', 'ISSUER', 'INVESTOR', 'AUDITOR'];
-
-    for (const roleName of roles) {
-      try {
-        const roleHash = ethers.id(roleName + '_ROLE');
-        const count = Number(await ac.getRoleMemberCount(roleHash));
-        for (let i = 0; i < count; i++) {
-          const addr = await ac.getRoleMember(roleHash, i);
-          wallets.push({
-            address: addr,
-            role: roleName.toLowerCase(),
-            label: `${roleName.charAt(0) + roleName.slice(1).toLowerCase()} ${i + 1}`,
-            addedAt: new Date().toISOString().slice(0, 10),
-            kycStatus: 'verified',
-          });
+    const checks = await Promise.all(
+      walletRegistry.map(async (w) => {
+        try {
+          const isWL = await ac.isWhitelisted(w.address);
+          return isWL ? { ...w, kycStatus: 'verified' as const } : null;
+        } catch {
+          return null;
         }
-      } catch { /* role enumeration not supported */ }
-    }
+      }),
+    );
+    res.json(checks.filter(Boolean));
+  } catch {
+    // RPC down — return registry as-is with verified status
+    res.json(walletRegistry.map((w) => ({ ...w, kycStatus: 'verified' })));
+  }
+});
 
-    if (wallets.length > 0) { res.json(wallets); return; }
-  } catch { /* fall through */ }
+// ─── POST /v1/admin/wallets — add wallet to registry ─────────────────
 
-  res.json(DEMO_WALLETS);
+router.post('/admin/wallets', (req: Request, res: Response) => {
+  const { address, label, role, kycStatus } = req.body ?? {};
+  if (!address) { res.status(400).json({ error: 'address is required' }); return; }
+
+  const existing = walletRegistry.find((w) => w.address.toLowerCase() === address.toLowerCase());
+  if (existing) {
+    // Update existing
+    if (label) existing.label = label;
+    if (role) existing.role = role;
+    if (kycStatus) existing.kycStatus = kycStatus;
+    saveWalletRegistry();
+    res.json(existing);
+    return;
+  }
+
+  const entry: WalletEntry = {
+    address,
+    label: label || `Wallet ${walletRegistry.length + 1}`,
+    role: role || 'investor',
+    addedAt: new Date().toISOString().slice(0, 10),
+    kycStatus: kycStatus || 'pending',
+  };
+  walletRegistry.push(entry);
+  saveWalletRegistry();
+  res.json(entry);
+});
+
+// ─── POST /v1/admin/wallets/:address/verify — mark as verified ───────
+
+router.post('/admin/wallets/:address/verify', (req: Request, res: Response) => {
+  const addr = req.params.address as string;
+  const wallet = walletRegistry.find((w) => w.address.toLowerCase() === addr.toLowerCase());
+  if (!wallet) { res.status(404).json({ error: 'Wallet not found' }); return; }
+  wallet.kycStatus = 'verified';
+  saveWalletRegistry();
+  res.json(wallet);
 });
 
 export default router;

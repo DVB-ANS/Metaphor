@@ -201,7 +201,7 @@ contract CouponScheduler is Ownable, Pausable, HederaScheduleService {
         whenNotPaused
     {
         ScheduledPayment storage payment = _payments[bondId][paymentDate];
-        if (payment.bondId == 0 && payment.paymentDate == 0) revert PaymentNotFound(bondId, paymentDate);
+        if (payment.amount == 0) revert PaymentNotFound(bondId, paymentDate);
         if (payment.status != PaymentStatus.Pending) revert PaymentNotPending(bondId, paymentDate);
         if (paymentDate <= block.timestamp) revert PaymentDateInPast(paymentDate);
 
@@ -260,7 +260,7 @@ contract CouponScheduler is Ownable, Pausable, HederaScheduleService {
         }
 
         ScheduledPayment storage payment = _payments[bondId][paymentDate];
-        if (payment.bondId == 0 && payment.paymentDate == 0) revert PaymentNotFound(bondId, paymentDate);
+        if (payment.amount == 0) revert PaymentNotFound(bondId, paymentDate);
         if (payment.status != PaymentStatus.Scheduled) revert PaymentNotScheduled(bondId, paymentDate);
 
         // All-or-nothing: check liquidity before transfer
@@ -287,7 +287,7 @@ contract CouponScheduler is Ownable, Pausable, HederaScheduleService {
     /// @param paymentDate The payment date to suspend
     function suspendPayment(uint256 bondId, uint256 paymentDate) external bondExists(bondId) onlyOwner {
         ScheduledPayment storage payment = _payments[bondId][paymentDate];
-        if (payment.bondId == 0 && payment.paymentDate == 0) revert PaymentNotFound(bondId, paymentDate);
+        if (payment.amount == 0) revert PaymentNotFound(bondId, paymentDate);
         if (payment.status != PaymentStatus.Pending && payment.status != PaymentStatus.Scheduled) {
             revert PaymentNotPending(bondId, paymentDate);
         }
@@ -314,7 +314,7 @@ contract CouponScheduler is Ownable, Pausable, HederaScheduleService {
         onlyOwner
     {
         ScheduledPayment storage payment = _payments[bondId][paymentDate];
-        if (payment.bondId == 0 && payment.paymentDate == 0) revert PaymentNotFound(bondId, paymentDate);
+        if (payment.amount == 0) revert PaymentNotFound(bondId, paymentDate);
         if (payment.status != PaymentStatus.Failed && payment.status != PaymentStatus.Suspended) {
             revert PaymentNotRecoverable(bondId, paymentDate);
         }

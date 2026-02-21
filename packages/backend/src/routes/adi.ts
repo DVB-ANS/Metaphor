@@ -8,6 +8,21 @@ const router: RouterType = Router();
 // Optional auth on all routes (populates req.auth if token present)
 router.use(optionalAuth);
 
+// ─── Helpers ────────────────────────────────────────────────────────
+
+function p(req: Request, name: string): string {
+  const v = req.params[name];
+  return Array.isArray(v) ? v[0] : v;
+}
+
+function isValidAddress(addr: string): boolean {
+  return /^0x[0-9a-fA-F]{40}$/.test(addr);
+}
+
+function isValidVaultId(id: string): boolean {
+  return /^\d+$/.test(id) && Number(id) >= 0 && Number(id) < 2 ** 32;
+}
+
 // ─── Tokens ─────────────────────────────────────────────────────────
 
 router.get('/tokens', async (_req: Request, res: Response) => {
@@ -25,8 +40,8 @@ router.get('/tokens', async (_req: Request, res: Response) => {
             }),
         );
         res.json(result);
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
     }
 });
 
@@ -37,23 +52,25 @@ router.post('/tokens', requireAuth, requireRole('ISSUER'), async (req: Request, 
         const factory = getContract('TokenFactory', ADDRESSES.tokenFactory, signer);
         const tx = await factory.createToken({ name, symbol, isin, rate, maturity, initialSupply });
         const receipt = await tx.wait();
-        const event = receipt.logs.find((l: any) => l.fragment?.name === 'TokenCreated');
+        const event = receipt.logs.find((l: { fragment?: { name: string } }) => l.fragment?.name === 'TokenCreated');
         res.json({ txHash: receipt.hash, tokenAddress: event?.args?.[0] });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
     }
 });
 
 router.post('/tokens/:address/fractionalize', requireAuth, requireRole('ISSUER'), async (req: Request, res: Response) => {
     try {
+        if (!isValidAddress(p(req, 'address'))) { res.status(400).json({ error: 'Invalid token address' }); return; }
         const { fractions } = req.body;
+        if (!fractions || typeof fractions !== 'number' || fractions < 2) { res.status(400).json({ error: 'fractions must be >= 2' }); return; }
         const signer = getAdiSigner();
         const factory = getContract('TokenFactory', ADDRESSES.tokenFactory, signer);
-        const tx = await factory.fractionalize(req.params.address, fractions);
+        const tx = await factory.fractionalize(p(req, 'address'), fractions);
         const receipt = await tx.wait();
         res.json({ txHash: receipt.hash });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
     }
 });
 
@@ -65,84 +82,97 @@ router.post('/vaults', requireAuth, requireRole('ISSUER'), async (_req: Request,
         const vm = getContract('VaultManager', ADDRESSES.vaultManager, signer);
         const tx = await vm.createVault();
         const receipt = await tx.wait();
-        const event = receipt.logs.find((l: any) => l.fragment?.name === 'VaultCreated');
+        const event = receipt.logs.find((l: { fragment?: { name: string } }) => l.fragment?.name === 'VaultCreated');
         res.json({ txHash: receipt.hash, vaultId: event?.args?.[0]?.toString() });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
     }
 });
 
 router.get('/vaults/:id', async (req: Request, res: Response) => {
     try {
+        if (!isValidVaultId(p(req, 'id'))) { res.status(400).json({ error: 'Invalid vault ID' }); return; }
         const vm = getContract('VaultManager', ADDRESSES.vaultManager);
-        const [owner, status, createdAt] = await vm.getVaultInfo(req.params.id);
-        const tokens = await vm.getVaultTokens(req.params.id);
-        res.json({ vaultId: req.params.id, owner, status, createdAt: createdAt.toString(), tokens });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        const [owner, status, createdAt] = await vm.getVaultInfo(p(req, 'id'));
+        const tokens = await vm.getVaultTokens(p(req, 'id'));
+        res.json({ vaultId: p(req, 'id'), owner, status, createdAt: createdAt.toString(), tokens });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
     }
 });
 
 router.get('/vaults/:id/balance/:token', async (req: Request, res: Response) => {
     try {
+        if (!isValidVaultId(p(req, 'id'))) { res.status(400).json({ error: 'Invalid vault ID' }); return; }
+        if (!isValidAddress(p(req, 'token'))) { res.status(400).json({ error: 'Invalid token address' }); return; }
         const vm = getContract('VaultManager', ADDRESSES.vaultManager);
-        const balance = await vm.getVaultBalance(req.params.id, req.params.token);
-        const available = await vm.getAvailableBalance(req.params.id, req.params.token);
+        const balance = await vm.getVaultBalance(p(req, 'id'), p(req, 'token'));
+        const available = await vm.getAvailableBalance(p(req, 'id'), p(req, 'token'));
         res.json({ balance: balance.toString(), available: available.toString() });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
     }
 });
 
 router.post('/vaults/:id/deposit', requireAuth, requireRole('INVESTOR'), async (req: Request, res: Response) => {
     try {
+        if (!isValidVaultId(p(req, 'id'))) { res.status(400).json({ error: 'Invalid vault ID' }); return; }
         const { token, amount } = req.body;
+        if (!token || !isValidAddress(token)) { res.status(400).json({ error: 'Invalid token address' }); return; }
+        if (!amount) { res.status(400).json({ error: 'Missing amount' }); return; }
         const signer = getAdiSigner();
         const vm = getContract('VaultManager', ADDRESSES.vaultManager, signer);
-        const tx = await vm.deposit(req.params.id, token, amount);
+        const tx = await vm.deposit(p(req, 'id'), token, amount);
         const receipt = await tx.wait();
         res.json({ txHash: receipt.hash });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
     }
 });
 
 router.post('/vaults/:id/withdraw', requireAuth, requireRole('INVESTOR'), async (req: Request, res: Response) => {
     try {
+        if (!isValidVaultId(p(req, 'id'))) { res.status(400).json({ error: 'Invalid vault ID' }); return; }
         const { token, amount } = req.body;
+        if (!token || !isValidAddress(token)) { res.status(400).json({ error: 'Invalid token address' }); return; }
+        if (!amount) { res.status(400).json({ error: 'Missing amount' }); return; }
         const signer = getAdiSigner();
         const vm = getContract('VaultManager', ADDRESSES.vaultManager, signer);
-        const tx = await vm.withdraw(req.params.id, token, amount);
+        const tx = await vm.withdraw(p(req, 'id'), token, amount);
         const receipt = await tx.wait();
         res.json({ txHash: receipt.hash });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
     }
 });
 
 router.post('/vaults/:id/allocate', requireAuth, requireRole('ISSUER'), async (req: Request, res: Response) => {
     try {
+        if (!isValidVaultId(p(req, 'id'))) { res.status(400).json({ error: 'Invalid vault ID' }); return; }
         const { token, strategy, amount } = req.body;
+        if (!token || !isValidAddress(token)) { res.status(400).json({ error: 'Invalid token address' }); return; }
         const signer = getAdiSigner();
         const vm = getContract('VaultManager', ADDRESSES.vaultManager, signer);
-        const tx = await vm.allocate(req.params.id, token, strategy, amount);
+        const tx = await vm.allocate(p(req, 'id'), token, strategy, amount);
         const receipt = await tx.wait();
         res.json({ txHash: receipt.hash });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
     }
 });
 
 router.post('/vaults/:id/deallocate', requireAuth, requireRole('ISSUER'), async (req: Request, res: Response) => {
     try {
+        if (!isValidVaultId(p(req, 'id'))) { res.status(400).json({ error: 'Invalid vault ID' }); return; }
         const { token, strategy, amount } = req.body;
+        if (!token || !isValidAddress(token)) { res.status(400).json({ error: 'Invalid token address' }); return; }
         const signer = getAdiSigner();
         const vm = getContract('VaultManager', ADDRESSES.vaultManager, signer);
-        const tx = await vm.deallocate(req.params.id, token, strategy, amount);
+        const tx = await vm.deallocate(p(req, 'id'), token, strategy, amount);
         const receipt = await tx.wait();
         res.json({ txHash: receipt.hash });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
     }
 });
 
@@ -158,8 +188,8 @@ router.get('/institutions', async (_req: Request, res: Response) => {
             result.push({ id: i, name, admin, accessControl: ac, tokenFactory: factory, vaultManager: vault, active });
         }
         res.json(result);
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
     }
 });
 
@@ -171,8 +201,8 @@ router.post('/institutions', requireAuth, requireRole('ADMIN'), async (req: Requ
         const tx = await registry.registerInstitution(name, admin);
         const receipt = await tx.wait();
         res.json({ txHash: receipt.hash });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
     }
 });
 
@@ -184,8 +214,8 @@ router.post('/institutions/propose', requireAuth, requireRole('ADMIN'), async (r
         const tx = await registry.proposeInstitution(name, admin);
         const receipt = await tx.wait();
         res.json({ txHash: receipt.hash });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
     }
 });
 
@@ -193,11 +223,11 @@ router.post('/institutions/proposals/:id/approve', requireAuth, requireRole('ADM
     try {
         const signer = getAdiSigner();
         const registry = getContract('InstitutionRegistry', ADDRESSES.institutionRegistry, signer);
-        const tx = await registry.approveProposal(req.params.id);
+        const tx = await registry.approveProposal(p(req, 'id'));
         const receipt = await tx.wait();
         res.json({ txHash: receipt.hash });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
     }
 });
 
@@ -205,11 +235,11 @@ router.post('/institutions/proposals/:id/execute', requireAuth, requireRole('ADM
     try {
         const signer = getAdiSigner();
         const registry = getContract('InstitutionRegistry', ADDRESSES.institutionRegistry, signer);
-        const tx = await registry.executeProposal(req.params.id);
+        const tx = await registry.executeProposal(p(req, 'id'));
         const receipt = await tx.wait();
         res.json({ txHash: receipt.hash });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
     }
 });
 
@@ -224,8 +254,8 @@ router.post('/whitelist', requireAuth, requireRole('ADMIN'), async (req: Request
         const tx = await ac.addToWhitelist(address);
         const receipt = await tx.wait();
         res.json({ txHash: receipt.hash });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
     }
 });
 
@@ -249,8 +279,8 @@ router.post('/roles', requireAuth, requireRole('ADMIN'), async (req: Request, re
         const tx = await ac.grantRole(roleHash, address);
         const receipt = await tx.wait();
         res.json({ txHash: receipt.hash });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
     }
 });
 

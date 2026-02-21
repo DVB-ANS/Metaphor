@@ -106,7 +106,7 @@ contract InstitutionRegistry {
     /// @notice Approve a pending proposal
     function approveProposal(uint256 proposalId) external onlyPlatformAdmin {
         Proposal storage p = _proposals[proposalId];
-        if (p.id == 0 && proposalId != 0) revert ProposalNotFound(proposalId);
+        if (proposalId >= _nextProposalId) revert ProposalNotFound(proposalId);
         if (p.executed) revert ProposalAlreadyExecuted(proposalId);
         if (p.hasApproved[msg.sender]) revert AlreadyApproved(proposalId, msg.sender);
 
@@ -119,7 +119,7 @@ contract InstitutionRegistry {
     /// @notice Execute a proposal that has enough approvals
     function executeProposal(uint256 proposalId) external onlyPlatformAdmin returns (uint256) {
         Proposal storage p = _proposals[proposalId];
-        if (p.id == 0 && proposalId != 0) revert ProposalNotFound(proposalId);
+        if (proposalId >= _nextProposalId) revert ProposalNotFound(proposalId);
         if (p.executed) revert ProposalAlreadyExecuted(proposalId);
         if (p.approvalCount < REQUIRED_APPROVALS) {
             revert InsufficientApprovals(proposalId, p.approvalCount, REQUIRED_APPROVALS);

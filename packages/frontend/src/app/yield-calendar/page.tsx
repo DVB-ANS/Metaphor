@@ -2,29 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import {
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { BentoGrid, BentoCard } from '@/components/ui/magic-bento';
-import { Badge } from '@/components/ui/badge';
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { GooeyNav } from '@/components/ui/gooey-nav';
-import {
-  CalendarDays,
-  Clock,
-  TrendingUp,
-  DollarSign,
-  CheckCircle,
-  Timer,
-} from 'lucide-react';
 import { formatCurrency } from '@/lib/mock-data';
 import { api } from '@/lib/api';
 import { RoleGate } from '@/components/role-gate';
@@ -55,22 +38,40 @@ export default function YieldCalendarPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}><BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading yield calendar...</p></div></BentoGrid></RoleGate>;
-  if (error) return <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}><BentoGrid className="space-y-6"><div className="flex h-64 flex-col items-center justify-center gap-2"><p className="text-sm text-red-400">Failed to load data</p><p className="text-xs text-neutral-600">{error}</p></div></BentoGrid></RoleGate>;
+  if (loading) {
+    return (
+      <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
+        <div className="max-w-4xl mx-auto flex h-64 items-center justify-center">
+          <p className="text-sm text-black/30 animate-pulse">Loading yield calendar...</p>
+        </div>
+      </RoleGate>
+    );
+  }
+
+  if (error) {
+    return (
+      <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
+        <div className="max-w-4xl mx-auto flex h-64 flex-col items-center justify-center gap-2">
+          <p className="text-sm text-black/45">Failed to load data</p>
+          <p className="text-xs text-black/30">{error}</p>
+        </div>
+      </RoleGate>
+    );
+  }
 
   if (allPayments.length === 0) {
     return (
       <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
-      <BentoGrid className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Yield Calendar</h1>
-          <p className="text-muted-foreground">Automated coupon payments via Hedera Schedule Service</p>
+        <div className="max-w-4xl mx-auto space-y-16">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-widest text-black/30 mb-2">Hedera Schedule Service</p>
+            <h1 className="text-2xl font-semibold text-black">Yield Calendar</h1>
+            <p className="mt-1 text-sm text-black/45">Automated coupon payments via Hedera Schedule Service</p>
+          </div>
+          <div className="flex flex-col items-center justify-center py-16 border border-black/[0.06]">
+            <p className="text-sm text-black/30">No coupon payments scheduled yet.</p>
+          </div>
         </div>
-        <div className="flex flex-col items-center justify-center py-16">
-          <CalendarDays className="mb-4 h-12 w-12 text-muted-foreground/50" />
-          <p className="text-muted-foreground">No coupon payments scheduled yet.</p>
-        </div>
-      </BentoGrid>
       </RoleGate>
     );
   }
@@ -85,11 +86,10 @@ export default function YieldCalendarPage() {
   const totalDistributed = completed.reduce((s: number, p: any) => s + p.amount, 0);
   const totalUpcoming = scheduled.reduce((s: number, p: any) => s + p.amount, 0);
 
-  // Group payments by month for timeline
   const groupByMonth = (list: typeof filteredPayments) => {
     const groups: Record<string, typeof filteredPayments> = {};
     for (const p of list) {
-      const key = p.date.slice(0, 7); // YYYY-MM
+      const key = p.date.slice(0, 7);
       if (!groups[key]) groups[key] = [];
       groups[key].push(p);
     }
@@ -99,263 +99,213 @@ export default function YieldCalendarPage() {
   const scheduledByMonth = groupByMonth(scheduled);
   const completedByMonth = groupByMonth(completed);
 
+  const tabs = [
+    { label: 'Timeline', value: 'timeline' },
+    { label: 'Upcoming', value: 'upcoming' },
+    { label: 'Completed', value: 'completed' },
+  ];
+
   return (
     <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
-      <BentoGrid className="space-y-6">
-        <div className="flex items-start justify-between">
+    <div className="max-w-4xl mx-auto space-y-16">
+      {/* Header */}
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Yield Calendar</h1>
-          <p className="text-muted-foreground">
-            Automated coupon payments via Hedera Schedule Service
-          </p>
+          <p className="text-sm font-medium uppercase tracking-widest text-black/30 mb-2">Hedera Schedule Service</p>
+          <h1 className="text-2xl font-semibold text-black">Yield Calendar</h1>
+          <p className="mt-1 text-sm text-black/45">Automated coupon payments via Hedera Schedule Service</p>
         </div>
         <Select value={vaultFilter} onValueChange={setVaultFilter}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-[180px] border border-black/10 bg-transparent text-sm text-black">
             <SelectValue placeholder="Filter by vault" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All vaults</SelectItem>
             {vaults.map((v: any) => (
-              <SelectItem key={v.id} value={v.id}>
-                {v.name}
-              </SelectItem>
+              <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
       {/* Summary Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <BentoCard>
-          <CardContent className="flex items-center gap-4 pt-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
-              <CheckCircle className="h-5 w-5 text-green-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Distributed</p>
-              <p className="text-xl font-bold">{formatCurrency(totalDistributed)}</p>
-            </div>
-          </CardContent>
-        </BentoCard>
-        <BentoCard>
-          <CardContent className="flex items-center gap-4 pt-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
-              <Timer className="h-5 w-5 text-blue-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Upcoming Total</p>
-              <p className="text-xl font-bold">{formatCurrency(totalUpcoming)}</p>
-            </div>
-          </CardContent>
-        </BentoCard>
-        <BentoCard>
-          <CardContent className="flex items-center gap-4 pt-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <DollarSign className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Completed Payments</p>
-              <p className="text-xl font-bold">{completed.length}</p>
-            </div>
-          </CardContent>
-        </BentoCard>
-        <BentoCard>
-          <CardContent className="flex items-center gap-4 pt-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-500/10">
-              <TrendingUp className="h-5 w-5 text-yellow-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Scheduled Payments</p>
-              <p className="text-xl font-bold">{scheduled.length}</p>
-            </div>
-          </CardContent>
-        </BentoCard>
+      <div>
+        <p className="text-sm font-medium uppercase tracking-widest text-black/30 mb-4">Summary</p>
+        <div className="grid grid-cols-2 gap-px md:grid-cols-4 border border-black/[0.06]">
+          <div className="p-4 bg-white">
+            <p className="text-xs text-black/30 uppercase tracking-widest">Total Distributed</p>
+            <p className="mt-1 text-xl font-medium text-black">{formatCurrency(totalDistributed)}</p>
+          </div>
+          <div className="p-4 bg-white border-l border-black/[0.06]">
+            <p className="text-xs text-black/30 uppercase tracking-widest">Upcoming Total</p>
+            <p className="mt-1 text-xl font-medium text-black">{formatCurrency(totalUpcoming)}</p>
+          </div>
+          <div className="p-4 bg-white border-l border-black/[0.06]">
+            <p className="text-xs text-black/30 uppercase tracking-widest">Completed</p>
+            <p className="mt-1 text-xl font-medium text-black">{completed.length}</p>
+          </div>
+          <div className="p-4 bg-white border-l border-black/[0.06]">
+            <p className="text-xs text-black/30 uppercase tracking-widest">Scheduled</p>
+            <p className="mt-1 text-xl font-medium text-black">{scheduled.length}</p>
+          </div>
+        </div>
       </div>
 
-      {/* Tab Selector */}
-      <GooeyNav
-        items={[
-          { label: 'Timeline', value: 'timeline' },
-          { label: 'Upcoming', value: 'upcoming' },
-          { label: 'Completed', value: 'completed' },
-        ]}
-        value={activeTab}
-        onValueChange={setActiveTab}
-      />
+      {/* Tabs */}
+      <div>
+        <div className="flex gap-6 border-b border-black/[0.06] mb-8">
+          {tabs.map((tab) => (
+            <button
+              key={tab.value}
+              className={`pb-3 text-sm transition-colors ${
+                activeTab === tab.value
+                  ? 'border-b-2 border-black text-black font-medium'
+                  : 'text-black/30 hover:text-black/45'
+              }`}
+              onClick={() => setActiveTab(tab.value)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-      {/* Timeline View */}
-      {activeTab === 'timeline' && (
-        <div className="space-y-4">
-          <BentoCard>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarDays className="h-4 w-4" />
-                Payment Timeline
-              </CardTitle>
-              <CardDescription>All scheduled and completed coupon distributions</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="relative space-y-0">
-                {/* Completed */}
-                {completedByMonth.map(([monthKey, monthPayments]) => {
-                  const [year, month] = monthKey.split('-');
-                  return (
-                    <div key={monthKey} className="relative flex gap-4 pb-6">
-                      <div className="flex flex-col items-center">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500/20">
-                          <CheckCircle className="h-4 w-4 text-green-500" />
-                        </div>
-                        <div className="w-px flex-1 bg-border" />
-                      </div>
-                      <div className="flex-1 pb-2">
-                        <p className="text-sm font-medium">
-                          {months[parseInt(month) - 1]} {year}
-                        </p>
-                        <div className="mt-2 space-y-2">
-                          {monthPayments.map((p: any) => (
-                            <div
-                              key={p.id}
-                              className="flex items-center justify-between rounded-lg border bg-muted/30 p-3"
-                            >
-                              <div>
-                                <p className="text-sm font-medium">{p.assetName}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {p.vaultName} &middot; {p.recipients} recipients
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-sm font-bold">{formatCurrency(p.amount)}</p>
-                                <Badge variant="secondary" className="text-xs">
-                                  Completed
-                                </Badge>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Now marker */}
-                <div className="relative flex gap-4 pb-6">
-                  <div className="flex flex-col items-center">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary">
-                      <Clock className="h-4 w-4 text-primary-foreground" />
-                    </div>
-                    <div className="w-px flex-1 bg-border" />
+        {/* Timeline View */}
+        {activeTab === 'timeline' && (
+          <div className="space-y-0">
+            {/* Completed */}
+            {completedByMonth.map(([monthKey, monthPayments]) => {
+              const [year, month] = monthKey.split('-');
+              return (
+                <div key={monthKey} className="relative flex gap-6 pb-8">
+                  <div className="flex flex-col items-center pt-0.5">
+                    <div className="h-2 w-2 rounded-full bg-black/20 mt-1.5" />
+                    <div className="w-px flex-1 bg-black/[0.06] mt-1" />
                   </div>
-                  <div className="flex items-center">
-                    <Badge>Now — Feb 2026</Badge>
+                  <div className="flex-1">
+                    <p className="text-xs font-medium uppercase tracking-widest text-black/30 mb-3">
+                      {months[parseInt(month) - 1]} {year}
+                    </p>
+                    <div className="divide-y divide-black/[0.06] border-y border-black/[0.06]">
+                      {monthPayments.map((p: any) => (
+                        <div key={p.id} className="flex items-center justify-between py-3">
+                          <div>
+                            <p className="text-sm font-medium text-black">{p.assetName}</p>
+                            <p className="text-xs text-black/30">
+                              {p.vaultName} &middot; {p.recipients} recipients
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium text-black">{formatCurrency(p.amount)}</p>
+                            <p className="text-xs text-black/30">Completed</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
+              );
+            })}
 
-                {/* Upcoming */}
-                {scheduledByMonth.map(([monthKey, monthPayments]) => {
-                  const [year, month] = monthKey.split('-');
-                  return (
-                    <div key={monthKey} className="relative flex gap-4 pb-6">
-                      <div className="flex flex-col items-center">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-dashed border-primary/50">
-                          <Timer className="h-4 w-4 text-primary/50" />
-                        </div>
-                        <div className="w-px flex-1 bg-border/50" />
-                      </div>
-                      <div className="flex-1 pb-2">
-                        <p className="text-sm font-medium">
-                          {months[parseInt(month) - 1]} {year}
-                        </p>
-                        <div className="mt-2 space-y-2">
-                          {monthPayments.map((p: any) => (
-                            <div
-                              key={p.id}
-                              className="flex items-center justify-between rounded-lg border border-dashed p-3"
-                            >
-                              <div>
-                                <p className="text-sm font-medium">{p.assetName}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {p.vaultName} &middot; {p.recipients} recipients
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-sm font-bold">{formatCurrency(p.amount)}</p>
-                                <Badge variant="outline" className="text-xs">
-                                  in {p.daysUntil}d
-                                </Badge>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+            {/* Now marker */}
+            <div className="relative flex gap-6 pb-8">
+              <div className="flex flex-col items-center pt-0.5">
+                <div className="h-2 w-2 rounded-full bg-black mt-1.5" />
+                <div className="w-px flex-1 bg-black/[0.06] mt-1" />
               </div>
-            </CardContent>
-          </BentoCard>
-        </div>
-      )}
+              <div className="flex items-center pt-1">
+                <span className="text-xs font-medium text-black border border-black px-2 py-0.5">Now — Feb 2026</span>
+              </div>
+            </div>
 
-      {/* Upcoming List */}
-      {activeTab === 'upcoming' && (
-        <div className="space-y-3">
-          {scheduled.length === 0 ? (
-            <BentoCard>
-              <CardContent className="py-12 text-center text-muted-foreground">
-                No upcoming payments
-              </CardContent>
-            </BentoCard>
-          ) : (
-            scheduled.map((p: any) => (
-              <BentoCard key={p.id}>
-                <CardContent className="flex items-center justify-between pt-6">
-                  <div>
-                    <p className="font-medium">{p.assetName}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {p.vaultName} &middot; {p.date} &middot; {p.recipients} recipients
+            {/* Upcoming */}
+            {scheduledByMonth.map(([monthKey, monthPayments]) => {
+              const [year, month] = monthKey.split('-');
+              return (
+                <div key={monthKey} className="relative flex gap-6 pb-8">
+                  <div className="flex flex-col items-center pt-0.5">
+                    <div className="h-2 w-2 rounded-full border border-black/20 mt-1.5" />
+                    <div className="w-px flex-1 bg-black/[0.06] mt-1" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-medium uppercase tracking-widest text-black/30 mb-3">
+                      {months[parseInt(month) - 1]} {year}
                     </p>
+                    <div className="divide-y divide-black/[0.06] border-y border-dashed border-black/[0.06]">
+                      {monthPayments.map((p: any) => (
+                        <div key={p.id} className="flex items-center justify-between py-3">
+                          <div>
+                            <p className="text-sm font-medium text-black">{p.assetName}</p>
+                            <p className="text-xs text-black/30">
+                              {p.vaultName} &middot; {p.recipients} recipients
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium text-black">{formatCurrency(p.amount)}</p>
+                            <p className="text-xs text-black/30">in {p.daysUntil}d</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold">{formatCurrency(p.amount)}</p>
-                    <Badge variant="outline">in {p.daysUntil} days</Badge>
-                  </div>
-                </CardContent>
-              </BentoCard>
-            ))
-          )}
-        </div>
-      )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
-      {/* Completed List */}
-      {activeTab === 'completed' && (
-        <div className="space-y-3">
-          {completed.length === 0 ? (
-            <BentoCard>
-              <CardContent className="py-12 text-center text-muted-foreground">
-                No completed payments
-              </CardContent>
-            </BentoCard>
-          ) : (
-            completed.map((p: any) => (
-              <BentoCard key={p.id}>
-                <CardContent className="flex items-center justify-between pt-6">
-                  <div>
-                    <p className="font-medium">{p.assetName}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {p.vaultName} &middot; {p.date} &middot; {p.recipients} recipients
-                    </p>
+        {/* Upcoming List */}
+        {activeTab === 'upcoming' && (
+          <div>
+            {scheduled.length === 0 ? (
+              <p className="text-sm text-black/30 py-8 text-center">No upcoming payments</p>
+            ) : (
+              <div className="divide-y divide-black/[0.06] border-y border-black/[0.06]">
+                {scheduled.map((p: any) => (
+                  <div key={p.id} className="flex items-center justify-between py-4">
+                    <div>
+                      <p className="text-sm font-medium text-black">{p.assetName}</p>
+                      <p className="text-xs text-black/30">
+                        {p.vaultName} &middot; {p.date} &middot; {p.recipients} recipients
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-base font-medium text-black">{formatCurrency(p.amount)}</p>
+                      <p className="text-xs text-black/30">in {p.daysUntil} days</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold">{formatCurrency(p.amount)}</p>
-                    <Badge variant="secondary">Completed</Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Completed List */}
+        {activeTab === 'completed' && (
+          <div>
+            {completed.length === 0 ? (
+              <p className="text-sm text-black/30 py-8 text-center">No completed payments</p>
+            ) : (
+              <div className="divide-y divide-black/[0.06] border-y border-black/[0.06]">
+                {completed.map((p: any) => (
+                  <div key={p.id} className="flex items-center justify-between py-4">
+                    <div>
+                      <p className="text-sm font-medium text-black">{p.assetName}</p>
+                      <p className="text-xs text-black/30">
+                        {p.vaultName} &middot; {p.date} &middot; {p.recipients} recipients
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-base font-medium text-black">{formatCurrency(p.amount)}</p>
+                      <p className="text-xs text-black/30">Completed</p>
+                    </div>
                   </div>
-                </CardContent>
-              </BentoCard>
-            ))
-          )}
-        </div>
-      )}
-      </BentoGrid>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
     </RoleGate>
   );
 }

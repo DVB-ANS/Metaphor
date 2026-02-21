@@ -20,6 +20,7 @@ const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
 });
 
+
 export const metadata: Metadata = {
   title: 'Metaphor — RWA Hub for Institutions',
   description: 'Confidential & Automated Real World Assets Hub for Institutional Finance',
@@ -31,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} antialiased`}>
         <Web3Provider>
           <TooltipProvider>

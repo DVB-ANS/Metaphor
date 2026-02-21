@@ -6,7 +6,7 @@ const CANTON_JSON_API_HOST = process.env.CANTON_LEDGER_HOST || 'localhost';
 const CANTON_JSON_API_PORT = process.env.CANTON_JSON_API_PORT || '7575';
 const BASE_URL = `http://${CANTON_JSON_API_HOST}:${CANTON_JSON_API_PORT}`;
 
-// Daml package ID — set after `daml build` produces the .dar
+// Daml package ID (hash) — from `daml damlc inspect` on the compiled .dar
 const PACKAGE_ID = process.env.CANTON_PACKAGE_ID || 'instivault-canton';
 
 // Mapping: entity name → Daml module name
@@ -23,50 +23,10 @@ const ENTITY_MODULE_MAP: Record<string, string> = {
   AuditRight: 'AuditRight',
 };
 
-interface DamlCreateRequest {
-  templateId: {
-    moduleName: string;
-    entityName: string;
-  };
-  payload: Record<string, unknown>;
-  meta?: { actAs: string[] };
-}
-
-interface DamlExerciseRequest {
-  templateId: {
-    moduleName: string;
-    entityName: string;
-  };
-  contractId: string;
-  choice: string;
-  argument: Record<string, unknown>;
-  meta?: { actAs: string[] };
-}
-
-interface DamlQueryRequest {
-  templateIds: {
-    moduleName: string;
-    entityName: string;
-  }[];
-  query?: Record<string, unknown>;
-  meta?: { readAs: string[] };
-}
-
-interface DamlFetchRequest {
-  contractId: string;
-  templateId: {
-    moduleName: string;
-    entityName: string;
-  };
-  meta?: { readAs: string[] };
-}
-
-function templateId(entityName: string) {
+// JSON API expects templateId as string: "packageId:ModuleName:EntityName"
+function templateId(entityName: string): string {
   const moduleName = ENTITY_MODULE_MAP[entityName] || entityName;
-  return {
-    moduleName: `${PACKAGE_ID}:${moduleName}`,
-    entityName,
-  };
+  return `${PACKAGE_ID}:${moduleName}:${entityName}`;
 }
 
 async function damlRequest<T>(path: string, body: unknown, party: string): Promise<T> {
@@ -89,23 +49,20 @@ async function damlRequest<T>(path: string, body: unknown, party: string): Promi
   return res.json() as Promise<T>;
 }
 
-// Canton Devnet uses simple JWT tokens for party auth
-// In production this would come from an auth service
+// Canton sandbox uses simple unsigned JWT tokens for party auth
 function partyToken(party: string): string {
-  // Daml JSON API accepts a simple unsigned JWT with the party claim
-  // Format: {"https://daml.com/ledger-api": {"ledgerId": "...", "applicationId": "instivault", "actAs": ["party"]}}
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
   const payload = Buffer.from(
     JSON.stringify({
       'https://daml.com/ledger-api': {
-        ledgerId: process.env.CANTON_LEDGER_ID || 'instivault',
+        ledgerId: process.env.CANTON_LEDGER_ID || 'sandbox',
         applicationId: 'instivault',
         actAs: [party],
         readAs: [party],
       },
     }),
   ).toString('base64url');
-  // Unsigned token — Canton Devnet with --auth=unsafe accepts this
+  // Unsigned token — Canton sandbox with --allow-insecure-tokens accepts this
   return `${header}.${payload}.`;
 }
 
@@ -116,10 +73,9 @@ export const cantonClient = {
    * Create a new contract instance
    */
   async create(entity: string, payload: Record<string, unknown>, party: string) {
-    const body: DamlCreateRequest = {
+    const body = {
       templateId: templateId(entity),
       payload,
-      meta: { actAs: [party] },
     };
     return damlRequest('/v1/create', body, party);
   },
@@ -134,12 +90,11 @@ export const cantonClient = {
     argument: Record<string, unknown>,
     party: string,
   ) {
-    const body: DamlExerciseRequest = {
+    const body = {
       templateId: templateId(entity),
       contractId,
       choice,
       argument,
-      meta: { actAs: [party] },
     };
     return damlRequest('/v1/exercise', body, party);
   },
@@ -148,10 +103,9 @@ export const cantonClient = {
    * Query contracts by template (party-scoped)
    */
   async query(entity: string, party: string, filter?: Record<string, unknown>) {
-    const body: DamlQueryRequest = {
+    const body = {
       templateIds: [templateId(entity)],
       query: filter,
-      meta: { readAs: [party] },
     };
     return damlRequest('/v1/query', body, party);
   },
@@ -160,10 +114,9 @@ export const cantonClient = {
    * Fetch a specific contract by ID
    */
   async fetch(entity: string, contractId: string, party: string) {
-    const body: DamlFetchRequest = {
+    const body = {
       contractId,
       templateId: templateId(entity),
-      meta: { readAs: [party] },
     };
     return damlRequest('/v1/fetch', body, party);
   },

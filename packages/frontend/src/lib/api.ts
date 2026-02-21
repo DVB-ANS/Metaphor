@@ -4,17 +4,18 @@ let jwtToken: string | null = null;
 
 export function setToken(token: string | null) {
   jwtToken = token;
+  if (typeof window === 'undefined') return;
   if (token) {
-    localStorage.setItem('metaphor_jwt', token);
+    sessionStorage.setItem('metaphor_jwt', token);
   } else {
-    localStorage.removeItem('metaphor_jwt');
+    sessionStorage.removeItem('metaphor_jwt');
   }
 }
 
 export function getToken(): string | null {
   if (jwtToken) return jwtToken;
   if (typeof window !== 'undefined') {
-    jwtToken = localStorage.getItem('metaphor_jwt');
+    jwtToken = sessionStorage.getItem('metaphor_jwt');
   }
   return jwtToken;
 }

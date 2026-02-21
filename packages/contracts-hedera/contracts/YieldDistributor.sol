@@ -141,7 +141,8 @@ contract YieldDistributor is Ownable {
     /// @param paymentToken Filter by payment token
     /// @return total Total unclaimed yield
     function getUnclaimedYield(address holder, address paymentToken) external view returns (uint256 total) {
-        for (uint256 i = 0; i < _nextSnapshotId; i++) {
+        uint256 end = _nextSnapshotId > 500 ? 500 : _nextSnapshotId;
+        for (uint256 i = 0; i < end; i++) {
             Snapshot storage snap = _snapshots[i];
             if (snap.paymentToken == paymentToken) {
                 HolderShare storage share = _holderShares[i][holder];
@@ -150,6 +151,26 @@ contract YieldDistributor is Ownable {
                 }
             }
         }
+    }
+
+    /// @notice Get unclaimed yield with pagination
+    function getUnclaimedYieldPaginated(address holder, address paymentToken, uint256 offset, uint256 limit)
+        external
+        view
+        returns (uint256 total, uint256 nextOffset)
+    {
+        uint256 end = offset + limit;
+        if (end > _nextSnapshotId) end = _nextSnapshotId;
+        for (uint256 i = offset; i < end; i++) {
+            Snapshot storage snap = _snapshots[i];
+            if (snap.paymentToken == paymentToken) {
+                HolderShare storage share = _holderShares[i][holder];
+                if (share.balance > 0 && !share.claimed) {
+                    total += share.yield;
+                }
+            }
+        }
+        nextOffset = end < _nextSnapshotId ? end : 0;
     }
 
     /// @notice Get snapshot details
