@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAccount } from 'wagmi';
 import { RoleGate } from '@/components/role-gate';
 import { TxStatusBanner } from '@/components/tx-status';
 import { useCreateToken } from '@/hooks/use-adi-write';
+import { api } from '@/lib/api';
 
 interface AssetForm {
   assetType: string;
@@ -38,6 +40,13 @@ function deriveSymbol(name: string): string {
   return words.map((w) => w[0].toUpperCase()).join('').slice(0, 6);
 }
 
+const FREQUENCY_MAP: Record<string, number> = {
+  monthly: 0,
+  quarterly: 1,
+  'semi-annual': 2,
+  annual: 3,
+};
+
 const inputClass =
   'border border-black/10 bg-transparent rounded-none px-3 py-2 text-sm text-black placeholder:text-black/25 focus:border-black/30 focus:outline-none w-full';
 
@@ -46,25 +55,81 @@ const selectClass =
 
 const labelClass = 'text-xs font-medium uppercase tracking-widest text-black/30';
 
+type HederaStep = 'idle' | 'registering' | 'scheduling' | 'done' | 'error';
+
 export default function IssueAssetPage() {
   const router = useRouter();
+  const { address } = useAccount();
   const [form, setForm] = useState<AssetForm>(initialForm);
-  const { createToken, status, txHash, error, reset } = useCreateToken();
+  const { createToken, status, txHash, error, tokenAddress, reset } = useCreateToken();
+  const [hederaStep, setHederaStep] = useState<HederaStep>('idle');
+  const [hederaError, setHederaError] = useState<string | null>(null);
+  const hederaStarted = useRef(false);
 
   const handleChange = (field: keyof AssetForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  // After ADI token creation succeeds, register bond on Hedera
   useEffect(() => {
-    if (status === 'success') {
+    if (status !== 'success' || hederaStarted.current) return;
+    hederaStarted.current = true;
+
+    if (!tokenAddress) {
+      // Can't parse token address — skip Hedera, redirect
       const timer = setTimeout(() => router.push('/vaults'), 1500);
       return () => clearTimeout(timer);
     }
-  }, [status, router]);
+
+    registerBondOnHedera(tokenAddress);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, tokenAddress]);
+
+  async function registerBondOnHedera(token: `0x${string}`) {
+    setHederaStep('registering');
+    try {
+      const frequency = FREQUENCY_MAP[form.paymentFrequency] ?? 1;
+      const startDate = Math.floor(Date.now() / 1000) + 86400; // now + 1 day
+      const maturityDate = form.maturityDate
+        ? Math.floor(new Date(form.maturityDate).getTime() / 1000)
+        : 0;
+
+      const res = await api.post<{ txHash: string; bondId?: string }>('/api/hedera/bonds', {
+        token,
+        paymentToken: token,
+        faceValue: String(Math.round(Number(form.tokenCount || '0') * 1e6)),
+        rate: String(Math.round(Number(form.couponRate || '0') * 100)),
+        frequency,
+        startDate,
+        maturityDate,
+        issuer: address,
+      });
+
+      if (res.bondId) {
+        setHederaStep('scheduling');
+        try {
+          await api.post(`/api/hedera/bonds/${res.bondId}/schedule-all`);
+        } catch {
+          // Non-fatal: bond is registered even if scheduling fails
+        }
+      }
+
+      setHederaStep('done');
+      setTimeout(() => router.push('/vaults'), 1500);
+    } catch (err: any) {
+      setHederaError(err.message || 'Failed to register bond on Hedera');
+      setHederaStep('error');
+      // Still redirect after showing error
+      setTimeout(() => router.push('/vaults'), 3000);
+    }
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     reset();
+    setHederaStep('idle');
+    setHederaError(null);
+    hederaStarted.current = false;
 
     const maturityTimestamp = form.maturityDate
       ? Math.floor(new Date(form.maturityDate).getTime() / 1000)
@@ -93,13 +158,35 @@ export default function IssueAssetPage() {
         </div>
 
         {status !== 'idle' && (
-          <div className="mb-6">
+          <div className="mb-6 space-y-2">
             <TxStatusBanner
               status={status}
               txHash={txHash}
               error={error}
-              successMessage="Token created on-chain. Redirecting to vaults..."
+              successMessage={hederaStep === 'idle'
+                ? 'Token created on-chain. Registering on Hedera...'
+                : 'Token created on-chain.'}
             />
+            {hederaStep === 'registering' && (
+              <div className="border border-black/10 px-4 py-3 text-sm text-black/45">
+                Registering bond on Hedera...
+              </div>
+            )}
+            {hederaStep === 'scheduling' && (
+              <div className="border border-black/10 px-4 py-3 text-sm text-black/45">
+                Scheduling coupon payments...
+              </div>
+            )}
+            {hederaStep === 'done' && (
+              <div className="border border-black/20 px-4 py-3 text-sm text-black/60">
+                Bond registered on Hedera. Redirecting to vaults...
+              </div>
+            )}
+            {hederaStep === 'error' && (
+              <div className="border border-black/10 bg-black/[0.02] px-4 py-3 text-sm text-black/60">
+                {hederaError || 'Hedera registration failed.'} Redirecting...
+              </div>
+            )}
           </div>
         )}
 
@@ -294,7 +381,7 @@ export default function IssueAssetPage() {
           <div className="pt-2">
             <button
               type="submit"
-              disabled={status === 'pending' || status === 'confirming'}
+              disabled={status === 'pending' || status === 'confirming' || status === 'success'}
               className="bg-black text-white px-6 py-2 text-sm hover:bg-black/80 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {status === 'pending' ? 'Confirm in wallet...' : status === 'confirming' ? 'Confirming...' : 'Tokenize Asset'}

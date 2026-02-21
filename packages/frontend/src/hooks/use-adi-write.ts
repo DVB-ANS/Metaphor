@@ -73,7 +73,20 @@ export function useCreateToken() {
     });
   };
 
-  return { createToken, ...tx, reset: write.reset };
+  // Parse TokenCreated event to get created token address
+  let tokenAddress: `0x${string}` | undefined;
+  if (receipt.data?.logs) {
+    for (const log of receipt.data.logs) {
+      // TokenCreated(address indexed token, string isin, address indexed issuer, string name, string symbol)
+      // topic[0] = event sig, topic[1] = token address
+      if (log.topics.length >= 2 && log.topics[1] && log.address.toLowerCase() === CONTRACTS.tokenFactory.toLowerCase()) {
+        tokenAddress = `0x${log.topics[1].slice(26)}` as `0x${string}`;
+        break;
+      }
+    }
+  }
+
+  return { createToken, ...tx, tokenAddress, reset: write.reset };
 }
 
 // ---------------------------------------------------------------------------
@@ -214,6 +227,28 @@ export function useAddToWhitelist() {
 }
 
 // ---------------------------------------------------------------------------
+// useRemoveFromWhitelist — calls AccessControl.removeFromWhitelist()
+// ---------------------------------------------------------------------------
+
+export function useRemoveFromWhitelist() {
+  const write = useWriteContract();
+  const receipt = useWaitForTransactionReceipt({ hash: write.data, chainId: ADI_CHAIN_ID });
+  const tx = useTxStatus(write, receipt);
+
+  const removeFromWhitelist = (address: `0x${string}`) => {
+    write.writeContract({
+      address: CONTRACTS.accessControl,
+      abi: ACCESS_CONTROL_ABI,
+      functionName: 'removeFromWhitelist',
+      args: [address],
+      chainId: ADI_CHAIN_ID,
+    });
+  };
+
+  return { removeFromWhitelist, ...tx, reset: write.reset };
+}
+
+// ---------------------------------------------------------------------------
 // useGrantRole — calls AccessControl.grantRole()
 // ---------------------------------------------------------------------------
 
@@ -236,4 +271,29 @@ export function useGrantRole() {
   };
 
   return { grantRole, ...tx, reset: write.reset };
+}
+
+// ---------------------------------------------------------------------------
+// useWhitelistAndGrantRole — whitelist + grantRole in a single tx
+// ---------------------------------------------------------------------------
+
+export function useWhitelistAndGrantRole() {
+  const write = useWriteContract();
+  const receipt = useWaitForTransactionReceipt({ hash: write.data, chainId: ADI_CHAIN_ID });
+  const tx = useTxStatus(write, receipt);
+
+  const whitelistAndGrantRole = (role: string, account: `0x${string}`) => {
+    const roleKey = ROLE_LABEL[role.toLowerCase()];
+    const roleHash = roleKey ? ROLES[roleKey] : (role as `0x${string}`);
+
+    write.writeContract({
+      address: CONTRACTS.accessControl,
+      abi: ACCESS_CONTROL_ABI,
+      functionName: 'whitelistAndGrantRole',
+      args: [roleHash, account],
+      chainId: ADI_CHAIN_ID,
+    });
+  };
+
+  return { whitelistAndGrantRole, ...tx, reset: write.reset };
 }

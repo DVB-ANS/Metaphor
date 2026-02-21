@@ -33,6 +33,10 @@ contract Deploy is Script {
         InstitutionRegistry registry = new InstitutionRegistry(address(accessControl), address(instDeployer));
         console.log("InstitutionRegistry:", address(registry));
 
+        // Whitelist VaultManager so RWAToken transfers (deposit/withdraw) work
+        accessControl.addToWhitelist(address(vaultManager));
+        console.log("VaultManager whitelisted on AccessControl");
+
         vm.stopBroadcast();
 
         console.log("");

@@ -81,7 +81,20 @@ router.post('/bonds', requireAuth, requireRole('ADMIN', 'ISSUER'), async (req: R
         const scheduler = getContract('CouponScheduler', ADDRESSES.couponScheduler, signer);
         const tx = await scheduler.registerBond(token, paymentToken, faceValue, rate, frequency, startDate, maturityDate, issuer);
         const receipt = await tx.wait();
-        res.json({ txHash: receipt.hash });
+
+        // Parse BondRegistered event to get bondId
+        let bondId: string | undefined;
+        for (const log of receipt.logs) {
+            try {
+                const parsed = scheduler.interface.parseLog({ topics: [...log.topics], data: log.data });
+                if (parsed?.name === 'BondRegistered') {
+                    bondId = parsed.args.bondId.toString();
+                    break;
+                }
+            } catch { /* skip non-matching logs */ }
+        }
+
+        res.json({ txHash: receipt.hash, bondId });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }

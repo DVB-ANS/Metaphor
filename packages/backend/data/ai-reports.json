@@ -1052,5 +1052,128 @@
     "model": "mock-local",
     "verifiable": false,
     "durationMs": 1
+  },
+  {
+    "reportId": "report-022",
+    "vaultId": "vault-6",
+    "riskScore": 1,
+    "riskLevel": "low",
+    "summary": "Portfolio analysis across 1 position ($0 notional). Global risk score: 1/100 — within acceptable risk parameters. 0 recommendations generated. Analysis via 0G Compute (qwen/qwen-2.5-7b-instruct) in 6463ms.",
+    "recommendations": [],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "0.0%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "0.0%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "0.0%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "0.0%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "XXPTY-VAULT",
+        "name": "Empty Vault",
+        "score": 1,
+        "riskLevel": "low",
+        "comment": "No positions held, minimal risk."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T14:22:19.823Z",
+    "provider": "0xa48f01287233509FD694a22Bf840225062E67836",
+    "model": "qwen/qwen-2.5-7b-instruct",
+    "verifiable": true,
+    "durationMs": 6463
+  },
+  {
+    "reportId": "report-023",
+    "vaultId": "vault-3",
+    "riskScore": 1,
+    "riskLevel": "low",
+    "summary": "Portfolio analysis across 1 position ($0 notional). Global risk score: 1/100 — within acceptable risk parameters. 0 recommendations generated. Analysis via 0G Compute (qwen/qwen-2.5-7b-instruct) in 75497ms.",
+    "recommendations": [],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "0.0%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "0.0%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "0.0%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "0.0%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "empty-vault",
+        "name": "Empty Vault (no deposits)",
+        "score": 1,
+        "riskLevel": "low",
+        "comment": "No actual assets in the vault, hence no risk."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T14:34:14.867Z",
+    "provider": "0xa48f01287233509FD694a22Bf840225062E67836",
+    "model": "qwen/qwen-2.5-7b-instruct",
+    "verifiable": true,
+    "durationMs": 75497
+  },
+  {
+    "reportId": "report-024",
+    "vaultId": "vault-0",
+    "riskScore": 1,
+    "riskLevel": "low",
+    "summary": "Portfolio analysis across 1 position ($0 notional). Global risk score: 1/100 — within acceptable risk parameters. 0 recommendations generated. Analysis via 0G Compute (qwen/qwen-2.5-7b-instruct) in 5479ms.",
+    "recommendations": [],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "0.0%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "0.0%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "0.0%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "0.0%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "XXPTY-VAULT",
+        "name": "Empty Vault",
+        "score": 1,
+        "riskLevel": "low",
+        "comment": "No positions or deposits, hence no risk exposure."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T14:56:51.317Z",
+    "provider": "0xa48f01287233509FD694a22Bf840225062E67836",
+    "model": "qwen/qwen-2.5-7b-instruct",
+    "verifiable": true,
+    "durationMs": 5479
   }
 ]

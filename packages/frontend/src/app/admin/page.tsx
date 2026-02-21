@@ -21,7 +21,7 @@ import { RoleGate } from '@/components/role-gate';
 import { type Role } from '@/lib/mock-data';
 import { api } from '@/lib/api';
 import { TxStatusBanner } from '@/components/tx-status';
-import { useAddToWhitelist, useGrantRole } from '@/hooks/use-adi-write';
+import { useAddToWhitelist, useWhitelistAndGrantRole, useRemoveFromWhitelist } from '@/hooks/use-adi-write';
 
 export default function AdminPage() {
   const [addWalletOpen, setAddWalletOpen] = useState(false);
@@ -30,17 +30,13 @@ export default function AdminPage() {
   const [configSaved, setConfigSaved] = useState(false);
 
   const { addToWhitelist, status: whitelistStatus, txHash: whitelistTxHash, error: whitelistError, reset: resetWhitelist } = useAddToWhitelist();
-  const { grantRole, status: roleStatus, txHash: roleTxHash, error: roleError, reset: resetRole } = useGrantRole();
+  const { whitelistAndGrantRole, status: combinedStatus, txHash: combinedTxHash, error: combinedError, reset: resetCombined } = useWhitelistAndGrantRole();
+  const { removeFromWhitelist, status: removeStatus, reset: resetRemove } = useRemoveFromWhitelist();
 
-  // Step 2: after whitelist tx confirms, grant role if one was selected
-  useEffect(() => {
-    if (whitelistStatus === 'success' && walletForm.role && walletForm.address) {
-      grantRole(walletForm.role, walletForm.address as `0x${string}`);
-    }
-  }, [whitelistStatus]);
-
-  // Step 3: after role tx confirms (or whitelist if no role), update UI + persist
-  const finalStatus = walletForm.role ? roleStatus : whitelistStatus;
+  // After tx confirms, update UI + persist
+  const finalStatus = walletForm.role ? combinedStatus : whitelistStatus;
+  const finalTxHash = walletForm.role ? combinedTxHash : whitelistTxHash;
+  const finalError = walletForm.role ? combinedError : whitelistError;
   useEffect(() => {
     if (finalStatus === 'success') {
       const newWallet = {
@@ -57,11 +53,21 @@ export default function AdminPage() {
         setAddWalletOpen(false);
         setWalletForm({ address: '', label: '', role: '' });
         resetWhitelist();
-        resetRole();
+        resetCombined();
       }, 1500);
       return () => clearTimeout(timer);
     }
   }, [finalStatus]);
+
+  // After remove tx confirms, remove from backend + UI
+  useEffect(() => {
+    if (removeStatus === 'success' && removeTarget) {
+      setWallets((prev) => prev.filter((w: any) => w.address.toLowerCase() !== removeTarget.address.toLowerCase()));
+      api.delete(`/api/v1/admin/wallets/${removeTarget.address}`).catch(() => {});
+      setRemoveTarget(null);
+      resetRemove();
+    }
+  }, [removeStatus]);
 
   const [whitelabelForm, setWhitelabelForm] = useState({
     institutionName: 'Metaphor',
@@ -82,14 +88,18 @@ export default function AdminPage() {
 
   const handleAddWallet = () => {
     resetWhitelist();
-    resetRole();
-    addToWhitelist(walletForm.address as `0x${string}`);
+    resetCombined();
+    if (walletForm.role) {
+      whitelistAndGrantRole(walletForm.role, walletForm.address as `0x${string}`);
+    } else {
+      addToWhitelist(walletForm.address as `0x${string}`);
+    }
   };
 
-  const walletSubmitting = whitelistStatus === 'pending' || whitelistStatus === 'confirming' || roleStatus === 'pending' || roleStatus === 'confirming';
-  const walletTxError = whitelistError || roleError;
-  const currentTxStatus = roleStatus !== 'idle' ? roleStatus : whitelistStatus;
-  const currentTxHash = roleTxHash || whitelistTxHash;
+  const walletSubmitting = finalStatus === 'pending' || finalStatus === 'confirming';
+  const walletTxError = finalError;
+  const currentTxStatus = finalStatus;
+  const currentTxHash = finalTxHash;
 
   const roles = [
     {
@@ -248,7 +258,7 @@ export default function AdminPage() {
                     onClick={handleAddWallet}
                     disabled={walletSubmitting || !walletForm.address}
                   >
-                    {whitelistStatus === 'pending' ? 'Confirm whitelist...' : whitelistStatus === 'confirming' ? 'Confirming whitelist...' : roleStatus === 'pending' ? 'Confirm role grant...' : roleStatus === 'confirming' ? 'Confirming role...' : 'Add to Whitelist'}
+                    {finalStatus === 'pending' ? 'Confirm in wallet...' : finalStatus === 'confirming' ? 'Confirming...' : 'Add to Whitelist'}
                   </button>
                 </DialogFooter>
               </DialogContent>
@@ -395,15 +405,16 @@ export default function AdminPage() {
               Cancel
             </button>
             <button
-              className="bg-black text-white text-sm px-4 py-2 hover:bg-black/80 transition-colors"
+              className="bg-black text-white text-sm px-4 py-2 hover:bg-black/80 transition-colors disabled:opacity-40"
+              disabled={removeStatus === 'pending' || removeStatus === 'confirming'}
               onClick={() => {
                 if (removeTarget) {
-                  setWallets((prev) => prev.filter((w: any) => w.address !== removeTarget.address));
+                  resetRemove();
+                  removeFromWhitelist(removeTarget.address as `0x${string}`);
                 }
-                setRemoveTarget(null);
               }}
             >
-              Remove
+              {removeStatus === 'pending' ? 'Confirm in wallet...' : removeStatus === 'confirming' ? 'Confirming...' : 'Remove'}
             </button>
           </DialogFooter>
         </DialogContent>
