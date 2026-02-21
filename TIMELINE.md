@@ -144,7 +144,7 @@ main              ← stable, deployable
 - [x] PR → `develop`
 
 ### Dev B — Canton Deploy + AI Human-in-the-Loop `feat/canton-deploy`
-- [ ] Deploy Daml templates to Canton Devnet L1
+- [x] Deploy Daml templates to Canton LocalNet (28/28 tests passing, sandbox verified)
 - [x] Ensure AI never auto-executes transactions
 - [x] Every AI recommendation requires explicit user confirmation
 - [x] Validate structured output format (score, recommendations, stress test)
@@ -156,8 +156,8 @@ main              ← stable, deployable
 - [x] Hedera bridge — Coupon scheduling + payment status + yield endpoints
 - [x] 0G bridge — Trigger AI analysis and return structured results
 - [x] Fix ESM __dirname issue for ABI loading
-- [ ] Authentication middleware (wallet-based)
-- [ ] Role verification middleware (check RBAC from ADI contracts)
+- [x] Authentication middleware (wallet-based nonce + signature + JWT)
+- [x] Role verification middleware (check RBAC from ADI contracts, fast JWT + on-chain fallback)
 - [x] PR → `develop`
 
 ---
