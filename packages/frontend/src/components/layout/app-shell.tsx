@@ -11,7 +11,7 @@ import { ROUTE_ACCESS, getAccessLevel } from '@/lib/route-access';
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isLanding = pathname === '/';
-  const { isAuthenticated, roles, signIn, isSigningIn } = useAuth();
+  const { isAuthenticated, roles, signIn, isSigningIn, error: authError } = useAuth();
   const { isConnected } = useAccount();
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -61,6 +61,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         displayItemNumbering
         extraHeader={
           <div className="flex items-center gap-3">
+            {authError && (
+              <span className="text-xs text-red-500">{authError}</span>
+            )}
             {mounted && isAuthenticated && roles.length > 0 && (
               <span className="text-xs tracking-wide text-black/40">
                 {roles.join(' · ')}
