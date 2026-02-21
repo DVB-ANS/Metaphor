@@ -12,32 +12,37 @@
                     BACKEND (Express :3001)
                     /      |       |       \
               ADI Chain   Hedera   Canton   0G Labs
-              (Sepolia)  (Testnet) (Devnet)  (Compute)
+             (Testnet)   (Testnet) (Devnet)  (Compute)
 ```
 
-| Chain | Reseau | Contrats | Responsable | Bounty |
-|-------|--------|----------|-------------|--------|
-| **ADI** | Sepolia (chainId 11155111) | AccessControl, TokenFactory, VaultManager, InstitutionRegistry, InstitutionDeployer | Dev A | ADI Foundation |
-| **Hedera** | Testnet | CouponScheduler, YieldDistributor | Dev A | Hedera |
-| **Canton** | Devnet L1 (localhost:7575) | ConfidentialVault, PrivateTrade, AuditRight (.daml) | Dev B | Canton Network |
-| **0G Labs** | Testnet | AI inference via 0G Compute broker | Dev B | 0G Labs |
+| Chain | Reseau | Chain ID | RPC | Contrats | Responsable | Bounty |
+|-------|--------|----------|-----|----------|-------------|--------|
+| **ADI** | ADI Testnet | 99999 | `https://rpc.ab.testnet.adifoundation.ai/` | AccessControl, TokenFactory, VaultManager, InstitutionRegistry, InstitutionDeployer | Dev A | ADI Foundation |
+| **Hedera** | Testnet | — | Hedera SDK | CouponScheduler, YieldDistributor | Dev A | Hedera |
+| **Canton** | Devnet L1 | — | `localhost:7575` | ConfidentialVault, PrivateTrade, AuditRight (.daml) | Dev B | Canton Network |
+| **0G Labs** | Testnet | — | `https://evmrpc-testnet.0g.ai` | AI inference via 0G Compute broker | Dev B | 0G Labs |
 
 ---
 
 ## 2. Adresses deployees
 
-### ADI (Sepolia)
+### ADI (ADI Testnet — chain 99999)
 
 | Contrat | Adresse | Env var |
 |---------|---------|---------|
-| InstiVaultAccessControl | `0x6cCFbc2C0d3a794938258d760cBA69ADbEf05043` | `ADI_ACCESS_CONTROL_ADDRESS` |
-| RWATokenFactory | `0xE6C7ccccf0ea80816cD4E8faD70270Cf5836921b` | `ADI_TOKEN_FACTORY_ADDRESS` |
-| VaultManager | `0xA162023BD4267A5649025f616016a6Ea4f6B8044` | `ADI_VAULT_MANAGER_ADDRESS` |
-| InstitutionRegistry | `0x442EC1e3079E6db66C24af692b43E7B756031002` | `ADI_INSTITUTION_REGISTRY_ADDRESS` |
+| InstiVaultAccessControl | `0x8E7D4E14583a37770C743D33092bbCC4E3Dd656d` | `ADI_ACCESS_CONTROL_ADDRESS` |
+| RWATokenFactory | `0x0eD29f8c992bB10515296A301B27cd8F0a5d7d65` | `ADI_TOKEN_FACTORY_ADDRESS` |
+| VaultManager | `0x6b6449bDEC04dd8717AC71565C7c065680C1534f` | `ADI_VAULT_MANAGER_ADDRESS` |
+| InstitutionDeployer | `0x6804Fc931CC3DB9543b07581C3AEdcf1fA66179B` | — |
+| InstitutionRegistry | `0xAB3Cbc56D958245a2688b2171417679e743B1daF` | `ADI_INSTITUTION_REGISTRY_ADDRESS` |
+
+> Anciennes adresses Sepolia (deprecated) : AccessControl `0x6cCFbc...`, TokenFactory `0xE6C7cc...`, VaultManager `0xA16202...`, Registry `0x442EC1...`
 
 **Signer backend** : `0x4aC22453d386C2498bccbE9E12e43CfB56A341C5`
-- Roles : ADMIN + ISSUER + whitelisted
-- Pas INVESTOR, pas AUDITOR
+- Roles : ADMIN (set par le constructeur)
+- Pas encore ISSUER, INVESTOR, AUDITOR — a configurer
+- Pas encore whiteliste — a configurer
+- Balance : ~10 ETH de gas sur ADI testnet
 
 ### Hedera (Testnet)
 
@@ -52,7 +57,9 @@
 
 ### 0G Labs
 
-**Non configure.** Les env vars `ZG_COMPUTE_ENDPOINT`, `ZG_API_KEY` sont vides. L'AI tourne en mock.
+**Partiellement configure.** RPC + private key presentes. `ZG_COMPUTE_ENDPOINT` et `ZG_API_KEY` vides → l'AI tourne en mock.
+- RPC : `https://evmrpc-testnet.0g.ai`
+- Mock : `ZG_USE_MOCK=true`
 
 ---
 
@@ -301,10 +308,11 @@ Fonctions:
 
 ### ADI (Dev A) — 90% fait
 
-- [x] Contrats deployes sur Sepolia
+- [x] Contrats deployes sur ADI Testnet (chain 99999)
 - [x] Routes backend completes
 - [x] Frontend connecte a on-chain (v1 routes)
 - [x] Issue page fonctionne
+- [ ] **Signer pas encore ISSUER + whiteliste sur ADI testnet** (fresh deploy)
 - [ ] **Pas de bouton "Create Vault" dans le frontend**
 - [ ] Rien depose dans les vaults (0 assets on-chain)
 - [ ] Pas d'institution enregistree
@@ -325,14 +333,15 @@ Fonctions:
 - [ ] **Env vars vides**
 - [ ] Pas de lien avec les donnees ADI
 
-### 0G Labs (Dev B) — 50% fait
+### 0G Labs (Dev B) — 55% fait
 
 - [x] Client 0G Compute code
 - [x] Routes backend (analyze, approve, reject)
 - [x] Human-in-the-loop (approve/reject)
 - [x] Reports persistes en JSON
 - [x] Auto-fetch vault data on-chain
-- [ ] **Pas configure** (mock seulement)
+- [x] RPC + private key configures
+- [ ] **ZG_COMPUTE_ENDPOINT vide** (mock seulement)
 - [ ] **Pas d'execution des recommandations**
 
 ### Frontend (Dev C) — 85% fait
@@ -350,13 +359,14 @@ Fonctions:
 ## 9. Variables d'environnement (.env)
 
 ```bash
-# ADI (Sepolia) — FONCTIONNEL
-ADI_RPC_URL=https://1rpc.io/sepolia
+# ADI (ADI Testnet chain 99999) — FONCTIONNEL
+ADI_RPC_URL=https://rpc.ab.testnet.adifoundation.ai/
 ADI_PRIVATE_KEY=0x086770b...
-ADI_ACCESS_CONTROL_ADDRESS=0x6cCFbc2C...
-ADI_TOKEN_FACTORY_ADDRESS=0xE6C7cccc...
-ADI_VAULT_MANAGER_ADDRESS=0xA162023B...
-ADI_INSTITUTION_REGISTRY_ADDRESS=0x442EC1e3...
+ADI_CHAIN_ID=99999
+ADI_ACCESS_CONTROL_ADDRESS=0x8E7D4E14...
+ADI_TOKEN_FACTORY_ADDRESS=0x0eD29f8c...
+ADI_VAULT_MANAGER_ADDRESS=0x6b6449bD...
+ADI_INSTITUTION_REGISTRY_ADDRESS=0xAB3Cbc56...
 
 # Hedera (Testnet) — FONCTIONNEL
 HEDERA_OPERATOR_ID=0.0.7974657
@@ -371,9 +381,12 @@ CANTON_PARTY_ISSUER=
 CANTON_PARTY_INVESTOR=
 CANTON_PARTY_AUDITOR=
 
-# 0G Labs — VIDE (Dev B doit configurer)
-ZG_COMPUTE_ENDPOINT=
-ZG_API_KEY=
+# 0G Labs — PARTIELLEMENT CONFIGURE
+ZG_RPC_URL=https://evmrpc-testnet.0g.ai
+ZG_PRIVATE_KEY=0xd0c537...
+ZG_USE_MOCK=true
+ZG_COMPUTE_ENDPOINT=              ← VIDE (Dev B doit configurer)
+ZG_API_KEY=                       ← VIDE (Dev B doit configurer)
 
 # Backend
 PORT=3001
@@ -381,6 +394,7 @@ DEV_MODE=true
 
 # Frontend
 NEXT_PUBLIC_API_URL=http://localhost:3001
+NEXT_PUBLIC_ADI_RPC_URL=https://rpc.ab.testnet.adifoundation.ai/
 ```
 
 ---
