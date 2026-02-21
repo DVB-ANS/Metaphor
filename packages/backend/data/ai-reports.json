@@ -163,5 +163,50 @@
     ],
     "status": "pending_approval",
     "createdAt": "2026-02-21T06:08:54.922Z"
+  },
+  {
+    "reportId": "report-005",
+    "vaultId": "vault-1",
+    "riskScore": 45,
+    "riskLevel": "moderate",
+    "summary": "AI analysis completed for vault vault-1. Risk score: 45/100 (moderate). 1 assets analyzed. Provider: mock, model: mock-local.",
+    "recommendations": [
+      {
+        "id": "report-005-rec-1",
+        "action": "rebalance",
+        "description": "Reduce Test Bond exposure from 100% to 90%.",
+        "impact": "Reduce global risk score by approximately 7 points",
+        "status": "pending_approval"
+      }
+    ],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "-2.5%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "-5.1%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "-100.0%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "-8.5%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "a1",
+        "name": "Test Bond",
+        "score": 45,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 100% warrants diversification."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T06:58:19.536Z"
   }
 ]
