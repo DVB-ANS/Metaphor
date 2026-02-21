@@ -136,8 +136,12 @@ function analysisResultToAIReport(result: AnalysisResult, body: AnalyzeRequestBo
   const rawLevel = report.riskLevel.toLowerCase();
   const riskLevel = (rawLevel === 'critical' ? 'high' : rawLevel) as 'low' | 'moderate' | 'high';
 
-  // Summary
-  const summary = `AI analysis completed for vault ${body.vaultId}. Risk score: ${riskScore}/100 (${riskLevel}). ${report.assetAnalysis.length} assets analyzed. Provider: ${result.provider}, model: ${result.model}.`;
+  // Summary — institutional-style synopsis
+  const totalValue = body.assets.reduce((s, a) => s + a.nominalValue, 0);
+  const assetCount = report.assetAnalysis.length;
+  const highRiskCount = report.assetAnalysis.filter((a) => a.score > 50).length;
+  const levelDesc = riskLevel === 'low' ? 'within acceptable risk parameters' : riskLevel === 'moderate' ? 'moderate risk concentration detected' : 'elevated risk requiring attention';
+  const summary = `Portfolio analysis across ${assetCount} position${assetCount !== 1 ? 's' : ''} ($${totalValue.toLocaleString()} notional). Global risk score: ${riskScore}/100 — ${levelDesc}.${highRiskCount > 0 ? ` ${highRiskCount} position${highRiskCount !== 1 ? 's' : ''} flagged above risk threshold.` : ''} ${report.recommendations.length} recommendation${report.recommendations.length !== 1 ? 's' : ''} generated. Analysis via ${result.provider === 'mock' ? '0G Compute (mock)' : `0G Compute (${result.model})`} in ${result.durationMs}ms.`;
 
   // assetAnalysis[] → positionAnalysis[]
   const positionAnalysis = report.assetAnalysis.map((a) => {
