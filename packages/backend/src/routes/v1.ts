@@ -944,8 +944,7 @@ router.get('/canton/vaults', async (_req: Request, res: Response) => {
     } catch { /* Canton not available, fall through */ }
   }
 
-  // Fallback to demo data when sandbox is not running
-  res.json(DEMO_CONFIDENTIAL_VAULTS);
+  res.json([]);
 });
 
 // ─── POST /v1/canton/vaults/:vaultId/parties — add counterparty via Canton ──
@@ -1170,8 +1169,8 @@ router.get('/admin/wallets', async (_req: Request, res: Response) => {
     );
     res.json(checks.filter(Boolean));
   } catch {
-    // RPC down — return registry as-is with verified status
-    res.json(walletRegistry.map((w) => ({ ...w, kycStatus: 'verified' })));
+    // RPC down — return empty (can't verify on-chain)
+    res.json([]);
   }
 });
 
@@ -1213,6 +1212,17 @@ router.post('/admin/wallets/:address/verify', (req: Request, res: Response) => {
   wallet.kycStatus = 'verified';
   saveWalletRegistry();
   res.json(wallet);
+});
+
+// ─── DELETE /v1/admin/wallets/:address — remove from registry ────────
+
+router.delete('/admin/wallets/:address', (req: Request, res: Response) => {
+  const addr = req.params.address as string;
+  const idx = walletRegistry.findIndex((w) => w.address.toLowerCase() === addr.toLowerCase());
+  if (idx === -1) { res.status(404).json({ error: 'Wallet not found' }); return; }
+  walletRegistry.splice(idx, 1);
+  saveWalletRegistry();
+  res.json({ ok: true });
 });
 
 export default router;

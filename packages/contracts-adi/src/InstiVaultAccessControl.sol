@@ -42,6 +42,12 @@ contract InstiVaultAccessControl is AccessControl {
         }
     }
 
+    function whitelistAndGrantRole(bytes32 role, address account) external onlyRole(ADMIN_ROLE) {
+        _whitelist[account] = true;
+        emit WhitelistUpdated(account, true);
+        _grantRole(role, account);
+    }
+
     function isWhitelisted(address account) external view returns (bool) {
         return _whitelist[account];
     }

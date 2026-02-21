@@ -8,11 +8,11 @@ export const ADI_CHAIN_ID = 99999;
 
 export const CONTRACTS = {
   accessControl: (process.env.NEXT_PUBLIC_ADI_ACCESS_CONTROL_ADDRESS ??
-    '0x8E7D4E14583a37770C743D33092bbCC4E3Dd656d') as `0x${string}`,
+    '0x370b687C889cC1a0b567E6A1Cc5fF002f6bf4108') as `0x${string}`,
   tokenFactory: (process.env.NEXT_PUBLIC_ADI_TOKEN_FACTORY_ADDRESS ??
-    '0x0eD29f8c992bB10515296A301B27cd8F0a5d7d65') as `0x${string}`,
+    '0x18700C7D0907170E86fe5712D8988Ea9699b262A') as `0x${string}`,
   vaultManager: (process.env.NEXT_PUBLIC_ADI_VAULT_MANAGER_ADDRESS ??
-    '0x6b6449bDEC04dd8717AC71565C7c065680C1534f') as `0x${string}`,
+    '0xC0F36E5313669A46dF488D4F5eE8b4227b4BBD26') as `0x${string}`,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -129,6 +129,23 @@ export const ACCESS_CONTROL_ABI = [
       { name: 'role', type: 'bytes32', internalType: 'bytes32' },
       { name: 'account', type: 'address', internalType: 'address' },
     ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'whitelistAndGrantRole',
+    inputs: [
+      { name: 'role', type: 'bytes32', internalType: 'bytes32' },
+      { name: 'account', type: 'address', internalType: 'address' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'removeFromWhitelist',
+    inputs: [{ name: 'account', type: 'address', internalType: 'address' }],
     outputs: [],
     stateMutability: 'nonpayable',
   },
