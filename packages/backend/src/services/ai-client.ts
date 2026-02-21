@@ -1,16 +1,20 @@
 // ─── 0G Compute AI Client + Persistent Store ────────────────
 // Adapter layer: converts backend types ↔ ai-engine types,
 // delegates analysis to the ai-engine package (mock or live 0G Compute).
+//
+// IMPORTANT: We avoid static `import ... from 'ai-engine'` because the
+// barrel re-exports from 0g-client, which loads @0glabs/0g-serving-broker
+// — a package with broken ESM distribution. Instead:
+//   - Types use `import type` (erased at compile time, no runtime load)
+//   - Mock mode imports `ai-engine/dist/mock.js` directly (zero deps)
+//   - Live mode dynamically imports the full barrel only when needed
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import type { AIReport, AnalyzeRequestBody } from '../types/ai.js';
-import {
-  analyzeVault as aiEngineAnalyze,
-  type VaultData,
-  type AnalysisResult,
-} from 'ai-engine';
+import type { VaultData, RiskReport } from 'ai-engine';
+import type { AnalysisResult } from 'ai-engine';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -86,6 +90,29 @@ function requestBodyToVaultData(body: AnalyzeRequestBody): VaultData {
   };
 }
 
+// ─── Call ai-engine (mock or live) ───────────────────────────
+
+async function callAiEngine(vaultData: VaultData): Promise<AnalysisResult> {
+  if (useMock) {
+    // Import mock directly — avoids loading 0g-client + @0glabs/0g-serving-broker
+    const { generateMockRiskReport } = await import('ai-engine/dist/mock.js');
+    const startTime = Date.now();
+    const report: RiskReport = generateMockRiskReport(vaultData);
+    return {
+      report,
+      generatedAt: new Date().toISOString(),
+      model: 'mock-local',
+      provider: 'mock',
+      verifiable: false,
+      durationMs: Date.now() - startTime,
+    };
+  }
+
+  // Live mode — load full ai-engine (includes 0g-client)
+  const { analyzeVault: aiEngineAnalyze } = await import('ai-engine');
+  return aiEngineAnalyze(vaultData, { useMock: false });
+}
+
 // ─── Adapter: AnalysisResult → AIReport ──────────────────────
 
 function analysisResultToAIReport(result: AnalysisResult, body: AnalyzeRequestBody): AIReport {
@@ -106,7 +133,6 @@ function analysisResultToAIReport(result: AnalysisResult, body: AnalyzeRequestBo
   const positionAnalysis = report.assetAnalysis.map((a) => {
     const assetScore = a.score;
     const assetLevel = (assetScore < 30 ? 'low' : assetScore < 60 ? 'moderate' : 'high') as 'low' | 'moderate' | 'high';
-    // Try to find the original asset from body to get the assetId
     const bodyAsset = body.assets.find((ba) => ba.assetId === a.isin || ba.name === a.name);
     return {
       assetId: bodyAsset?.assetId || a.isin,
@@ -153,7 +179,7 @@ function analysisResultToAIReport(result: AnalysisResult, body: AnalyzeRequestBo
  */
 export async function analyzeVault(body: AnalyzeRequestBody): Promise<AIReport> {
   const vaultData = requestBodyToVaultData(body);
-  const result = await aiEngineAnalyze(vaultData, { useMock });
+  const result = await callAiEngine(vaultData);
   const report = analysisResultToAIReport(result, body);
 
   reports.set(report.reportId, report);
