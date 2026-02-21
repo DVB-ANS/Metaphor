@@ -98,9 +98,9 @@ testCounterOfferNegotiation = script do
   -- Verify agreement records 3 rounds
   agreements <- query @TradeAgreement blackrock
   assertMsg "Must have 1 agreement" (length agreements == 1)
-  let (_, agreement) = head agreements
-  assertMsg "Agreed price must be 950K" (agreement.agreedPrice == 950000.0)
-  assertMsg "Must record 3 negotiation rounds" (agreement.negotiationRounds == 3)
+  let (_, tradeAgrmt) = head agreements
+  assertMsg "Agreed price must be 950K" (tradeAgrmt.agreedPrice == 950000.0)
+  assertMsg "Must record 3 negotiation rounds" (tradeAgrmt.negotiationRounds == 3)
 
   pure ()
 

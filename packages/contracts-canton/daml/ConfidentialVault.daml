@@ -90,9 +90,6 @@ template VaultAccessRight
   where
     signatory owner, grantee
 
-    key (owner, grantee, vaultId) : (Party, Party, Text)
-    maintainer key._1
-
     -- | Owner revokes access — contract archived
     choice RevokeAccess : ()
       controller owner
@@ -127,9 +124,6 @@ template ConfidentialVault
   where
     signatory owner
     observer counterparties
-
-    key (owner, vaultId) : (Party, Text)
-    maintainer key._1
 
     ensure totalValue >= 0.0
         && totalValue == foldl (\acc a -> acc + a.nominalValue) 0.0 assets
