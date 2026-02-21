@@ -87,7 +87,14 @@ export default function AIReportsPage() {
       api.get<any[]>('/api/v1/vaults'),
     ])
       .then(([reportsData, historyData, vaultsData]) => {
-        setReports(reportsData);
+        // Normalize backend fields (reportId→id, riskScore→score, createdAt→date)
+        setReports(reportsData.map((r: any) => ({
+          ...r,
+          id: r.reportId ?? r.id,
+          score: r.riskScore ?? r.score,
+          date: r.createdAt ?? r.date,
+          vaultName: r.vaultName || r.vaultId || '',
+        })));
         setScoreHistory(historyData);
         setVaults(vaultsData);
       })
