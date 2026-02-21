@@ -27,8 +27,7 @@ Building a full-stack institutional platform across 4 different blockchain ecosy
 ## Links
 
 - **GitHub Repository**: [github.com/DVB-ANS/ETH-DENVER](https://github.com/DVB-ANS/ETH-DENVER)
-- **ADI Chain Explorer**: [explorer.ab.testnet.adifoundation.ai](https://explorer.ab.testnet.adifoundation.ai)
-- **Hedera HashScan**: [hashscan.io/testnet](https://hashscan.io/testnet)
+- **Youtube Demo**: (https://youtu.be/Dr8bLcU3o6A)
 
 ## What is Metaphor's unique value proposition?
 
