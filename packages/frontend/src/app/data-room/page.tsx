@@ -2,18 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import {
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { BentoGrid, BentoCard } from '@/components/ui/magic-bento';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -30,44 +18,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  FolderLock,
-  Users,
-  UserPlus,
-  Eye,
-  EyeOff,
-  Shield,
-  Handshake,
-  ArrowRightLeft,
-  MessageSquare,
-  Loader2,
-} from 'lucide-react';
-import {
   formatCurrency,
   getTradeStatusVariant,
   type VisibilityLevel,
 } from '@/lib/mock-data';
 import { api } from '@/lib/api';
-import { useAuth } from '@/contexts/auth-context';
-import { RoleGate } from '@/components/role-gate';
-
-function getVisibilityIcon(role: VisibilityLevel) {
-  switch (role) {
-    case 'owner':
-      return <Eye className="h-4 w-4 text-primary" />;
-    case 'counterparty':
-      return <Handshake className="h-4 w-4 text-blue-400" />;
-    case 'auditor':
-      return <Shield className="h-4 w-4 text-yellow-400" />;
-  }
-}
 
 function getVisibilityDescription(role: VisibilityLevel): string {
   switch (role) {
@@ -81,8 +36,6 @@ function getVisibilityDescription(role: VisibilityLevel): string {
 }
 
 export default function DataRoomPage() {
-  const { hasRole, isAuthenticated } = useAuth();
-  const isAuditorOnly = isAuthenticated && hasRole('AUDITOR') && !hasRole('ADMIN') && !hasRole('ISSUER') && !hasRole('INVESTOR');
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState({ vaultId: '', publicKey: '', name: '', role: '' });
   const [inviteLoading, setInviteLoading] = useState(false);
@@ -170,24 +123,37 @@ export default function DataRoomPage() {
     }
   };
 
-  if (loading) return <BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading data room...</p></div></BentoGrid>;
-  if (fetchError) return <BentoGrid className="space-y-6"><div className="flex h-64 flex-col items-center justify-center gap-2"><p className="text-sm text-red-400">Failed to load data room</p><p className="text-xs text-neutral-600">{fetchError}</p></div></BentoGrid>;
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto flex h-64 items-center justify-center">
+        <p className="text-sm text-black/30 animate-pulse">Loading data room...</p>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="max-w-4xl mx-auto flex h-64 flex-col items-center justify-center gap-2">
+        <p className="text-sm text-black/45">Failed to load data room</p>
+        <p className="text-xs text-black/30">{fetchError}</p>
+      </div>
+    );
+  }
 
   return (
-    <BentoGrid className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="max-w-4xl mx-auto space-y-16">
+      {/* Header */}
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Data Room</h1>
-          <p className="text-muted-foreground">
-            Confidential vaults on Canton Network — party-scoped visibility
-          </p>
+          <p className="text-sm font-medium uppercase tracking-widest text-black/30 mb-2">Canton Network</p>
+          <h1 className="text-2xl font-semibold text-black">Data Room</h1>
+          <p className="mt-1 text-sm text-black/45">Confidential vaults with party-scoped visibility</p>
         </div>
-        <RoleGate allowed={['ADMIN', 'ISSUER']} silent>
         <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
           <DialogTrigger asChild>
-            <Button>
-              <UserPlus className="mr-2 h-4 w-4" /> Invite Party
-            </Button>
+            <button className="bg-black text-white text-sm px-4 py-2 hover:bg-black/80 transition-colors">
+              Invite Party
+            </button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -198,46 +164,46 @@ export default function DataRoomPage() {
               </DialogDescription>
             </DialogHeader>
             {inviteError && (
-              <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
-                <p className="text-sm text-red-400">{inviteError}</p>
+              <div className="border border-black/10 bg-black/5 p-3">
+                <p className="text-sm text-black/45">{inviteError}</p>
               </div>
             )}
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Vault</Label>
+              <div className="space-y-1">
+                <label className="text-xs font-medium uppercase tracking-widest text-black/30">Vault</label>
                 <Select value={inviteForm.vaultId} onValueChange={(v) => setInviteForm((prev) => ({ ...prev, vaultId: v }))}>
-                  <SelectTrigger>
+                  <SelectTrigger className="border border-black/10 bg-transparent text-sm text-black">
                     <SelectValue placeholder="Select vault" />
                   </SelectTrigger>
                   <SelectContent>
                     {confidentialVaults.map((v: any) => (
-                      <SelectItem key={v.id} value={v.id}>
-                        {v.name}
-                      </SelectItem>
+                      <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Canton Public Key</Label>
-                <Input
+              <div className="space-y-1">
+                <label className="text-xs font-medium uppercase tracking-widest text-black/30">Canton Public Key</label>
+                <input
+                  className="w-full border border-black/10 bg-transparent text-sm text-black px-3 py-2 outline-none focus:border-black/30"
                   placeholder="0x..."
                   value={inviteForm.publicKey}
                   onChange={(e) => setInviteForm((prev) => ({ ...prev, publicKey: e.target.value }))}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Institution Name</Label>
-                <Input
+              <div className="space-y-1">
+                <label className="text-xs font-medium uppercase tracking-widest text-black/30">Institution Name</label>
+                <input
+                  className="w-full border border-black/10 bg-transparent text-sm text-black px-3 py-2 outline-none focus:border-black/30"
                   placeholder="e.g. BlackRock"
                   value={inviteForm.name}
                   onChange={(e) => setInviteForm((prev) => ({ ...prev, name: e.target.value }))}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Access Level</Label>
+              <div className="space-y-1">
+                <label className="text-xs font-medium uppercase tracking-widest text-black/30">Access Level</label>
                 <Select value={inviteForm.role} onValueChange={(v) => setInviteForm((prev) => ({ ...prev, role: v }))}>
-                  <SelectTrigger>
+                  <SelectTrigger className="border border-black/10 bg-transparent text-sm text-black">
                     <SelectValue placeholder="Select access level" />
                   </SelectTrigger>
                   <SelectContent>
@@ -248,248 +214,164 @@ export default function DataRoomPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setInviteOpen(false)}>
+              <button
+                className="border border-black text-black text-sm px-4 py-2 hover:bg-black/5 transition-colors"
+                onClick={() => setInviteOpen(false)}
+              >
                 Cancel
-              </Button>
-              <Button onClick={handleInvite} disabled={inviteLoading || !inviteForm.vaultId || !inviteForm.publicKey || !inviteForm.role}>
-                {inviteLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...
-                  </>
-                ) : (
-                  'Send Invitation'
-                )}
-              </Button>
+              </button>
+              <button
+                className="bg-black text-white text-sm px-4 py-2 hover:bg-black/80 transition-colors disabled:opacity-40"
+                onClick={handleInvite}
+                disabled={inviteLoading || !inviteForm.vaultId || !inviteForm.publicKey || !inviteForm.role}
+              >
+                {inviteLoading ? 'Sending...' : 'Send Invitation'}
+              </button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        </RoleGate>
       </div>
 
-      {/* Visibility Model Explainer */}
-      <BentoCard>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <EyeOff className="h-4 w-4" />
-            Canton Visibility Model
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="flex items-start gap-3 rounded-lg border p-3">
-              <Eye className="mt-0.5 h-4 w-4 text-primary" />
-              <div>
-                <p className="text-sm font-medium">Owner</p>
-                <p className="text-xs text-muted-foreground">Full access to all vault data and trade management</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 rounded-lg border p-3">
-              <Handshake className="mt-0.5 h-4 w-4 text-blue-400" />
-              <div>
-                <p className="text-sm font-medium">Counterparty</p>
-                <p className="text-xs text-muted-foreground">Views composition, can propose trades</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 rounded-lg border p-3">
-              <Shield className="mt-0.5 h-4 w-4 text-yellow-400" />
-              <div>
-                <p className="text-sm font-medium">Auditor</p>
-                <p className="text-xs text-muted-foreground">Compliance-only read access, no trade visibility</p>
-              </div>
-            </div>
+      {/* Visibility Model */}
+      <div>
+        <p className="text-sm font-medium uppercase tracking-widest text-black/30 mb-4">Canton Visibility Model</p>
+        <div className="grid gap-px sm:grid-cols-3 border border-black/[0.06]">
+          <div className="p-4 bg-white">
+            <p className="text-sm font-medium text-black">Owner</p>
+            <p className="mt-1 text-xs text-black/45">Full access to all vault data and trade management</p>
           </div>
-        </CardContent>
-      </BentoCard>
+          <div className="p-4 bg-white border-t sm:border-t-0 sm:border-l border-black/[0.06]">
+            <p className="text-sm font-medium text-black">Counterparty</p>
+            <p className="mt-1 text-xs text-black/45">Views composition, can propose trades</p>
+          </div>
+          <div className="p-4 bg-white border-t sm:border-t-0 sm:border-l border-black/[0.06]">
+            <p className="text-sm font-medium text-black">Auditor</p>
+            <p className="mt-1 text-xs text-black/45">Compliance-only read access, no trade visibility</p>
+          </div>
+        </div>
+      </div>
 
       {/* Confidential Vaults */}
-      {confidentialVaults.length === 0 ? (
-        <BentoCard>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <FolderLock className="mb-4 h-12 w-12 text-muted-foreground/50" />
-            <p className="text-muted-foreground">No confidential vaults. Canton Network may not be connected.</p>
-          </CardContent>
-        </BentoCard>
-      ) : isAuditorOnly ? (
-        /* Auditor Limited View — compliance summary only */
-        <BentoCard>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Shield className="h-4 w-4 text-yellow-400" />
-              Compliance Summary
-            </CardTitle>
-            <CardDescription>Auditor view — aggregate data only</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-lg border p-4 text-center">
-                <p className="text-sm text-muted-foreground">Total Vaults</p>
-                <p className="text-2xl font-bold">{confidentialVaults.length}</p>
-              </div>
-              <div className="rounded-lg border p-4 text-center">
-                <p className="text-sm text-muted-foreground">Total Assets</p>
-                <p className="text-2xl font-bold">
-                  {confidentialVaults.reduce((s: number, v: any) => s + (v.assetCount || 0), 0)}
-                </p>
-              </div>
-              <div className="rounded-lg border p-4 text-center">
-                <p className="text-sm text-muted-foreground">Aggregate Value</p>
-                <p className="text-2xl font-bold">
-                  {formatCurrency(confidentialVaults.reduce((s: number, v: any) => s + (v.totalValue || 0), 0))}
-                </p>
-              </div>
-            </div>
-            <p className="mt-4 text-xs text-muted-foreground">
-              Counterparty names, trade details, and party information are not visible in auditor view.
-            </p>
-          </CardContent>
-        </BentoCard>
-      ) : confidentialVaults.map((cv: any) => (
-        <BentoCard key={cv.id}>
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <FolderLock className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <CardTitle className="text-base">{cv.name}</CardTitle>
-                  <CardDescription>
-                    Owner: {cv.owner} &middot; {cv.assetCount} assets &middot;{' '}
-                    {formatCurrency(cv.totalValue)}
-                  </CardDescription>
-                </div>
-              </div>
-              <Badge variant="outline">{cv.parties.length} parties</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Authorized Parties */}
-            <div>
-              <p className="mb-3 flex items-center gap-2 text-sm font-medium">
-                <Users className="h-4 w-4" /> Authorized Parties
-              </p>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Institution</TableHead>
-                    <TableHead>Access Level</TableHead>
-                    <TableHead>Visibility</TableHead>
-                    <TableHead>Joined</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cv.parties.map((party: any) => (
-                    <TableRow key={party.id}>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{party.name}</p>
-                          <p className="text-xs text-muted-foreground font-mono">
-                            {party.publicKey}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {getVisibilityIcon(party.role)}
-                          <span className="capitalize">{party.role}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-xs text-muted-foreground">
-                          {getVisibilityDescription(party.role)}
-                        </p>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {party.joinedAt}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+      <div>
+        <p className="text-sm font-medium uppercase tracking-widest text-black/30 mb-4">Confidential Vaults</p>
 
-            <Separator />
+        {confidentialVaults.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 border border-black/[0.06]">
+            <p className="text-sm text-black/30">No confidential vaults. Canton Network may not be connected.</p>
+          </div>
+        ) : (
+          <div className="space-y-12">
+            {confidentialVaults.map((cv: any) => (
+              <div key={cv.id}>
+                {/* Vault header */}
+                <div className="flex items-start justify-between mb-6">
+                  <div>
+                    <h2 className="text-base font-medium text-black">{cv.name}</h2>
+                    <p className="mt-0.5 text-xs text-black/45">
+                      Owner: {cv.owner} &middot; {cv.assetCount} assets &middot; {formatCurrency(cv.totalValue)}
+                    </p>
+                  </div>
+                  <span className="text-xs text-black/30 border border-black/[0.06] px-2 py-1">
+                    {cv.parties.length} parties
+                  </span>
+                </div>
 
-            {/* Trade Proposals */}
-            <div>
-              <p className="mb-3 flex items-center gap-2 text-sm font-medium">
-                <ArrowRightLeft className="h-4 w-4" /> Trade Proposals (PrivateTrade)
-              </p>
-              {cv.trades.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No trade proposals yet</p>
-              ) : (
-                <div className="space-y-3">
-                  {cv.trades.map((trade: any) => (
-                    <div key={trade.id} className="rounded-lg border p-4">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">{trade.from}</span>
-                            <ArrowRightLeft className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-sm font-medium">{trade.to}</span>
+                {/* Authorized Parties */}
+                <p className="text-sm font-medium uppercase tracking-widest text-black/30 mb-3">Authorized Parties</p>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-black/[0.06]">
+                      <th className="text-left pb-2 text-xs font-medium text-black/30 uppercase tracking-widest">Institution</th>
+                      <th className="text-left pb-2 text-xs font-medium text-black/30 uppercase tracking-widest">Access Level</th>
+                      <th className="text-left pb-2 text-xs font-medium text-black/30 uppercase tracking-widest">Visibility</th>
+                      <th className="text-left pb-2 text-xs font-medium text-black/30 uppercase tracking-widest">Joined</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black/[0.06]">
+                    {cv.parties.map((party: any) => (
+                      <tr key={party.id}>
+                        <td className="py-3 pr-4">
+                          <p className="text-black font-medium">{party.name}</p>
+                          <p className="text-xs text-black/30 font-mono">{party.publicKey}</p>
+                        </td>
+                        <td className="py-3 pr-4">
+                          <span className="capitalize text-black/45">{party.role}</span>
+                        </td>
+                        <td className="py-3 pr-4">
+                          <p className="text-xs text-black/30">{getVisibilityDescription(party.role)}</p>
+                        </td>
+                        <td className="py-3 text-xs text-black/30">{party.joinedAt}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {/* Trade Proposals */}
+                <div className="mt-8">
+                  <p className="text-sm font-medium uppercase tracking-widest text-black/30 mb-3">Trade Proposals</p>
+                  {cv.trades.length === 0 ? (
+                    <p className="text-sm text-black/30">No trade proposals yet</p>
+                  ) : (
+                    <div className="divide-y divide-black/[0.06] border-y border-black/[0.06]">
+                      {cv.trades.map((trade: any) => (
+                        <div key={trade.id} className="py-4">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="text-sm text-black">
+                                <span className="font-medium">{trade.from}</span>
+                                <span className="text-black/30 mx-2">→</span>
+                                <span className="font-medium">{trade.to}</span>
+                              </p>
+                              <p className="mt-1 text-xs text-black/45">
+                                {trade.amount} tokens of {trade.assetName} @ {formatCurrency(trade.price)}/token
+                              </p>
+                              <p className="text-xs text-black/30">
+                                Total: {formatCurrency(trade.amount * trade.price)}
+                              </p>
+                            </div>
+                            <span className="text-xs text-black/30 border border-black/[0.06] px-2 py-1 capitalize">
+                              {trade.status}
+                            </span>
                           </div>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {trade.amount} tokens of {trade.assetName} @{' '}
-                            {formatCurrency(trade.price)}/token
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Total: {formatCurrency(trade.amount * trade.price)}
-                          </p>
+                          {trade.message && (
+                            <p className="mt-2 text-xs text-black/30 bg-black/[0.02] px-3 py-2">
+                              {trade.message}
+                            </p>
+                          )}
+                          {trade.status === 'pending' && (
+                            <div className="mt-3 flex gap-2">
+                              <button
+                                className="bg-black text-white text-xs px-3 py-1.5 hover:bg-black/80 transition-colors disabled:opacity-40"
+                                disabled={tradeLoading === trade.id}
+                                onClick={() => handleTradeAccept(trade.id)}
+                              >
+                                {tradeLoading === trade.id ? 'Accepting...' : 'Accept'}
+                              </button>
+                              <button
+                                className="border border-black text-black text-xs px-3 py-1.5 hover:bg-black/5 transition-colors"
+                                onClick={() => updateTradeStatus(cv.id, trade.id, 'countered')}
+                              >
+                                Counter
+                              </button>
+                              <button
+                                className="text-black/45 text-xs px-3 py-1.5 hover:text-black transition-colors disabled:opacity-40"
+                                disabled={tradeLoading === trade.id}
+                                onClick={() => handleTradeReject(trade.id)}
+                              >
+                                {tradeLoading === trade.id ? 'Rejecting...' : 'Reject'}
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        <Badge variant={getTradeStatusVariant(trade.status)}>
-                          {trade.status.charAt(0).toUpperCase() + trade.status.slice(1)}
-                        </Badge>
-                      </div>
-                      {trade.message && (
-                        <div className="mt-3 flex items-start gap-2 rounded bg-muted/50 p-2">
-                          <MessageSquare className="mt-0.5 h-3 w-3 text-muted-foreground" />
-                          <p className="text-xs text-muted-foreground">{trade.message}</p>
-                        </div>
-                      )}
-                      {trade.status === 'pending' && (
-                        <RoleGate allowed={['ADMIN', 'ISSUER']} silent>
-                        <div className="mt-3 flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="default"
-                            disabled={tradeLoading === trade.id}
-                            onClick={() => handleTradeAccept(trade.id)}
-                          >
-                            {tradeLoading === trade.id ? (
-                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                            ) : null}
-                            Accept
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => updateTradeStatus(cv.id, trade.id, 'countered')}
-                          >
-                            Counter
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={tradeLoading === trade.id}
-                            onClick={() => handleTradeReject(trade.id)}
-                          >
-                            {tradeLoading === trade.id ? (
-                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                            ) : null}
-                            Reject
-                          </Button>
-                        </div>
-                        </RoleGate>
-                      )}
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </BentoCard>
-      ))}
-    </BentoGrid>
-
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

@@ -2,24 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import {
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { BentoGrid, BentoCard } from '@/components/ui/magic-bento';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -29,14 +11,12 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Shield, Key, Palette, UserPlus, Trash2, Upload, Loader2, CheckCircle } from 'lucide-react';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { RoleGate } from '@/components/role-gate';
 import { type Role } from '@/lib/mock-data';
 import { api } from '@/lib/api';
@@ -49,7 +29,7 @@ export default function AdminPage() {
 
   const [whitelabelForm, setWhitelabelForm] = useState({
     institutionName: 'Metaphor',
-    primaryColor: '#6366f1',
+    primaryColor: '#000000',
     domain: '',
   });
 
@@ -68,12 +48,10 @@ export default function AdminPage() {
     setWalletSubmitting(true);
     setWalletError(null);
     try {
-      // Call both whitelist and role assignment
       await api.post('/api/adi/whitelist', { address: walletForm.address });
       if (walletForm.role) {
         await api.post('/api/adi/roles', { address: walletForm.address, role: walletForm.role });
       }
-      // Optimistically add to local state
       setWallets((prev) => [
         ...prev,
         {
@@ -93,342 +71,290 @@ export default function AdminPage() {
     }
   };
 
-  const [kycLoading, setKycLoading] = useState<string | null>(null);
-
-  const handleApproveKyc = async (address: string) => {
-    setKycLoading(address);
-    try {
-      await api.post('/api/adi/whitelist', { address });
-      setWallets((prev) =>
-        prev.map((w: any) =>
-          w.address === address ? { ...w, kycStatus: 'verified' } : w,
-        ),
-      );
-    } catch (err: any) {
-      alert(`KYC approval failed: ${err.message}`);
-    } finally {
-      setKycLoading(null);
-    }
-  };
-
   const roles = [
     {
       name: 'Admin',
       count: wallets.filter((w: any) => w.role === 'admin').length,
       permissions: ['Issue', 'Invest', 'Audit', 'Administer'],
-      variant: 'default' as const,
       description: 'Full access to all platform features',
     },
     {
       name: 'Issuer',
       count: wallets.filter((w: any) => w.role === 'issuer').length,
       permissions: ['Issue'],
-      variant: 'secondary' as const,
       description: 'Can tokenize and manage own assets',
     },
     {
       name: 'Investor',
       count: wallets.filter((w: any) => w.role === 'investor').length,
       permissions: ['Invest'],
-      variant: 'secondary' as const,
       description: 'Can invest in vaults and view holdings',
     },
     {
       name: 'Auditor',
       count: wallets.filter((w: any) => w.role === 'auditor').length,
       permissions: ['Audit (limited)'],
-      variant: 'outline' as const,
       description: 'Read-only compliance access',
     },
   ];
 
-  if (loading) return <BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading admin data...</p></div></BentoGrid>;
-  if (fetchError) return <BentoGrid className="space-y-6"><div className="flex h-64 flex-col items-center justify-center gap-2"><p className="text-sm text-red-400">Failed to load admin data</p><p className="text-xs text-neutral-600">{fetchError}</p></div></BentoGrid>;
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto flex h-64 items-center justify-center">
+        <p className="text-sm text-black/30 animate-pulse">Loading admin data...</p>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="max-w-4xl mx-auto flex h-64 flex-col items-center justify-center gap-2">
+        <p className="text-sm text-black/45">Failed to load admin data</p>
+        <p className="text-xs text-black/30">{fetchError}</p>
+      </div>
+    );
+  }
 
   return (
     <RoleGate allowed={['ADMIN']}>
-    <BentoGrid className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Administration</h1>
-        <p className="text-muted-foreground">
-          Role-based access control, wallet whitelist, and white-label config
-        </p>
-      </div>
+      <div className="max-w-4xl mx-auto space-y-16">
+        {/* Header */}
+        <div>
+          <p className="text-sm font-medium uppercase tracking-widest text-black/30 mb-2">ADI Chain</p>
+          <h1 className="text-2xl font-semibold text-black">Administration</h1>
+          <p className="mt-1 text-sm text-black/45">
+            Role-based access control, wallet whitelist, and white-label config
+          </p>
+        </div>
 
-      {/* RBAC Section */}
-      <BentoCard>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            Roles & Permissions (RBAC)
-          </CardTitle>
-          <CardDescription>Managed by AccessControl.sol on ADI chain</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {roles.map((role) => (
-              <div key={role.name} className="rounded-lg border p-4">
-                <div className="flex items-center justify-between">
-                  <p className="font-medium">{role.name}</p>
-                  <Badge variant={role.variant}>{role.count}</Badge>
+        {/* RBAC Section */}
+        <div>
+          <p className="text-sm font-medium uppercase tracking-widest text-black/30 mb-1">Roles & Permissions</p>
+          <p className="text-xs text-black/30 mb-4">Managed by AccessControl.sol on ADI chain</p>
+          <div className="grid gap-px sm:grid-cols-2 lg:grid-cols-4 border border-black/[0.06]">
+            {roles.map((role, i) => (
+              <div
+                key={role.name}
+                className={`p-4 bg-white ${i > 0 ? 'border-t lg:border-t-0 lg:border-l border-black/[0.06]' : ''} ${i === 2 ? 'sm:border-t sm:border-l-0 lg:border-l' : ''}`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm font-medium text-black">{role.name}</p>
+                  <span className="text-sm text-black/30">{role.count}</span>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">{role.description}</p>
-                <div className="mt-3 flex flex-wrap gap-1">
+                <p className="text-xs text-black/30 mb-3">{role.description}</p>
+                <div className="flex flex-wrap gap-1">
                   {role.permissions.map((perm) => (
-                    <Badge key={perm} variant="outline" className="text-xs">
+                    <span key={perm} className="text-xs border border-black/[0.06] px-1.5 py-0.5 text-black/30">
                       {perm}
-                    </Badge>
+                    </span>
                   ))}
                 </div>
               </div>
             ))}
           </div>
-        </CardContent>
-      </BentoCard>
+        </div>
 
-      {/* Wallet Whitelist */}
-      <BentoCard>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Key className="h-4 w-4" />
-              Wallet Whitelist
-            </CardTitle>
-            <CardDescription>
-              KYC-validated wallets authorized to hold RWA tokens
-            </CardDescription>
+        {/* Wallet Whitelist */}
+        <div>
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <p className="text-sm font-medium uppercase tracking-widest text-black/30 mb-1">Wallet Whitelist</p>
+              <p className="text-xs text-black/30">KYC-validated wallets authorized to hold RWA tokens</p>
+            </div>
+            <Dialog open={addWalletOpen} onOpenChange={setAddWalletOpen}>
+              <DialogTrigger asChild>
+                <button className="bg-black text-white text-sm px-4 py-2 hover:bg-black/80 transition-colors">
+                  Add Wallet
+                </button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Wallet to Whitelist</DialogTitle>
+                  <DialogDescription>
+                    Add a KYC-verified wallet to the authorized whitelist on ADI AccessControl.
+                  </DialogDescription>
+                </DialogHeader>
+                {walletError && (
+                  <div className="border border-black/10 bg-black/5 p-3">
+                    <p className="text-sm text-black/45">{walletError}</p>
+                  </div>
+                )}
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium uppercase tracking-widest text-black/30">Wallet Address</label>
+                    <input
+                      className="w-full border border-black/10 bg-transparent text-sm text-black px-3 py-2 outline-none focus:border-black/30"
+                      placeholder="0x..."
+                      value={walletForm.address}
+                      onChange={(e) => setWalletForm((prev) => ({ ...prev, address: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium uppercase tracking-widest text-black/30">Label</label>
+                    <input
+                      className="w-full border border-black/10 bg-transparent text-sm text-black px-3 py-2 outline-none focus:border-black/30"
+                      placeholder="e.g. BlackRock Fund III"
+                      value={walletForm.label}
+                      onChange={(e) => setWalletForm((prev) => ({ ...prev, label: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium uppercase tracking-widest text-black/30">Role</label>
+                    <Select value={walletForm.role} onValueChange={(v) => setWalletForm((prev) => ({ ...prev, role: v }))}>
+                      <SelectTrigger className="border border-black/10 bg-transparent text-sm text-black">
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="investor">Investor</SelectItem>
+                        <SelectItem value="issuer">Issuer</SelectItem>
+                        <SelectItem value="auditor">Auditor</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <button
+                    className="border border-black text-black text-sm px-4 py-2 hover:bg-black/5 transition-colors"
+                    onClick={() => setAddWalletOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="bg-black text-white text-sm px-4 py-2 hover:bg-black/80 transition-colors disabled:opacity-40"
+                    onClick={handleAddWallet}
+                    disabled={walletSubmitting || !walletForm.address}
+                  >
+                    {walletSubmitting ? 'Adding...' : 'Add to Whitelist'}
+                  </button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
-          <Dialog open={addWalletOpen} onOpenChange={setAddWalletOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <UserPlus className="mr-2 h-4 w-4" /> Add Wallet
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Wallet to Whitelist</DialogTitle>
-                <DialogDescription>
-                  Add a KYC-verified wallet to the authorized whitelist on ADI AccessControl.
-                </DialogDescription>
-              </DialogHeader>
-              {walletError && (
-                <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
-                  <p className="text-sm text-red-400">{walletError}</p>
-                </div>
-              )}
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Wallet Address</Label>
-                  <Input
-                    placeholder="0x..."
-                    value={walletForm.address}
-                    onChange={(e) => setWalletForm((prev) => ({ ...prev, address: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Label</Label>
-                  <Input
-                    placeholder="e.g. BlackRock Fund III"
-                    value={walletForm.label}
-                    onChange={(e) => setWalletForm((prev) => ({ ...prev, label: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Role</Label>
-                  <Select value={walletForm.role} onValueChange={(v) => setWalletForm((prev) => ({ ...prev, role: v }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="investor">Investor</SelectItem>
-                      <SelectItem value="issuer">Issuer</SelectItem>
-                      <SelectItem value="auditor">Auditor</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setAddWalletOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleAddWallet} disabled={walletSubmitting || !walletForm.address}>
-                  {walletSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Adding...
-                    </>
-                  ) : (
-                    'Add to Whitelist'
-                  )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Address</TableHead>
-                <TableHead>Label</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>KYC</TableHead>
-                <TableHead>Added</TableHead>
-                <TableHead className="w-[50px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-black/[0.06]">
+                <th className="text-left pb-2 text-xs font-medium uppercase tracking-widest text-black/30">Address</th>
+                <th className="text-left pb-2 text-xs font-medium uppercase tracking-widest text-black/30">Label</th>
+                <th className="text-left pb-2 text-xs font-medium uppercase tracking-widest text-black/30">Role</th>
+                <th className="text-left pb-2 text-xs font-medium uppercase tracking-widest text-black/30">KYC</th>
+                <th className="text-left pb-2 text-xs font-medium uppercase tracking-widest text-black/30">Added</th>
+                <th className="w-10" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/[0.06]">
               {wallets.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-sm text-black/30">
                     No whitelisted wallets found on-chain.
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               ) : wallets.map((wallet: any) => (
-                <TableRow key={wallet.address}>
-                  <TableCell className="font-mono text-sm">{wallet.address}</TableCell>
-                  <TableCell>{wallet.label}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="capitalize">
+                <tr key={wallet.address}>
+                  <td className="py-3 pr-4 font-mono text-xs text-black/45">{wallet.address}</td>
+                  <td className="py-3 pr-4 text-black">{wallet.label}</td>
+                  <td className="py-3 pr-4">
+                    <span className="text-xs border border-black/[0.06] px-2 py-0.5 text-black/45 capitalize">
                       {wallet.role}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {wallet.kycStatus === 'verified' ? (
-                      <Badge variant="default">
-                        <CheckCircle className="mr-1 h-3 w-3" /> Verified
-                      </Badge>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary">Pending</Badge>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs"
-                          disabled={kycLoading === wallet.address}
-                          onClick={() => handleApproveKyc(wallet.address)}
-                        >
-                          {kycLoading === wallet.address ? (
-                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                          ) : (
-                            <CheckCircle className="mr-1 h-3 w-3" />
-                          )}
-                          Approve KYC
-                        </Button>
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {wallet.addedAt}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
+                    </span>
+                  </td>
+                  <td className="py-3 pr-4">
+                    <span className={`text-xs px-2 py-0.5 border ${wallet.kycStatus === 'verified' ? 'border-black/20 text-black/45' : 'border-black/[0.06] text-black/30'}`}>
+                      {wallet.kycStatus === 'verified' ? 'Verified' : 'Pending'}
+                    </span>
+                  </td>
+                  <td className="py-3 pr-4 text-xs text-black/30">{wallet.addedAt}</td>
+                  <td className="py-3">
+                    <button
+                      className="text-xs text-black/30 hover:text-black transition-colors"
                       onClick={() => {
                         if (confirm(`Remove ${wallet.label} (${wallet.address}) from the whitelist?`)) {
                           setWallets((prev) => prev.filter((w: any) => w.address !== wallet.address));
                         }
                       }}
                     >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
+                      Remove
+                    </button>
+                  </td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </BentoCard>
+            </tbody>
+          </table>
+        </div>
 
-      {/* White-Label Configuration */}
-      <BentoCard>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Palette className="h-4 w-4" />
-            White-Label Configuration
-          </CardTitle>
-          <CardDescription>
-            Customize the platform for your institution (ADI bounty: white-label ready)
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid gap-6 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Institution Name</Label>
-              <Input
+        {/* White-Label Configuration */}
+        <div>
+          <p className="text-sm font-medium uppercase tracking-widest text-black/30 mb-1">White-Label Configuration</p>
+          <p className="text-xs text-black/30 mb-6">Customize the platform for your institution (ADI bounty: white-label ready)</p>
+
+          <div className="grid gap-6 sm:grid-cols-2 mb-6">
+            <div className="space-y-1">
+              <label className="text-xs font-medium uppercase tracking-widest text-black/30">Institution Name</label>
+              <input
+                className="w-full border border-black/10 bg-transparent text-sm text-black px-3 py-2 outline-none focus:border-black/30"
                 value={whitelabelForm.institutionName}
-                onChange={(e) =>
-                  setWhitelabelForm((prev) => ({ ...prev, institutionName: e.target.value }))
-                }
+                onChange={(e) => setWhitelabelForm((prev) => ({ ...prev, institutionName: e.target.value }))}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Custom Domain</Label>
-              <Input
+            <div className="space-y-1">
+              <label className="text-xs font-medium uppercase tracking-widest text-black/30">Custom Domain</label>
+              <input
+                className="w-full border border-black/10 bg-transparent text-sm text-black px-3 py-2 outline-none focus:border-black/30"
                 placeholder="vault.yourcompany.com"
                 value={whitelabelForm.domain}
-                onChange={(e) =>
-                  setWhitelabelForm((prev) => ({ ...prev, domain: e.target.value }))
-                }
+                onChange={(e) => setWhitelabelForm((prev) => ({ ...prev, domain: e.target.value }))}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Primary Color</Label>
+            <div className="space-y-1">
+              <label className="text-xs font-medium uppercase tracking-widest text-black/30">Primary Color</label>
               <div className="flex items-center gap-3">
-                <Input
+                <input
                   type="color"
                   value={whitelabelForm.primaryColor}
-                  onChange={(e) =>
-                    setWhitelabelForm((prev) => ({ ...prev, primaryColor: e.target.value }))
-                  }
-                  className="h-10 w-16 cursor-pointer p-1"
+                  onChange={(e) => setWhitelabelForm((prev) => ({ ...prev, primaryColor: e.target.value }))}
+                  className="h-9 w-14 cursor-pointer border border-black/10 bg-transparent p-1"
                 />
-                <Input
+                <input
+                  className="flex-1 border border-black/10 bg-transparent text-sm text-black px-3 py-2 font-mono outline-none focus:border-black/30"
                   value={whitelabelForm.primaryColor}
-                  onChange={(e) =>
-                    setWhitelabelForm((prev) => ({ ...prev, primaryColor: e.target.value }))
-                  }
-                  className="flex-1 font-mono"
+                  onChange={(e) => setWhitelabelForm((prev) => ({ ...prev, primaryColor: e.target.value }))}
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Logo</Label>
-              <div className="flex h-10 items-center gap-3">
-                <Button variant="outline" size="sm">
-                  <Upload className="mr-2 h-4 w-4" /> Upload Logo
-                </Button>
-                <span className="text-xs text-muted-foreground">PNG or SVG, max 2MB</span>
+            <div className="space-y-1">
+              <label className="text-xs font-medium uppercase tracking-widest text-black/30">Logo</label>
+              <div className="flex items-center gap-3 h-9">
+                <button className="border border-black/10 text-black text-xs px-3 py-1.5 hover:border-black/30 transition-colors">
+                  Upload Logo
+                </button>
+                <span className="text-xs text-black/30">PNG or SVG, max 2MB</span>
               </div>
             </div>
           </div>
 
           {/* Preview */}
-          <div className="rounded-lg border p-4">
-            <p className="mb-3 text-sm font-medium">Preview</p>
+          <div className="border border-black/[0.06] p-4 mb-6">
+            <p className="text-xs font-medium uppercase tracking-widest text-black/30 mb-3">Preview</p>
             <div className="flex items-center gap-3">
               <div
-                className="flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold text-white"
+                className="flex h-9 w-9 items-center justify-center text-xs font-bold text-white"
                 style={{ backgroundColor: whitelabelForm.primaryColor }}
               >
                 {whitelabelForm.institutionName.slice(0, 2).toUpperCase()}
               </div>
-              <span className="text-lg font-semibold">{whitelabelForm.institutionName}</span>
+              <span className="text-base font-medium text-black">{whitelabelForm.institutionName}</span>
             </div>
           </div>
 
-          <Button
-            onClick={() =>
-              alert('White-label config saved (mock). Multi-tenant registry coming in Phase 4.')
-            }
+          <button
+            className="bg-black text-white text-sm px-4 py-2 hover:bg-black/80 transition-colors"
+            onClick={() => alert('White-label config saved (mock). Multi-tenant registry coming in Phase 4.')}
           >
             Save Configuration
-          </Button>
-        </CardContent>
-      </BentoCard>
-    </BentoGrid>
+          </button>
+        </div>
+      </div>
     </RoleGate>
   );
 }

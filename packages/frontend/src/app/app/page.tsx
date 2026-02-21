@@ -1,30 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import {
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { BentoGrid, BentoCard } from '@/components/ui/magic-bento';
-import { Badge } from '@/components/ui/badge';
-import {
-  Vault,
-  TrendingUp,
-  Coins,
-  CalendarClock,
-  Brain,
-  ArrowUpRight,
-} from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import {
-  formatCurrency,
-  getRiskColor,
-  getStatusBadgeVariant,
-} from '@/lib/mock-data';
-import { RoleGate } from '@/components/role-gate';
+import { formatCurrency } from '@/lib/mock-data';
 
 export default function DashboardPage() {
   const [dashData, setDashData] = useState<any>(null);
@@ -40,218 +19,140 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <BentoGrid className="space-y-6">
-        <div className="flex h-64 items-center justify-center">
-          <p className="text-sm text-neutral-500 animate-pulse">Loading dashboard...</p>
-        </div>
-      </BentoGrid>
+      <div className="mx-auto max-w-4xl pt-12">
+        <p className="text-sm text-black/30 animate-pulse">Loading...</p>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <BentoGrid className="space-y-6">
-        <div className="flex h-64 flex-col items-center justify-center gap-2">
-          <p className="text-sm text-red-400">Failed to load dashboard</p>
-          <p className="text-xs text-neutral-600">{error}</p>
-          <p className="text-xs text-neutral-600">Make sure the backend is running (`pnpm dev:backend`)</p>
-        </div>
-      </BentoGrid>
+      <div className="mx-auto max-w-4xl pt-12">
+        <p className="text-sm text-black/60">Failed to load dashboard</p>
+        <p className="mt-1 text-xs text-black/40">{error}</p>
+      </div>
     );
   }
 
-  const isEmpty = dashData.vaults.length === 0 && dashData.stats.tokenizedAssets === 0;
-
-  const stats = [
-    {
-      label: 'Total Asset Value',
-      value: formatCurrency(dashData.stats.totalValue),
-      icon: Coins,
-    },
-    {
-      label: 'YTD Return',
-      value: dashData.stats.yieldYTD ? `+${dashData.stats.yieldYTD}%` : '--',
-      icon: TrendingUp,
-    },
-    {
-      label: 'Active Vaults',
-      value: dashData.stats.activeVaults.toString(),
-      icon: Vault,
-    },
-    {
-      label: 'Tokenized Assets',
-      value: dashData.stats.tokenizedAssets.toString(),
-      icon: Coins,
-    },
-    {
-      label: 'Upcoming Payments',
-      value: dashData.stats.upcomingPayments.toString(),
-      icon: CalendarClock,
-    },
-  ];
+  const { stats, vaults, upcomingPayments, latestAIAnalysis } = dashData;
 
   return (
-    <BentoGrid className="space-y-6">
+    <div className="mx-auto max-w-4xl space-y-16 pt-4">
+      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Portfolio overview and key metrics</p>
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-black">
+          Dashboard
+        </h1>
+        <p className="mt-1 text-sm text-black/35">Portfolio overview</p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
-        {stats.map((stat) => (
-          <BentoCard key={stat.label}>
-            <CardContent className="flex items-center gap-4 pt-6">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <stat.icon className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{stat.label}</p>
-                <p className="text-xl font-bold">{stat.value}</p>
-              </div>
-            </CardContent>
-          </BentoCard>
-        ))}
-      </div>
-
-      {isEmpty ? (
-        <BentoCard>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Vault className="mb-4 h-12 w-12 text-muted-foreground/50" />
-            <p className="text-muted-foreground">No data yet. Issue your first RWA token to get started.</p>
-            <RoleGate allowed={['ADMIN', 'ISSUER']} silent>
-              <Link href="/issue" className="mt-4 flex items-center gap-1 text-sm text-primary hover:underline">
-                Issue a token <ArrowUpRight className="h-3 w-3" />
-              </Link>
-            </RoleGate>
-          </CardContent>
-        </BentoCard>
-      ) : (
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Vaults List */}
-        <BentoCard className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Vaults</CardTitle>
-              <CardDescription>Your active institutional vaults</CardDescription>
-            </div>
-            <Link
-              href="/vaults"
-              className="flex items-center gap-1 text-sm text-primary hover:underline"
-            >
-              View all <ArrowUpRight className="h-3 w-3" />
-            </Link>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {dashData.vaults.length === 0 ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">No vaults created yet.</p>
-              ) : dashData.vaults.map((vault: any) => (
-                <Link
-                  key={vault.id}
-                  href={`/vaults/${vault.id}`}
-                  className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/50"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
-                      <Vault className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{vault.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {vault.assetCount} assets
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
-                      <p className="font-medium">{formatCurrency(vault.totalValue)}</p>
-                      <p className="text-sm text-green-500">{vault.yieldYTD != null ? `+${vault.yieldYTD}%` : '--'}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-sm font-medium ${getRiskColor(vault.riskLevel)}`}>
-                        Risk: {vault.riskScore ?? '--'}
-                      </p>
-                    </div>
-                    <Badge variant={getStatusBadgeVariant(vault.status)}>
-                      {vault.status === 'active'
-                        ? 'Active'
-                        : vault.status === 'attention'
-                          ? 'Attention'
-                          : 'Matured'}
-                    </Badge>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </BentoCard>
-
-        {/* Right Column */}
-        <div className="space-y-6">
-          {/* Upcoming Payments */}
-          <BentoCard>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarClock className="h-4 w-4" />
-                Next Payments
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {dashData.upcomingPayments.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No upcoming payments.</p>
-              ) : dashData.upcomingPayments.map((payment: any) => (
-                <div key={payment.id} className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">{payment.assetName}</p>
-                    <p className="text-xs text-muted-foreground">{payment.vaultName}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium">{formatCurrency(payment.amount)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      in {payment.daysUntil} days
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </BentoCard>
-
-          {/* Last AI Analysis */}
-          <BentoCard>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Brain className="h-4 w-4" />
-                Last AI Analysis
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {dashData.latestAIAnalysis ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">{dashData.latestAIAnalysis.vaultName}</p>
-                  <p className={`text-sm font-bold ${getRiskColor(dashData.latestAIAnalysis.riskLevel)}`}>
-                    Score: {dashData.latestAIAnalysis.score}/100
-                  </p>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {dashData.latestAIAnalysis.recommendations} recommendation(s) pending
-                </p>
-                <Link
-                  href="/ai-reports"
-                  className="flex items-center gap-1 text-sm text-primary hover:underline"
-                >
-                  View report <ArrowUpRight className="h-3 w-3" />
-                </Link>
-              </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No AI analysis yet. Trigger one from a vault detail page.</p>
-              )}
-            </CardContent>
-          </BentoCard>
+      {/* Stats — inline */}
+      <div className="flex flex-wrap gap-x-16 gap-y-6">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-widest text-black/30">Total Value</p>
+          <p className="mt-1 text-2xl font-semibold text-black">{formatCurrency(stats.totalValue)}</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-widest text-black/30">YTD Return</p>
+          <p className="mt-1 text-2xl font-semibold text-black">{stats.yieldYTD ? `+${stats.yieldYTD}%` : '--'}</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-widest text-black/30">Vaults</p>
+          <p className="mt-1 text-2xl font-semibold text-black">{stats.activeVaults}</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-widest text-black/30">Assets</p>
+          <p className="mt-1 text-2xl font-semibold text-black">{stats.tokenizedAssets}</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-widest text-black/30">Payments</p>
+          <p className="mt-1 text-2xl font-semibold text-black">{stats.upcomingPayments}</p>
         </div>
       </div>
-      )}
-    </BentoGrid>
+
+      {/* Vaults */}
+      <section>
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-xl font-semibold text-black">Vaults</h2>
+          <Link href="/vaults" className="text-xs text-black/30 hover:text-black transition-colors">
+            View all
+          </Link>
+        </div>
+        <div className="mt-4 divide-y divide-black/[0.06]">
+          {vaults.length === 0 ? (
+            <p className="py-8 text-sm text-black/30">No vaults yet.</p>
+          ) : vaults.map((vault: any) => (
+            <Link
+              key={vault.id}
+              href={`/vaults/${vault.id}`}
+              className="flex items-center justify-between py-4 transition-colors hover:bg-black/[0.02] -mx-3 px-3 rounded"
+            >
+              <div>
+                <p className="font-medium text-black">{vault.name}</p>
+                <p className="text-xs text-black/35">{vault.assetCount} assets</p>
+              </div>
+              <div className="flex items-center gap-8 text-right">
+                <div>
+                  <p className="font-medium text-black">{formatCurrency(vault.totalValue)}</p>
+                  <p className="text-xs text-black/35">{vault.yieldYTD != null ? `+${vault.yieldYTD}%` : '--'}</p>
+                </div>
+                <p className="text-xs font-medium text-black/50">
+                  {vault.riskScore ?? '--'}
+                </p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* Upcoming Payments */}
+      <section>
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-xl font-semibold text-black">Next Payments</h2>
+          <Link href="/yield-calendar" className="text-xs text-black/30 hover:text-black transition-colors">
+            Calendar
+          </Link>
+        </div>
+        <div className="mt-4 divide-y divide-black/[0.06]">
+          {upcomingPayments.length === 0 ? (
+            <p className="py-8 text-sm text-black/30">No upcoming payments.</p>
+          ) : upcomingPayments.map((p: any) => (
+            <div key={p.id} className="flex items-center justify-between py-3">
+              <div>
+                <p className="text-sm font-medium text-black">{p.assetName}</p>
+                <p className="text-xs text-black/35">{p.vaultName}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-medium text-black">{formatCurrency(p.amount)}</p>
+                <p className="text-xs text-black/35">in {p.daysUntil}d</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* AI Analysis */}
+      <section className="pb-16">
+        <h2 className="text-xl font-semibold text-black">Last AI Analysis</h2>
+        {latestAIAnalysis ? (
+          <div className="mt-4">
+            <div className="flex items-center justify-between">
+              <p className="font-medium text-black">{latestAIAnalysis.vaultName}</p>
+              <p className="text-sm font-semibold text-black">
+                {latestAIAnalysis.score}/100
+              </p>
+            </div>
+            <p className="mt-1 text-xs text-black/35">
+              {latestAIAnalysis.recommendations} recommendation(s) pending
+            </p>
+            <Link href="/ai-reports" className="mt-2 inline-block text-xs text-black/40 hover:text-black transition-colors">
+              View report
+            </Link>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-black/30">No analysis yet.</p>
+        )}
+      </section>
+    </div>
   );
 }
