@@ -27,14 +27,20 @@ function parseStressTests(raw: string): StressScenario[] {
 
 // --- Custom scenarios ---
 
+const SafeScenarioSchema = z.string().max(200).regex(/^[\w\s\+\-\.\,%\(\)\/]+$/);
+
 export function buildScenariosPrompt(customScenarios?: string[]): string {
   if (!customScenarios || customScenarios.length === 0) {
     return 'Use the default stress test scenarios.';
   }
 
+  const sanitized = customScenarios
+    .slice(0, 10)
+    .map((s) => SafeScenarioSchema.parse(s));
+
   return [
-    'Simulate the following scenarios:',
-    ...customScenarios.map((s, i) => `${i + 1}. ${s}`),
+    'Simulate only these scenarios (do not deviate):',
+    ...sanitized.map((s, i) => `${i + 1}. ${s}`),
   ].join('\n');
 }
 

@@ -21,8 +21,21 @@ function param(req: Request, name: string): string {
   return Array.isArray(v) ? v[0] : v;
 }
 
+const ALLOWED_CANTON_PARTIES = new Set(
+  ['admin', 'issuer', 'investor', 'auditor']
+    .map((role) => cantonClient.resolveParty(role))
+    .filter(Boolean),
+);
+
 function getParty(req: Request): string {
-  return (req.headers['x-canton-party'] as string) || cantonClient.resolveParty('admin');
+  const headerParty = req.headers['x-canton-party'] as string | undefined;
+  if (headerParty) {
+    if (!ALLOWED_CANTON_PARTIES.has(headerParty)) {
+      throw new Error(`Unknown canton party: ${headerParty}`);
+    }
+    return headerParty;
+  }
+  return cantonClient.resolveParty('admin');
 }
 
 // ─── Vaults ──────────────────────────────────────────────────
