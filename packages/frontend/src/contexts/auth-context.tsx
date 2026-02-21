@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const autoSignInAttempted = useRef(false);
 
-  // Restore session from localStorage on mount
+  // Restore session from sessionStorage on mount
   useEffect(() => {
     const saved = getToken();
     if (saved && address) {

@@ -76,7 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <ConnectButton
               chainStatus="icon"
               accountStatus="address"
-              showBalance={false}
+              showBalance={true}
             />
           </div>
         }
