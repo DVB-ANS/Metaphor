@@ -67,14 +67,24 @@ aiRouter.post('/analyze', requireAuth, async (req: Request, res: Response) => {
     if (!body.assets || !Array.isArray(body.assets) || body.assets.length === 0) {
       try {
         const onChainAssets = await fetchVaultAssetsOnChain(body.vaultId);
-        if (onChainAssets.length === 0) {
-          res.status(400).json({ error: 'Vault has no assets on-chain. Provide assets[] manually or deposit tokens first.' });
-          return;
+        if (onChainAssets.length > 0) {
+          body = { ...body, assets: onChainAssets };
         }
-        body = { ...body, assets: onChainAssets };
-      } catch (err) {
-        res.status(400).json({ error: `Failed to fetch vault data on-chain: ${(err as Error).message}` });
-        return;
+      } catch {
+        // Non-fatal: proceed with empty or placeholder assets
+      }
+
+      // If still no assets, use a placeholder so AI can still generate a baseline report
+      if (!body.assets || body.assets.length === 0) {
+        body = {
+          ...body,
+          assets: [{
+            assetId: 'empty-vault',
+            name: 'Empty Vault (no deposits)',
+            nominalValue: 0,
+            couponRate: 0,
+          }],
+        };
       }
     }
 

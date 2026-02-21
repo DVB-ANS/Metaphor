@@ -171,23 +171,29 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
     value: a.allocation,
   }));
 
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+
   const handleAnalyze = async () => {
     setAnalyzing(true);
+    setAnalyzeError(null);
     try {
       const raw = await api.post('/api/ai/analyze', {
         vaultId: vault.id,
-        assets: vault.assets.map((a) => ({
-          assetId: a.id,
-          nominalValue: a.value,
-          couponRate: a.couponRate,
-          maturityDate: a.maturityDate,
-          rating: a.rating,
-          jurisdiction: a.jurisdiction,
-        })),
+        assets: vault.assets.length > 0
+          ? vault.assets.map((a) => ({
+              assetId: a.id,
+              nominalValue: a.value,
+              couponRate: a.couponRate,
+              maturityDate: a.maturityDate,
+              rating: a.rating,
+              jurisdiction: a.jurisdiction,
+            }))
+          : undefined, // let backend fetch from on-chain
       });
       setAnalysisResult(mapBackendReport(raw));
     } catch (err: unknown) {
-      setActionError(err instanceof Error ? err.message : 'Analysis failed');
+      const msg = err instanceof Error ? err.message : 'Analysis failed';
+      setAnalyzeError(msg);
     } finally {
       setAnalyzing(false);
     }
@@ -286,6 +292,12 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
             </button>
           </div>
         </div>
+        {analyzeError && (
+          <div className="mt-3 border border-black/10 px-4 py-3 flex items-center justify-between">
+            <p className="text-sm text-black/60">{analyzeError}</p>
+            <button onClick={() => setAnalyzeError(null)} className="text-xs text-black/30 hover:text-black ml-4">Dismiss</button>
+          </div>
+        )}
       </div>
 
       {/* Key Stats */}
