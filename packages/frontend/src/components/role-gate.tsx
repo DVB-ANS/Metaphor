@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useAuth, type RoleName } from '@/contexts/auth-context';
 import { useAccount } from 'wagmi';
 import { Shield, Lock } from 'lucide-react';
@@ -14,6 +15,17 @@ interface RoleGateProps {
 export function RoleGate({ allowed, children, fallback, silent }: RoleGateProps) {
   const { isAuthenticated, isSigningIn, roles, error, signIn } = useAuth();
   const { isConnected } = useAccount();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  // SSR / pre-hydration: render nothing to avoid mismatch
+  if (!mounted) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <p className="text-sm text-black/30 animate-pulse">Loading...</p>
+      </div>
+    );
+  }
 
   // Not connected — block access (strict mode)
   if (!isConnected) {
