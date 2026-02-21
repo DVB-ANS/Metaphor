@@ -5,8 +5,8 @@
 Metaphor is a confidential, automated RWA (Real World Assets) hub for institutional finance. Built for ETHDenver 2026, New France Village track. Targeting 4 bounties: ADI Foundation, Canton Network, Hedera, 0G Labs.
 
 **Documentation:**
-- [Project Overview](./PROJECT_OVERVIEW.md)
-- [Timeline](./TIMELINE.md)
+- [Project Overview](./markdown/PROJECT_OVERVIEW.md)
+- [Timeline](./markdown/TIMELINE.md)
 
 ## Team
 
