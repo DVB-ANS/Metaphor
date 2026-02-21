@@ -23,6 +23,7 @@ import {
   type ScoreHistory,
 } from '@/lib/mock-data';
 import { api } from '@/lib/api';
+import { RoleGate } from '@/components/role-gate';
 
 const COLORS = ['#000', '#555', '#888', '#aaa', '#ccc'];
 
@@ -93,23 +94,27 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-4xl pt-12">
-        <p className="text-sm text-black/30 animate-pulse">Loading vault...</p>
-      </div>
+      <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
+        <div className="mx-auto max-w-4xl pt-12">
+          <p className="text-sm text-black/30 animate-pulse">Loading vault...</p>
+        </div>
+      </RoleGate>
     );
   }
 
   if (error || !vault) {
     return (
-      <div className="mx-auto max-w-4xl pt-12">
-        <p className="text-sm text-black/40">{error || 'Vault not found'}</p>
-        <button
-          onClick={() => router.push('/vaults')}
-          className="mt-3 text-xs text-black/30 hover:text-black transition-colors"
-        >
-          Back to vaults
-        </button>
-      </div>
+      <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
+        <div className="mx-auto max-w-4xl pt-12">
+          <p className="text-sm text-black/40">{error || 'Vault not found'}</p>
+          <button
+            onClick={() => router.push('/vaults')}
+            className="mt-3 text-xs text-black/30 hover:text-black transition-colors"
+          >
+            Back to vaults
+          </button>
+        </div>
+      </RoleGate>
     );
   }
 
@@ -195,6 +200,7 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
   const displayedPayments = activeTab === 'upcoming' ? upcomingPayments : pastPayments;
 
   return (
+    <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
     <div className="mx-auto max-w-4xl space-y-16 pt-4">
       {/* Header */}
       <div>
@@ -586,5 +592,6 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
     </div>
+    </RoleGate>
   );
 }

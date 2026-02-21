@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/mock-data';
+import { RoleGate } from '@/components/role-gate';
 
 export default function DashboardPage() {
   const [dashData, setDashData] = useState<any>(null);

@@ -5,6 +5,8 @@ export type AccessLevel = 'full' | 'locked' | 'hidden';
 export interface RouteAccess {
   label: string;
   href: string;
+  /** If true, visible to unauthenticated users in the menu */
+  public?: boolean;
   access: Record<RoleName, AccessLevel>;
 }
 
@@ -12,41 +14,44 @@ export const ROUTE_ACCESS: RouteAccess[] = [
   {
     label: 'Dashboard',
     href: '/app',
+    public: true,
     access: { ADMIN: 'full', AUDITOR: 'full', ISSUER: 'full', INVESTOR: 'full' },
   },
   {
     label: 'Vaults',
     href: '/vaults',
-    access: { ADMIN: 'full', AUDITOR: 'full', ISSUER: 'full', INVESTOR: 'full' },
+    access: { ADMIN: 'full', AUDITOR: 'hidden', ISSUER: 'full', INVESTOR: 'full' },
   },
   {
     label: 'Issue',
     href: '/issue',
-    access: { ADMIN: 'full', AUDITOR: 'hidden', ISSUER: 'full', INVESTOR: 'locked' },
+    access: { ADMIN: 'full', AUDITOR: 'hidden', ISSUER: 'full', INVESTOR: 'hidden' },
   },
   {
     label: 'Data Room',
     href: '/data-room',
-    access: { ADMIN: 'full', AUDITOR: 'full', ISSUER: 'full', INVESTOR: 'locked' },
+    public: true,
+    access: { ADMIN: 'full', AUDITOR: 'full', ISSUER: 'full', INVESTOR: 'full' },
   },
   {
     label: 'Yields',
     href: '/yield-calendar',
-    access: { ADMIN: 'full', AUDITOR: 'full', ISSUER: 'full', INVESTOR: 'full' },
+    access: { ADMIN: 'full', AUDITOR: 'hidden', ISSUER: 'full', INVESTOR: 'full' },
   },
   {
     label: 'AI Reports',
     href: '/ai-reports',
-    access: { ADMIN: 'full', AUDITOR: 'full', ISSUER: 'full', INVESTOR: 'locked' },
+    access: { ADMIN: 'full', AUDITOR: 'full', ISSUER: 'full', INVESTOR: 'hidden' },
   },
   {
     label: 'Admin',
     href: '/admin',
-    access: { ADMIN: 'full', AUDITOR: 'locked', ISSUER: 'hidden', INVESTOR: 'hidden' },
+    access: { ADMIN: 'full', AUDITOR: 'hidden', ISSUER: 'hidden', INVESTOR: 'hidden' },
   },
   {
     label: 'Canton',
     href: '/demo/canton',
+    public: true,
     access: { ADMIN: 'full', AUDITOR: 'full', ISSUER: 'full', INVESTOR: 'full' },
   },
 ];

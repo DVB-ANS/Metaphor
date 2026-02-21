@@ -11,30 +11,25 @@ import { ROUTE_ACCESS, getAccessLevel } from '@/lib/route-access';
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isLanding = pathname === '/';
-  const { isAuthenticated, roles } = useAuth();
+  const { isAuthenticated, roles, signIn, isSigningIn } = useAuth();
   const { isConnected } = useAccount();
 
   const menuItems = useMemo(() => {
-    // Wallet not connected — show all items (browsing mode)
+    // Not authenticated — only show public routes
     if (!isConnected || !isAuthenticated) {
-      return ROUTE_ACCESS.map((route) => ({
-        label: route.label,
-        href: route.href,
-      }));
+      return ROUTE_ACCESS
+        .filter((route) => route.public)
+        .map((route) => ({ label: route.label, href: route.href }));
     }
 
-    // Authenticated — filter by roles
+    // Authenticated — filter by roles, hide items with 'hidden' access
     return ROUTE_ACCESS
       .map((route) => {
         const level = getAccessLevel(route.access, roles);
         return { ...route, level };
       })
       .filter((route) => route.level !== 'hidden')
-      .map((route) => ({
-        label: route.label,
-        href: route.href,
-        locked: route.level === 'locked',
-      }));
+      .map((route) => ({ label: route.label, href: route.href }));
   }, [isConnected, isAuthenticated, roles]);
 
   useEffect(() => {
@@ -63,11 +58,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         isFixed
         displayItemNumbering
         extraHeader={
-          <ConnectButton
-            chainStatus="icon"
-            accountStatus="address"
-            showBalance={false}
-          />
+          <div className="flex items-center gap-3">
+            {isAuthenticated && roles.length > 0 && (
+              <span className="text-xs tracking-wide text-black/40">
+                {roles.join(' · ')}
+              </span>
+            )}
+            {isConnected && !isAuthenticated && (
+              <button
+                onClick={signIn}
+                disabled={isSigningIn}
+                className="rounded border border-black/20 px-3 py-1 text-xs font-medium text-black transition-colors hover:bg-black hover:text-white disabled:opacity-50"
+              >
+                {isSigningIn ? 'Signing\u2026' : 'Sign In'}
+              </button>
+            )}
+            <ConnectButton
+              chainStatus="icon"
+              accountStatus="address"
+              showBalance={false}
+            />
+          </div>
         }
       />
       <main className="px-8 pt-24 pb-12">{children}</main>

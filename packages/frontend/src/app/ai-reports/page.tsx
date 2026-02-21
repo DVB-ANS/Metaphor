@@ -150,23 +150,27 @@ export default function AIReportsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto flex h-64 items-center justify-center">
-        <p className="text-sm text-black/30 animate-pulse">Loading AI reports...</p>
-      </div>
+      <RoleGate allowed={['ADMIN', 'ISSUER', 'AUDITOR']}>
+        <div className="max-w-4xl mx-auto flex h-64 items-center justify-center">
+          <p className="text-sm text-black/30 animate-pulse">Loading AI reports...</p>
+        </div>
+      </RoleGate>
     );
   }
 
   if (fetchError) {
     return (
-      <div className="max-w-4xl mx-auto flex h-64 flex-col items-center justify-center gap-2">
-        <p className="text-sm text-black/45">Failed to load reports</p>
-        <p className="text-xs text-black/30">{fetchError}</p>
-      </div>
+      <RoleGate allowed={['ADMIN', 'ISSUER', 'AUDITOR']}>
+        <div className="max-w-4xl mx-auto flex h-64 flex-col items-center justify-center gap-2">
+          <p className="text-sm text-black/45">Failed to load reports</p>
+          <p className="text-xs text-black/30">{fetchError}</p>
+        </div>
+      </RoleGate>
     );
   }
 
   return (
-    <RoleGate allowed={['ADMIN', 'AUDITOR', 'ISSUER']}>
+    <RoleGate allowed={['ADMIN', 'ISSUER', 'AUDITOR']}>
     <div className="max-w-4xl mx-auto space-y-16">
       {/* Header */}
       <div className="flex items-start justify-between">
@@ -322,6 +326,7 @@ export default function AIReportsPage() {
                               <p className="mt-1 text-xs text-black/30">{rec.impact}</p>
                             </div>
                             {recStatus === 'pending' && (
+                              <RoleGate allowed={['ADMIN', 'ISSUER']} silent>
                               <div className="flex gap-2 shrink-0">
                                 <button
                                   className="bg-black text-white text-xs px-3 py-1.5 hover:bg-black/80 transition-colors disabled:opacity-40"
@@ -338,6 +343,7 @@ export default function AIReportsPage() {
                                   {actionLoading === rec.id ? 'Loading...' : 'Reject'}
                                 </button>
                               </div>
+                              </RoleGate>
                             )}
                           </div>
                         );

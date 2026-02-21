@@ -15,9 +15,23 @@ export function RoleGate({ allowed, children, fallback, silent }: RoleGateProps)
   const { isAuthenticated, isSigningIn, roles, error, signIn } = useAuth();
   const { isConnected } = useAccount();
 
-  // Wallet not connected — browsing mode, show content freely
+  // Not connected — block access (strict mode)
   if (!isConnected) {
-    return <>{children}</>;
+    if (silent) return null;
+    if (fallback) return <>{fallback}</>;
+    return (
+      <div className="flex flex-col items-center justify-center border border-black/[0.06] bg-white p-16 text-center">
+        <div className="mb-4 flex h-12 w-12 items-center justify-center border border-black/[0.06]">
+          <Lock className="h-5 w-5 text-black/20" />
+        </div>
+        <h3 className="text-sm font-semibold uppercase tracking-widest text-black">
+          Sign In Required
+        </h3>
+        <p className="mt-2 text-sm text-black/45">
+          Connect your wallet and sign in to access this section.
+        </p>
+      </div>
+    );
   }
 
   // Signing in progress — show loading
@@ -31,6 +45,8 @@ export function RoleGate({ allowed, children, fallback, silent }: RoleGateProps)
 
   // Wallet connected but sign-in failed or not yet done
   if (!isAuthenticated) {
+    if (silent) return null;
+    if (fallback) return <>{fallback}</>;
     return (
       <div className="flex flex-col items-center justify-center border border-black/[0.06] bg-white p-16 text-center">
         <div className="mb-4 flex h-12 w-12 items-center justify-center border border-black/[0.06]">

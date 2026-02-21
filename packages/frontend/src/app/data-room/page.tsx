@@ -24,6 +24,7 @@ import {
   type VisibilityLevel,
 } from '@/lib/mock-data';
 import { api } from '@/lib/api';
+import { useAuth } from '@/contexts/auth-context';
 
 function getVisibilityDescription(role: VisibilityLevel): string {
   switch (role) {
@@ -37,6 +38,8 @@ function getVisibilityDescription(role: VisibilityLevel): string {
 }
 
 export default function DataRoomPage() {
+  const { hasRole, isAuthenticated } = useAuth();
+  const isAuditorOnly = isAuthenticated && hasRole('AUDITOR') && !hasRole('ADMIN') && !hasRole('ISSUER') && !hasRole('INVESTOR');
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState({ vaultId: '', publicKey: '', name: '', role: '' });
   const [inviteLoading, setInviteLoading] = useState(false);
@@ -151,6 +154,7 @@ export default function DataRoomPage() {
           <h1 className="text-2xl font-semibold text-black">Data Room</h1>
           <p className="mt-1 text-sm text-black/45">Confidential vaults with party-scoped visibility</p>
         </div>
+        <RoleGate allowed={['ADMIN', 'ISSUER']} silent>
         <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
           <DialogTrigger asChild>
             <button className="bg-black text-white text-sm px-4 py-2 hover:bg-black/80 transition-colors">
@@ -232,6 +236,7 @@ export default function DataRoomPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </RoleGate>
       </div>
 
       {/* Visibility Model */}
@@ -260,6 +265,35 @@ export default function DataRoomPage() {
         {confidentialVaults.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 border border-black/[0.06]">
             <p className="text-sm text-black/30">No confidential vaults. Canton Network may not be connected.</p>
+          </div>
+        ) : isAuditorOnly ? (
+          /* Auditor Limited View — compliance summary only */
+          <div className="border border-black/[0.06]">
+            <div className="p-6">
+              <p className="text-xs font-medium uppercase tracking-widest text-black/30 mb-4">Compliance Summary</p>
+              <p className="text-xs text-black/30 mb-6">Auditor view — aggregate data only</p>
+              <div className="grid gap-px sm:grid-cols-3 border border-black/[0.06]">
+                <div className="p-4 bg-white text-center">
+                  <p className="text-xs text-black/30 uppercase tracking-widest">Total Vaults</p>
+                  <p className="mt-1 text-2xl font-semibold text-black">{confidentialVaults.length}</p>
+                </div>
+                <div className="p-4 bg-white border-t sm:border-t-0 sm:border-l border-black/[0.06] text-center">
+                  <p className="text-xs text-black/30 uppercase tracking-widest">Total Assets</p>
+                  <p className="mt-1 text-2xl font-semibold text-black">
+                    {confidentialVaults.reduce((s: number, v: any) => s + (v.assetCount || 0), 0)}
+                  </p>
+                </div>
+                <div className="p-4 bg-white border-t sm:border-t-0 sm:border-l border-black/[0.06] text-center">
+                  <p className="text-xs text-black/30 uppercase tracking-widest">Aggregate Value</p>
+                  <p className="mt-1 text-2xl font-semibold text-black">
+                    {formatCurrency(confidentialVaults.reduce((s: number, v: any) => s + (v.totalValue || 0), 0))}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-4 text-xs text-black/30">
+                Counterparty names, trade details, and party information are not visible in auditor view.
+              </p>
+            </div>
           </div>
         ) : (
           <div className="space-y-12">
@@ -341,6 +375,7 @@ export default function DataRoomPage() {
                             </p>
                           )}
                           {trade.status === 'pending' && (
+                            <RoleGate allowed={['ADMIN', 'ISSUER']} silent>
                             <div className="mt-3 flex gap-2">
                               <button
                                 className="bg-black text-white text-xs px-3 py-1.5 hover:bg-black/80 transition-colors disabled:opacity-40"
@@ -363,6 +398,7 @@ export default function DataRoomPage() {
                                 {tradeLoading === trade.id ? 'Rejecting...' : 'Reject'}
                               </button>
                             </div>
+                            </RoleGate>
                           )}
                         </div>
                       ))}
