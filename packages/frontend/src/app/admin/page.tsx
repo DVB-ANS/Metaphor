@@ -283,9 +283,18 @@ export default function AdminPage() {
                     </span>
                   </td>
                   <td className="py-3 pr-4">
-                    <span className={`text-xs px-2 py-0.5 border ${wallet.kycStatus === 'verified' ? 'border-black/20 text-black/45' : 'border-black/[0.06] text-black/30'}`}>
-                      {wallet.kycStatus === 'verified' ? 'Verified' : 'Pending'}
-                    </span>
+                    {wallet.kycStatus === 'verified' ? (
+                      <span className="text-xs px-2 py-0.5 border border-black/20 text-black/45">
+                        Verified
+                      </span>
+                    ) : (
+                      <button
+                        className="text-xs px-2 py-0.5 border border-black/[0.06] text-black/30 hover:border-black hover:text-black transition-colors"
+                        onClick={() => setWallets((prev) => prev.map((w: any) => w.address === wallet.address ? { ...w, kycStatus: 'verified' } : w))}
+                      >
+                        Pending — Verify
+                      </button>
+                    )}
                   </td>
                   <td className="py-3 pr-4 text-xs text-black/30">{wallet.addedAt}</td>
                   <td className="py-3">
