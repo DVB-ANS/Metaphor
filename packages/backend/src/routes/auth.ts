@@ -8,6 +8,7 @@ import {
   requireAuth,
 } from '../middleware/auth.js';
 import { fetchWalletRoles } from '../middleware/rbac.js';
+import { getAdiSigner, getContract, ADDRESSES } from '../config.js';
 import type { LoginBody } from '../types/auth.js';
 
 export const authRouter: RouterType = Router();
@@ -54,6 +55,29 @@ authRouter.post('/login', async (req: Request, res: Response) => {
     if (!verifySignature(message, signature, address)) {
       res.status(401).json({ error: 'Invalid signature' });
       return;
+    }
+
+    // DEV_MODE: auto-whitelist + grant roles on first login
+    if (process.env.DEV_MODE === 'true') {
+      try {
+        const signer = getAdiSigner();
+        const ac = getContract('AccessControl', ADDRESSES.accessControl, signer);
+        const isWL = await ac.isWhitelisted(address);
+        if (!isWL) {
+          console.log(`[DEV] Auto-provisioning ${address}`);
+          const tx1 = await ac.addToWhitelist(address);
+          await tx1.wait();
+          const issuerRole = await ac.ISSUER_ROLE();
+          const investorRole = await ac.INVESTOR_ROLE();
+          await Promise.all([
+            ac.grantRole(issuerRole, address).then((tx: any) => tx.wait()),
+            ac.grantRole(investorRole, address).then((tx: any) => tx.wait()),
+          ]);
+          console.log(`[DEV] Provisioned ${address}: whitelisted + ISSUER + INVESTOR`);
+        }
+      } catch (err) {
+        console.log(`[DEV] Auto-provision failed (non-blocking): ${(err as Error).message}`);
+      }
     }
 
     // Fetch on-chain roles for the JWT
