@@ -1,23 +1,41 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
+import { useAccount } from 'wagmi';
 import { StaggeredMenu } from '@/components/ui/staggered-menu';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-
-const menuItems = [
-  { label: 'Dashboard', href: '/app' },
-  { label: 'Vaults', href: '/vaults' },
-  { label: 'Issue', href: '/issue' },
-  { label: 'Data Room', href: '/data-room' },
-  { label: 'Yields', href: '/yield-calendar' },
-  { label: 'AI Reports', href: '/ai-reports' },
-  { label: 'Admin', href: '/admin' },
-];
+import { useAuth } from '@/contexts/auth-context';
+import { ROUTE_ACCESS, getAccessLevel } from '@/lib/route-access';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isLanding = pathname === '/';
+  const { isAuthenticated, roles } = useAuth();
+  const { isConnected } = useAccount();
+
+  const menuItems = useMemo(() => {
+    // Wallet not connected — show all items (browsing mode)
+    if (!isConnected || !isAuthenticated) {
+      return ROUTE_ACCESS.map((route) => ({
+        label: route.label,
+        href: route.href,
+      }));
+    }
+
+    // Authenticated — filter by roles
+    return ROUTE_ACCESS
+      .map((route) => {
+        const level = getAccessLevel(route.access, roles);
+        return { ...route, level };
+      })
+      .filter((route) => route.level !== 'hidden')
+      .map((route) => ({
+        label: route.label,
+        href: route.href,
+        locked: route.level === 'locked',
+      }));
+  }, [isConnected, isAuthenticated, roles]);
 
   useEffect(() => {
     if (!isLanding) {

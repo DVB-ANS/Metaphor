@@ -6,6 +6,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react';
 import { useAccount, useSignMessage, useDisconnect } from 'wagmi';
@@ -37,25 +38,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authedAddress, setAuthedAddress] = useState<string | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const autoSignInAttempted = useRef(false);
 
   // Restore session from localStorage on mount
   useEffect(() => {
     const saved = getToken();
     if (saved && address) {
-      // Validate existing token
       api.get<{ address: string; roles: RoleName[] }>('/api/auth/me')
         .then((data) => {
           if (data.address === address.toLowerCase()) {
             setJwt(saved);
             setAuthedAddress(data.address);
             setRoles(data.roles);
+            autoSignInAttempted.current = true;
           } else {
-            // Token is for a different address
             setToken(null);
           }
         })
         .catch(() => {
-          // Token expired or backend unreachable — clear silently
           setToken(null);
         });
     }
@@ -69,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRoles([]);
       setToken(null);
       setError(null);
+      autoSignInAttempted.current = false;
     }
   }, [isConnected, address, authedAddress]);
 
@@ -82,23 +83,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
-      // Step 1: Request nonce from backend
       const { message } = await api.post<{ nonce: string; message: string }>(
         '/api/auth/nonce',
         { address },
       );
 
-      // Step 2: Sign the message with the wallet
       const signature = await signMessageAsync({ message });
 
-      // Step 3: Send signature to backend for verification + JWT
       const { token, address: authed, roles: userRoles } = await api.post<{
         token: string;
         address: string;
         roles: RoleName[];
       }>('/api/auth/login', { address, signature, message });
 
-      // Step 4: Store token and update state
       setToken(token);
       setJwt(token);
       setAuthedAddress(authed);
@@ -110,6 +107,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsSigningIn(false);
     }
   }, [address, signMessageAsync]);
+
+  // Auto sign-in when wallet connects and no JWT exists
+  useEffect(() => {
+    if (isConnected && address && !jwt && !isSigningIn && !autoSignInAttempted.current) {
+      const saved = getToken();
+      if (!saved) {
+        autoSignInAttempted.current = true;
+        signIn();
+      }
+    }
+  }, [isConnected, address, jwt, isSigningIn, signIn]);
 
   const signOut = useCallback(() => {
     setToken(null);

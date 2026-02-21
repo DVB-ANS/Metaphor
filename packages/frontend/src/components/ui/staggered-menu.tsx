@@ -8,6 +8,7 @@ import './staggered-menu.css';
 interface MenuItem {
   label: string;
   href: string;
+  locked?: boolean;
 }
 
 interface StaggeredMenuProps {
@@ -300,12 +301,33 @@ export function StaggeredMenu({
             {items.map((it, idx) => (
               <li className="sm-panel-itemWrap" key={it.label + idx}>
                 <button
-                  className="sm-panel-item"
-                  onClick={() => handleItemClick(it.href)}
+                  className={`sm-panel-item${it.locked ? ' sm-panel-item--locked' : ''}`}
+                  onClick={it.locked ? undefined : () => handleItemClick(it.href)}
                   data-index={idx + 1}
                   type="button"
+                  disabled={it.locked}
+                  aria-disabled={it.locked}
                 >
-                  <span className="sm-panel-itemLabel">{it.label}</span>
+                  <span className="sm-panel-itemLabel">
+                    {it.label}
+                    {it.locked && (
+                      <svg
+                        className="sm-panel-lockIcon"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                    )}
+                  </span>
                 </button>
               </li>
             ))}
