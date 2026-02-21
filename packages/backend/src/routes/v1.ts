@@ -1016,23 +1016,26 @@ const walletRegistry = loadWalletRegistry();
 // ─── GET /v1/admin/wallets ───────────────────────────────────────────
 
 router.get('/admin/wallets', async (_req: Request, res: Response) => {
-  // Enrich registry with on-chain whitelist status
-  if (walletRegistry.length > 0) {
-    try {
-      const ac = getContract('AccessControl', ADDRESSES.accessControl);
-      await Promise.all(walletRegistry.map(async (w) => {
+  if (walletRegistry.length === 0) { res.json([]); return; }
+
+  // Only return wallets that are actually whitelisted on-chain
+  try {
+    const ac = getContract('AccessControl', ADDRESSES.accessControl);
+    const checks = await Promise.all(
+      walletRegistry.map(async (w) => {
         try {
           const isWL = await ac.isWhitelisted(w.address);
-          if (isWL && w.kycStatus === 'pending') {
-            w.kycStatus = 'verified';
-          }
-        } catch { /* skip */ }
-      }));
-    } catch { /* skip enrichment */ }
-    res.json(walletRegistry);
-    return;
+          return isWL ? { ...w, kycStatus: 'verified' as const } : null;
+        } catch {
+          return null;
+        }
+      }),
+    );
+    res.json(checks.filter(Boolean));
+  } catch {
+    // RPC down — return registry as-is with verified status
+    res.json(walletRegistry.map((w) => ({ ...w, kycStatus: 'verified' })));
   }
-  res.json([]);
 });
 
 // ─── POST /v1/admin/wallets — add wallet to registry ─────────────────

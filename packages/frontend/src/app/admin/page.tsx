@@ -28,31 +28,9 @@ export default function AdminPage() {
   const [walletForm, setWalletForm] = useState({ address: '', label: '', role: '' });
   const [removeTarget, setRemoveTarget] = useState<{ address: string; label: string } | null>(null);
   const [configSaved, setConfigSaved] = useState(false);
-  const [verifyingAddress, setVerifyingAddress] = useState<string | null>(null);
 
   const { addToWhitelist, status: whitelistStatus, txHash: whitelistTxHash, error: whitelistError, reset: resetWhitelist } = useAddToWhitelist();
   const { grantRole, status: roleStatus, txHash: roleTxHash, error: roleError, reset: resetRole } = useGrantRole();
-
-  // Verify KYC hook (separate instance for inline verify button)
-  const { addToWhitelist: verifyOnChain, status: verifyStatus, reset: resetVerify } = useAddToWhitelist();
-
-  useEffect(() => {
-    if (verifyStatus === 'success' && verifyingAddress) {
-      // Persist to backend + update local state
-      api.post(`/api/v1/admin/wallets/${verifyingAddress}/verify`).catch(() => {});
-      setWallets((prev) => prev.map((w: any) =>
-        w.address.toLowerCase() === verifyingAddress.toLowerCase() ? { ...w, kycStatus: 'verified' } : w
-      ));
-      setVerifyingAddress(null);
-      resetVerify();
-    }
-  }, [verifyStatus]);
-
-  const handleVerifyKyc = (address: string) => {
-    setVerifyingAddress(address);
-    resetVerify();
-    verifyOnChain(address as `0x${string}`);
-  };
 
   // Step 2: after whitelist tx confirms, grant role if one was selected
   useEffect(() => {
@@ -283,7 +261,7 @@ export default function AdminPage() {
                 <th className="text-left pb-2 text-xs font-medium uppercase tracking-widest text-black/30">Address</th>
                 <th className="text-left pb-2 text-xs font-medium uppercase tracking-widest text-black/30">Label</th>
                 <th className="text-left pb-2 text-xs font-medium uppercase tracking-widest text-black/30">Role</th>
-                <th className="text-left pb-2 text-xs font-medium uppercase tracking-widest text-black/30">KYC</th>
+                <th className="text-left pb-2 text-xs font-medium uppercase tracking-widest text-black/30">Status</th>
                 <th className="text-left pb-2 text-xs font-medium uppercase tracking-widest text-black/30">Added</th>
                 <th className="w-10" />
               </tr>
@@ -305,21 +283,9 @@ export default function AdminPage() {
                     </span>
                   </td>
                   <td className="py-3 pr-4">
-                    {wallet.kycStatus === 'verified' ? (
-                      <span className="text-xs px-2 py-0.5 border border-black/20 text-black/45">
-                        Verified
-                      </span>
-                    ) : (
-                      <button
-                        className="text-xs px-2 py-0.5 border border-black/[0.06] text-black/30 hover:border-black hover:text-black transition-colors disabled:opacity-40"
-                        disabled={verifyingAddress === wallet.address}
-                        onClick={() => handleVerifyKyc(wallet.address)}
-                      >
-                        {verifyingAddress === wallet.address
-                          ? verifyStatus === 'pending' ? 'Confirm...' : verifyStatus === 'confirming' ? 'Confirming...' : 'Pending'
-                          : 'Pending — Verify'}
-                      </button>
-                    )}
+                    <span className="text-xs px-2 py-0.5 border border-black/20 text-black/45">
+                      Whitelisted
+                    </span>
                   </td>
                   <td className="py-3 pr-4 text-xs text-black/30">{wallet.addedAt}</td>
                   <td className="py-3">
