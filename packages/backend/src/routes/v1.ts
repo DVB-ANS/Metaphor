@@ -274,10 +274,31 @@ function normalizeAIReport(report: AIReport) {
   };
 }
 
+// ─── In-memory cache (TTL-based) ─────────────────────────────────────
+
+const CACHE_TTL_MS = 30_000; // 30 seconds
+const cache = new Map<string, { data: any; expiry: number }>();
+
+function getCached<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (entry && Date.now() < entry.expiry) return entry.data as T;
+  cache.delete(key);
+  return null;
+}
+
+function setCache(key: string, data: any): void {
+  cache.set(key, { data, expiry: Date.now() + CACHE_TTL_MS });
+}
+
+// ─── On-chain fetch functions (parallelized) ─────────────────────────
+
 async function fetchAllTokens() {
+  const cached = getCached<any[]>('tokens');
+  if (cached) return cached;
+
   const factory = getContract('TokenFactory', ADDRESSES.tokenFactory);
   const addrs: string[] = await factory.getAllTokens();
-  return Promise.all(
+  const tokens = await Promise.all(
     addrs.map(async (addr) => {
       const token = getContract('RWAToken', addr);
       const [name, symbol, totalSupply, [isin, rate, maturity, issuer]] = await Promise.all([
@@ -299,79 +320,93 @@ async function fetchAllTokens() {
       };
     }),
   );
+  setCache('tokens', tokens);
+  return tokens;
 }
 
 async function fetchAllVaults() {
+  const cached = getCached<any[]>('vaults');
+  if (cached) return cached;
+
   const vm = getContract('VaultManager', ADDRESSES.vaultManager);
   const nextId = Number(await vm.nextVaultId());
-  const vaults = [];
-  for (let i = 0; i < nextId; i++) {
-    try {
-      const [owner, status, createdAt] = await vm.getVaultInfo(i);
-      const tokenAddrs: string[] = await vm.getVaultTokens(i);
 
-      let totalValue = 0;
-      const assets = await Promise.all(
-        tokenAddrs.map(async (addr, idx) => {
-          try {
-            const token = getContract('RWAToken', addr);
-            const balance = await vm.getVaultBalance(i, addr);
-            const balNum = Number(ethers.formatUnits(balance, 18));
-            totalValue += balNum;
-            const [name, [, rate, maturity]] = await Promise.all([
-              token.name(),
-              token.getMetadata(),
-            ]);
-            return {
-              id: `asset-${i}-${idx}`,
-              name,
-              type: 'corporate-bond' as const,
-              allocation: 0, // calculated below
-              value: balNum,
-              rating: 'N/A',
-              couponRate: Number(rate) / 100,
-              maturityDate: maturity > 0 ? new Date(Number(maturity) * 1000).toISOString().slice(0, 10) : 'N/A',
-              jurisdiction: 'N/A',
-            };
-          } catch {
-            return null;
+  // Fetch all vaults in parallel instead of sequential for loop
+  const vaultPromises = Array.from({ length: nextId }, (_, i) =>
+    (async () => {
+      try {
+        const [[owner, status, createdAt], tokenAddrs] = await Promise.all([
+          vm.getVaultInfo(i),
+          vm.getVaultTokens(i) as Promise<string[]>,
+        ]);
+
+        let totalValue = 0;
+        const assets = await Promise.all(
+          tokenAddrs.map(async (addr, idx) => {
+            try {
+              const token = getContract('RWAToken', addr);
+              const [balance, name, [, rate, maturity]] = await Promise.all([
+                vm.getVaultBalance(i, addr),
+                token.name(),
+                token.getMetadata(),
+              ]);
+              const balNum = Number(ethers.formatUnits(balance, 18));
+              totalValue += balNum;
+              return {
+                id: `asset-${i}-${idx}`,
+                name,
+                type: 'corporate-bond' as const,
+                allocation: 0,
+                value: balNum,
+                rating: 'N/A',
+                couponRate: Number(rate) / 100,
+                maturityDate: maturity > 0 ? new Date(Number(maturity) * 1000).toISOString().slice(0, 10) : 'N/A',
+                jurisdiction: 'N/A',
+              };
+            } catch {
+              return null;
+            }
+          }),
+        );
+
+        const validAssets = assets.filter(Boolean) as NonNullable<(typeof assets)[number]>[];
+        if (totalValue > 0) {
+          for (const a of validAssets) {
+            a.allocation = Math.round((a.value / totalValue) * 100);
           }
-        }),
-      );
-
-      const validAssets = assets.filter(Boolean) as NonNullable<(typeof assets)[number]>[];
-      if (totalValue > 0) {
-        for (const a of validAssets) {
-          a.allocation = Math.round((a.value / totalValue) * 100);
         }
+
+        const meta = vaultMetaStore.get(i);
+        const riskMap: Record<string, { score: number; level: string }> = {
+          low: { score: 18, level: 'low' },
+          moderate: { score: 42, level: 'moderate' },
+          high: { score: 67, level: 'high' },
+        };
+        const risk = meta?.riskTolerance ? riskMap[meta.riskTolerance] : null;
+
+        return {
+          id: `vault-${i}`,
+          onChainId: i,
+          name: meta?.name || `Vault #${i}`,
+          totalValue: totalValue || meta?.initialDeposit || 0,
+          riskScore: risk?.score ?? null,
+          riskLevel: risk?.level ?? null,
+          status: STATUS_MAP[Number(status)] || 'active',
+          assetCount: validAssets.length,
+          yieldYTD: null,
+          createdAt: createdAt > 0 ? new Date(Number(createdAt) * 1000).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+          assets: validAssets,
+          owner,
+        };
+      } catch {
+        return null;
       }
+    })(),
+  );
 
-      const meta = vaultMetaStore.get(i);
-      const riskMap: Record<string, { score: number; level: string }> = {
-        low: { score: 18, level: 'low' },
-        moderate: { score: 42, level: 'moderate' },
-        high: { score: 67, level: 'high' },
-      };
-      const risk = meta?.riskTolerance ? riskMap[meta.riskTolerance] : null;
-
-      vaults.push({
-        id: `vault-${i}`,
-        onChainId: i,
-        name: meta?.name || `Vault #${i}`,
-        totalValue: totalValue || meta?.initialDeposit || 0,
-        riskScore: risk?.score ?? null,
-        riskLevel: risk?.level ?? null,
-        status: STATUS_MAP[Number(status)] || 'active',
-        assetCount: validAssets.length,
-        yieldYTD: null,
-        createdAt: createdAt > 0 ? new Date(Number(createdAt) * 1000).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
-        assets: validAssets,
-        owner,
-      });
-    } catch {
-      // skip inaccessible vaults
-    }
-  }
+  const results = await Promise.all(vaultPromises);
+  const vaults = results.filter(Boolean) as NonNullable<(typeof results)[number]>[];
+  setCache('vaults', vaults);
   return vaults;
 }
 
@@ -392,74 +427,78 @@ const FREQUENCY_LABEL: Record<number, string> = {
 };
 
 async function fetchAllPayments() {
+  const cached = getCached<any[]>('payments');
+  if (cached) return cached;
+
   try {
     const scheduler = getContract('CouponScheduler', ADDRESSES.couponScheduler);
     const count = Number(await scheduler.bondCount());
-    const payments: any[] = [];
     const now = Math.floor(Date.now() / 1000);
+    const hederaProvider = getHederaProvider();
 
-    for (let i = 0; i < count; i++) {
-      try {
-        const bond = await scheduler.getBond(i);
-        const dates: bigint[] = await scheduler.getPaymentDates(i);
-        const couponAmount = await scheduler.getCouponAmount(i);
-
-        // bond.token is the RWA bond token address on Hedera
-        const tokenAddr = bond.token;
-        let tokenName = `Bond #${i}`;
+    // Fetch all bonds in parallel
+    const bondPromises = Array.from({ length: count }, (_, i) =>
+      (async () => {
         try {
-          if (tokenAddr && tokenAddr !== ethers.ZeroAddress) {
-            // Use Hedera provider since these tokens live on Hedera testnet
-            const hederaProvider = getHederaProvider();
-            const token = new ethers.Contract(tokenAddr, ABIS.RWAToken, hederaProvider);
-            tokenName = await token.name();
-          }
-        } catch { /* keep default */ }
+          const [bond, dates, couponAmount] = await Promise.all([
+            scheduler.getBond(i),
+            scheduler.getPaymentDates(i) as Promise<bigint[]>,
+            scheduler.getCouponAmount(i),
+          ]);
 
-        // Determine decimals: use paymentToken decimals (typically 6 for USDC-like)
-        // CouponScheduler stores faceValue in paymentToken scale
-        let decimals = 6;
-        try {
+          // Resolve token name + decimals in parallel
+          let tokenName = `Bond #${i}`;
+          let decimals = 6;
+          const tokenAddr = bond.token;
           const ptAddr = bond.paymentToken;
-          if (ptAddr && ptAddr !== ethers.ZeroAddress) {
-            const hederaProvider = getHederaProvider();
-            const pt = new ethers.Contract(ptAddr, ['function decimals() view returns (uint8)'], hederaProvider);
-            decimals = Number(await pt.decimals());
-          }
-        } catch { /* default 6 */ }
 
-        const rate = Number(bond.rate);
-        const freq = Number(bond.frequency);
-        const freqLabel = FREQUENCY_LABEL[freq] || 'Quarterly';
+          await Promise.all([
+            (async () => {
+              try {
+                if (tokenAddr && tokenAddr !== ethers.ZeroAddress) {
+                  const token = new ethers.Contract(tokenAddr, ABIS.RWAToken, hederaProvider);
+                  tokenName = await token.name();
+                }
+              } catch { /* keep default */ }
+            })(),
+            (async () => {
+              try {
+                if (ptAddr && ptAddr !== ethers.ZeroAddress) {
+                  const pt = new ethers.Contract(ptAddr, ['function decimals() view returns (uint8)'], hederaProvider);
+                  decimals = Number(await pt.decimals());
+                }
+              } catch { /* default 6 */ }
+            })(),
+          ]);
 
-        for (const date of dates) {
-          const ts = Number(date);
-          const dateStr = new Date(ts * 1000).toISOString().slice(0, 10);
-          const daysUntil = Math.max(0, Math.ceil((ts - now) / 86400));
+          const rate = Number(bond.rate);
+          const freq = Number(bond.frequency);
+          const freqLabel = FREQUENCY_LABEL[freq] || 'Quarterly';
 
-          // Get on-chain payment status
-          let status = ts <= now ? 'completed' : 'scheduled';
-          try {
-            const payment = await scheduler.getPayment(i, date);
-            status = PAYMENT_STATUS[Number(payment.status)] || status;
-          } catch { /* fall back to time-based */ }
-
-          payments.push({
-            id: `hedera-pay-${i}-${ts}`,
-            assetName: tokenName,
-            amount: Number(ethers.formatUnits(couponAmount, decimals)),
-            date: dateStr,
-            daysUntil,
-            vaultId: `bond-${i}`,
-            vaultName: `${tokenName} (${freqLabel}, ${rate / 100}%)`,
-            status,
-            recipients: 1,
+          // Build payments — use time-based status (skip per-date getPayment calls for speed)
+          return dates.map((date) => {
+            const ts = Number(date);
+            return {
+              id: `hedera-pay-${i}-${ts}`,
+              assetName: tokenName,
+              amount: Number(ethers.formatUnits(couponAmount, decimals)),
+              date: new Date(ts * 1000).toISOString().slice(0, 10),
+              daysUntil: Math.max(0, Math.ceil((ts - now) / 86400)),
+              vaultId: `bond-${i}`,
+              vaultName: `${tokenName} (${freqLabel}, ${rate / 100}%)`,
+              status: ts <= now ? 'completed' : 'scheduled',
+              recipients: 1,
+            };
           });
+        } catch {
+          return [];
         }
-      } catch {
-        // skip inaccessible bonds
-      }
-    }
+      })(),
+    );
+
+    const nested = await Promise.all(bondPromises);
+    const payments = nested.flat();
+    setCache('payments', payments);
     return payments;
   } catch {
     return [];
@@ -651,6 +690,7 @@ router.post('/vaults/meta', (req: Request, res: Response) => {
     };
     vaultMetaStore.set(meta.onChainId, meta);
     saveVaultMeta();
+    cache.delete('vaults'); // invalidate vault cache
     res.json({ ok: true });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
