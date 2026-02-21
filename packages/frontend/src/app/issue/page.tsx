@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { RoleGate } from '@/components/role-gate';
-import { api } from '@/lib/api';
+import { TxStatusBanner } from '@/components/tx-status';
+import { useCreateToken } from '@/hooks/use-adi-write';
 
 interface AssetForm {
   assetType: string;
@@ -48,39 +49,36 @@ const labelClass = 'text-xs font-medium uppercase tracking-widest text-black/30'
 export default function IssueAssetPage() {
   const router = useRouter();
   const [form, setForm] = useState<AssetForm>(initialForm);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const { createToken, status, txHash, error, reset } = useCreateToken();
 
   const handleChange = (field: keyof AssetForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setSubmitError(null);
-
-    try {
-      const maturityTimestamp = form.maturityDate
-        ? Math.floor(new Date(form.maturityDate).getTime() / 1000)
-        : 0;
-      const supply = form.tokenCount ? BigInt(form.tokenCount).toString() : '0';
-
-      await api.post('/api/adi/tokens', {
-        name: form.name,
-        symbol: deriveSymbol(form.name),
-        isin: form.isin || 'PENDING',
-        rate: Number(form.couponRate) || 0,
-        maturity: maturityTimestamp,
-        initialSupply: supply,
-      });
-
-      router.push('/vaults');
-    } catch (err: any) {
-      setSubmitError(err.message || 'Failed to issue asset. Check that the backend is running.');
-    } finally {
-      setIsSubmitting(false);
+  useEffect(() => {
+    if (status === 'success') {
+      const timer = setTimeout(() => router.push('/vaults'), 1500);
+      return () => clearTimeout(timer);
     }
+  }, [status, router]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    reset();
+
+    const maturityTimestamp = form.maturityDate
+      ? Math.floor(new Date(form.maturityDate).getTime() / 1000)
+      : 0;
+    const supply = form.tokenCount || '0';
+
+    createToken({
+      name: form.name,
+      symbol: deriveSymbol(form.name),
+      isin: form.isin || 'PENDING',
+      rate: Number(form.couponRate) || 0,
+      maturity: maturityTimestamp,
+      initialSupply: supply,
+    });
   };
 
   return (
@@ -94,9 +92,14 @@ export default function IssueAssetPage() {
           </p>
         </div>
 
-        {submitError && (
-          <div className="mb-6 border border-black/10 px-4 py-3">
-            <p className="text-sm text-black/60">{submitError}</p>
+        {status !== 'idle' && (
+          <div className="mb-6">
+            <TxStatusBanner
+              status={status}
+              txHash={txHash}
+              error={error}
+              successMessage="Token created on-chain. Redirecting to vaults..."
+            />
           </div>
         )}
 
@@ -291,10 +294,10 @@ export default function IssueAssetPage() {
           <div className="pt-2">
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={status === 'pending' || status === 'confirming'}
               className="bg-black text-white px-6 py-2 text-sm hover:bg-black/80 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Submitting...' : 'Tokenize Asset'}
+              {status === 'pending' ? 'Confirm in wallet...' : status === 'confirming' ? 'Confirming...' : 'Tokenize Asset'}
             </button>
           </div>
         </form>

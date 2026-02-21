@@ -33,7 +33,7 @@ export const config = getDefaultConfig({
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'demo',
   chains: [adiChain, mainnet, sepolia],
   transports: {
-    [adiChain.id]: http(process.env.NEXT_PUBLIC_ADI_RPC_URL || 'http://localhost:8545'),
+    [adiChain.id]: http(process.env.NEXT_PUBLIC_ADI_RPC_URL || 'https://rpc.ab.testnet.adifoundation.ai'),
     [mainnet.id]: http(),
     [sepolia.id]: http(),
   },

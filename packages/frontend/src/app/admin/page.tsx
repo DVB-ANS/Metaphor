@@ -20,14 +20,48 @@ import {
 import { RoleGate } from '@/components/role-gate';
 import { type Role } from '@/lib/mock-data';
 import { api } from '@/lib/api';
+import { TxStatusBanner } from '@/components/tx-status';
+import { useAddToWhitelist, useGrantRole } from '@/hooks/use-adi-write';
 
 export default function AdminPage() {
   const [addWalletOpen, setAddWalletOpen] = useState(false);
   const [walletForm, setWalletForm] = useState({ address: '', label: '', role: '' });
-  const [walletSubmitting, setWalletSubmitting] = useState(false);
-  const [walletError, setWalletError] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<{ address: string; label: string } | null>(null);
   const [configSaved, setConfigSaved] = useState(false);
+
+  const { addToWhitelist, status: whitelistStatus, txHash: whitelistTxHash, error: whitelistError, reset: resetWhitelist } = useAddToWhitelist();
+  const { grantRole, status: roleStatus, txHash: roleTxHash, error: roleError, reset: resetRole } = useGrantRole();
+
+  // Step 2: after whitelist tx confirms, grant role if one was selected
+  useEffect(() => {
+    if (whitelistStatus === 'success' && walletForm.role && walletForm.address) {
+      grantRole(walletForm.role, walletForm.address as `0x${string}`);
+    }
+  }, [whitelistStatus]);
+
+  // Step 3: after role tx confirms (or whitelist if no role), update UI
+  const finalStatus = walletForm.role ? roleStatus : whitelistStatus;
+  useEffect(() => {
+    if (finalStatus === 'success') {
+      setWallets((prev) => [
+        ...prev,
+        {
+          address: walletForm.address,
+          label: walletForm.label,
+          role: walletForm.role || 'investor',
+          addedAt: new Date().toISOString().slice(0, 10),
+          kycStatus: 'pending',
+        },
+      ]);
+      const timer = setTimeout(() => {
+        setAddWalletOpen(false);
+        setWalletForm({ address: '', label: '', role: '' });
+        resetWhitelist();
+        resetRole();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [finalStatus]);
 
   const [whitelabelForm, setWhitelabelForm] = useState({
     institutionName: 'Metaphor',
@@ -46,32 +80,16 @@ export default function AdminPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleAddWallet = async () => {
-    setWalletSubmitting(true);
-    setWalletError(null);
-    try {
-      await api.post('/api/adi/whitelist', { address: walletForm.address });
-      if (walletForm.role) {
-        await api.post('/api/adi/roles', { address: walletForm.address, role: walletForm.role });
-      }
-      setWallets((prev) => [
-        ...prev,
-        {
-          address: walletForm.address,
-          label: walletForm.label,
-          role: walletForm.role || 'investor',
-          addedAt: new Date().toISOString().slice(0, 10),
-          kycStatus: 'pending',
-        },
-      ]);
-      setAddWalletOpen(false);
-      setWalletForm({ address: '', label: '', role: '' });
-    } catch (err: unknown) {
-      setWalletError(err instanceof Error ? err.message : 'Failed to add wallet. Check that the backend is running.');
-    } finally {
-      setWalletSubmitting(false);
-    }
+  const handleAddWallet = () => {
+    resetWhitelist();
+    resetRole();
+    addToWhitelist(walletForm.address as `0x${string}`);
   };
+
+  const walletSubmitting = whitelistStatus === 'pending' || whitelistStatus === 'confirming' || roleStatus === 'pending' || roleStatus === 'confirming';
+  const walletTxError = whitelistError || roleError;
+  const currentTxStatus = roleStatus !== 'idle' ? roleStatus : whitelistStatus;
+  const currentTxHash = roleTxHash || whitelistTxHash;
 
   const roles = [
     {
@@ -176,10 +194,13 @@ export default function AdminPage() {
                     Add a KYC-verified wallet to the authorized whitelist on ADI AccessControl.
                   </DialogDescription>
                 </DialogHeader>
-                {walletError && (
-                  <div className="border border-black/10 bg-black/5 p-3">
-                    <p className="text-sm text-black/45">{walletError}</p>
-                  </div>
+                {currentTxStatus !== 'idle' && (
+                  <TxStatusBanner
+                    status={currentTxStatus}
+                    txHash={currentTxHash}
+                    error={walletTxError}
+                    successMessage={walletForm.role ? 'Whitelisted and role granted.' : 'Wallet whitelisted.'}
+                  />
                 )}
                 <div className="space-y-4">
                   <div className="space-y-1">
@@ -227,7 +248,7 @@ export default function AdminPage() {
                     onClick={handleAddWallet}
                     disabled={walletSubmitting || !walletForm.address}
                   >
-                    {walletSubmitting ? 'Adding...' : 'Add to Whitelist'}
+                    {whitelistStatus === 'pending' ? 'Confirm whitelist...' : whitelistStatus === 'confirming' ? 'Confirming whitelist...' : roleStatus === 'pending' ? 'Confirm role grant...' : roleStatus === 'confirming' ? 'Confirming role...' : 'Add to Whitelist'}
                   </button>
                 </DialogFooter>
               </DialogContent>

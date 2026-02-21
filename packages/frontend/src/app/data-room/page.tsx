@@ -45,6 +45,11 @@ export default function DataRoomPage() {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
 
+  const [tradeOpen, setTradeOpen] = useState(false);
+  const [tradeForm, setTradeForm] = useState({ vaultId: '', from: '', to: '', assetName: '', amount: '', price: '', message: '' });
+  const [tradeSubmitLoading, setTradeSubmitLoading] = useState(false);
+  const [tradeError, setTradeError] = useState<string | null>(null);
+
   const [confidentialVaults, setConfidentialVaults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -76,14 +81,23 @@ export default function DataRoomPage() {
     setInviteLoading(true);
     setInviteError(null);
     try {
-      await api.post(`/api/canton/vaults/${inviteForm.vaultId}/invite`, {
-        to: inviteForm.publicKey,
+      const party = await api.post<any>(`/api/v1/canton/vaults/${inviteForm.vaultId}/parties`, {
+        name: inviteForm.name,
         role: inviteForm.role,
+        publicKey: inviteForm.publicKey,
       });
+      // Update local state with the new party
+      setConfidentialVaults((prev) =>
+        prev.map((cv: any) =>
+          cv.id === inviteForm.vaultId
+            ? { ...cv, parties: [...cv.parties, party] }
+            : cv
+        ),
+      );
       setInviteOpen(false);
       setInviteForm({ vaultId: '', publicKey: '', name: '', role: '' });
     } catch (err: any) {
-      setInviteError(err.message || 'Failed to send invitation. Canton may not be configured.');
+      setInviteError(err.message || 'Failed to send invitation.');
     } finally {
       setInviteLoading(false);
     }
@@ -92,7 +106,7 @@ export default function DataRoomPage() {
   const handleTradeAccept = async (tradeId: string) => {
     setTradeLoading(tradeId);
     try {
-      await api.post(`/api/canton/trades/${tradeId}/accept`);
+      await api.post(`/api/v1/canton/trades/${tradeId}/status`, { status: 'accepted' });
       setConfidentialVaults((prev) =>
         prev.map((cv) => ({
           ...cv,
@@ -102,7 +116,7 @@ export default function DataRoomPage() {
         })),
       );
     } catch (err: any) {
-      alert(`Accept failed: ${err.message}. Canton may not be configured.`);
+      alert(`Accept failed: ${err.message}`);
     } finally {
       setTradeLoading(null);
     }
@@ -111,7 +125,7 @@ export default function DataRoomPage() {
   const handleTradeReject = async (tradeId: string) => {
     setTradeLoading(tradeId);
     try {
-      await api.post(`/api/canton/trades/${tradeId}/reject`);
+      await api.post(`/api/v1/canton/trades/${tradeId}/status`, { status: 'rejected' });
       setConfidentialVaults((prev) =>
         prev.map((cv) => ({
           ...cv,
@@ -121,9 +135,37 @@ export default function DataRoomPage() {
         })),
       );
     } catch (err: any) {
-      alert(`Reject failed: ${err.message}. Canton may not be configured.`);
+      alert(`Reject failed: ${err.message}`);
     } finally {
       setTradeLoading(null);
+    }
+  };
+
+  const handleProposeTrade = async () => {
+    setTradeSubmitLoading(true);
+    setTradeError(null);
+    try {
+      const trade = await api.post<any>(`/api/v1/canton/vaults/${tradeForm.vaultId}/trades`, {
+        from: tradeForm.from,
+        to: tradeForm.to,
+        assetName: tradeForm.assetName,
+        amount: Number(tradeForm.amount),
+        price: Number(tradeForm.price),
+        message: tradeForm.message || undefined,
+      });
+      setConfidentialVaults((prev) =>
+        prev.map((cv: any) =>
+          cv.id === tradeForm.vaultId
+            ? { ...cv, trades: [...cv.trades, trade] }
+            : cv
+        ),
+      );
+      setTradeOpen(false);
+      setTradeForm({ vaultId: '', from: '', to: '', assetName: '', amount: '', price: '', message: '' });
+    } catch (err: any) {
+      setTradeError(err.message || 'Failed to propose trade.');
+    } finally {
+      setTradeSubmitLoading(false);
     }
   };
 
@@ -155,6 +197,13 @@ export default function DataRoomPage() {
           <p className="mt-1 text-sm text-black/45">Confidential vaults with party-scoped visibility</p>
         </div>
         <RoleGate allowed={['ADMIN', 'ISSUER']} silent>
+        <div className="flex gap-2">
+        <button
+          className="border border-black text-black text-sm px-4 py-2 hover:bg-black hover:text-white transition-colors"
+          onClick={() => setTradeOpen(true)}
+        >
+          Propose Trade
+        </button>
         <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
           <DialogTrigger asChild>
             <button className="bg-black text-white text-sm px-4 py-2 hover:bg-black/80 transition-colors">
@@ -236,8 +285,78 @@ export default function DataRoomPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
         </RoleGate>
       </div>
+
+      {/* Propose Trade Dialog */}
+      {tradeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/20" onClick={() => setTradeOpen(false)} />
+          <div className="relative z-10 w-full max-w-md bg-white p-8 shadow-xl border border-black/10">
+            <h3 className="text-base font-semibold text-black">Propose Trade</h3>
+            <p className="mt-1 text-sm text-black/45">Create a bilateral trade proposal on a confidential vault.</p>
+            {tradeError && (
+              <div className="mt-3 border border-black/10 bg-black/5 p-3">
+                <p className="text-sm text-black/45">{tradeError}</p>
+              </div>
+            )}
+            <div className="mt-4 space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium uppercase tracking-widest text-black/30">Vault</label>
+                <select
+                  value={tradeForm.vaultId}
+                  onChange={(e) => setTradeForm((prev) => ({ ...prev, vaultId: e.target.value }))}
+                  className="w-full border border-black/10 bg-white px-3 py-2 text-sm text-black focus:border-black/30 focus:outline-none appearance-none"
+                >
+                  <option value="">Select vault</option>
+                  {confidentialVaults.map((v: any) => (
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium uppercase tracking-widest text-black/30">From</label>
+                  <input className="w-full border border-black/10 bg-transparent text-sm text-black px-3 py-2 outline-none focus:border-black/30" placeholder="e.g. BlackRock" value={tradeForm.from} onChange={(e) => setTradeForm((prev) => ({ ...prev, from: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium uppercase tracking-widest text-black/30">To</label>
+                  <input className="w-full border border-black/10 bg-transparent text-sm text-black px-3 py-2 outline-none focus:border-black/30" placeholder="e.g. BNP Paribas" value={tradeForm.to} onChange={(e) => setTradeForm((prev) => ({ ...prev, to: e.target.value }))} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium uppercase tracking-widest text-black/30">Asset Name</label>
+                <input className="w-full border border-black/10 bg-transparent text-sm text-black px-3 py-2 outline-none focus:border-black/30" placeholder="e.g. France OAT 2028" value={tradeForm.assetName} onChange={(e) => setTradeForm((prev) => ({ ...prev, assetName: e.target.value }))} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium uppercase tracking-widest text-black/30">Amount (tokens)</label>
+                  <input type="number" className="w-full border border-black/10 bg-transparent text-sm text-black px-3 py-2 outline-none focus:border-black/30" placeholder="200" value={tradeForm.amount} onChange={(e) => setTradeForm((prev) => ({ ...prev, amount: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium uppercase tracking-widest text-black/30">Price / token (USD)</label>
+                  <input type="number" className="w-full border border-black/10 bg-transparent text-sm text-black px-3 py-2 outline-none focus:border-black/30" placeholder="1050" value={tradeForm.price} onChange={(e) => setTradeForm((prev) => ({ ...prev, price: e.target.value }))} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium uppercase tracking-widest text-black/30">Message (optional)</label>
+                <textarea className="w-full border border-black/10 bg-transparent text-sm text-black px-3 py-2 outline-none focus:border-black/30 resize-none" rows={2} placeholder="Trade rationale..." value={tradeForm.message} onChange={(e) => setTradeForm((prev) => ({ ...prev, message: e.target.value }))} />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button onClick={() => setTradeOpen(false)} className="text-sm text-black/40 hover:text-black transition-colors px-3 py-1.5">Cancel</button>
+              <button
+                onClick={handleProposeTrade}
+                disabled={tradeSubmitLoading || !tradeForm.vaultId || !tradeForm.from || !tradeForm.to || !tradeForm.assetName || !tradeForm.amount || !tradeForm.price}
+                className="text-sm font-medium text-white bg-black px-4 py-1.5 hover:bg-black/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {tradeSubmitLoading ? 'Submitting...' : 'Propose Trade'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Visibility Model */}
       <div>

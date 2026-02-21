@@ -3,12 +3,53 @@
 
 import { Router, type Request, type Response, type Router as RouterType } from 'express';
 import { ethers } from 'ethers';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { getContract, ADDRESSES } from '../config.js';
 import { listReports, getReport } from '../services/ai-client.js';
 import { cantonClient } from '../services/canton-client.js';
 import type { AIReport } from '../types/ai.js';
 
+const __filename_v1 = fileURLToPath(import.meta.url);
+const __dirname_v1 = dirname(__filename_v1);
+
 const router: RouterType = Router();
+
+// ─── Vault metadata store (persisted to JSON) ───────────────────────
+
+interface VaultMeta {
+  onChainId: number;
+  name: string;
+  strategy?: string;
+  assetClass?: string;
+  initialDeposit?: number;
+  riskTolerance?: string;
+  investmentHorizon?: string;
+  description?: string;
+}
+
+const VAULT_META_DIR = resolve(__dirname_v1, '../../data');
+const VAULT_META_FILE = resolve(VAULT_META_DIR, 'vault-meta.json');
+
+function loadVaultMeta(): Map<number, VaultMeta> {
+  try {
+    if (existsSync(VAULT_META_FILE)) {
+      const data = JSON.parse(readFileSync(VAULT_META_FILE, 'utf-8')) as VaultMeta[];
+      return new Map(data.map((m) => [m.onChainId, m]));
+    }
+  } catch { /* start fresh */ }
+  return new Map();
+}
+
+function saveVaultMeta(): void {
+  try {
+    if (!existsSync(VAULT_META_DIR)) mkdirSync(VAULT_META_DIR, { recursive: true });
+    writeFileSync(VAULT_META_FILE, JSON.stringify(Array.from(vaultMetaStore.values()), null, 2));
+  } catch { /* non-critical */ }
+}
+
+const vaultMetaStore = loadVaultMeta();
 
 // ─── Demo Fallback Data ──────────────────────────────────────────────
 
@@ -305,13 +346,21 @@ async function fetchAllVaults() {
         }
       }
 
+      const meta = vaultMetaStore.get(i);
+      const riskMap: Record<string, { score: number; level: string }> = {
+        low: { score: 18, level: 'low' },
+        moderate: { score: 42, level: 'moderate' },
+        high: { score: 67, level: 'high' },
+      };
+      const risk = meta?.riskTolerance ? riskMap[meta.riskTolerance] : null;
+
       vaults.push({
         id: `vault-${i}`,
         onChainId: i,
-        name: `Vault #${i}`,
-        totalValue,
-        riskScore: null,
-        riskLevel: null,
+        name: meta?.name || `Vault #${i}`,
+        totalValue: totalValue || meta?.initialDeposit || 0,
+        riskScore: risk?.score ?? null,
+        riskLevel: risk?.level ?? null,
         status: STATUS_MAP[Number(status)] || 'active',
         assetCount: validAssets.length,
         yieldYTD: null,
@@ -376,6 +425,62 @@ async function fetchAllPayments() {
   }
 }
 
+/**
+ * Generate coupon payment schedules from real on-chain vault assets.
+ * For each token deposited in a vault, generates semi-annual payments
+ * from today until maturity based on the token's coupon rate and balance.
+ */
+async function generatePaymentsFromVaults() {
+  const vaults = await fetchAllVaults();
+  const payments: any[] = [];
+  const now = Math.floor(Date.now() / 1000);
+  const SIX_MONTHS = 182 * 86400;
+
+  for (const vault of vaults) {
+    for (const asset of vault.assets) {
+      const rate = asset.couponRate || 0;
+      const value = asset.value || 0;
+      if (rate === 0 || value === 0) continue;
+
+      // Semi-annual coupon = (rate% / 2) * notional value
+      const couponAmount = Math.round((rate / 100 / 2) * value);
+      if (couponAmount === 0) continue;
+
+      // Parse maturity
+      const maturityStr = asset.maturityDate;
+      const maturityTs = maturityStr && maturityStr !== 'N/A'
+        ? Math.floor(new Date(maturityStr).getTime() / 1000)
+        : now + 3 * 365 * 86400; // default 3 years out
+
+      // Generate payment dates: semi-annual from vault creation until maturity
+      const createdTs = Math.floor(new Date(vault.createdAt).getTime() / 1000);
+      let payDate = createdTs + SIX_MONTHS;
+
+      while (payDate <= maturityTs) {
+        const dateStr = new Date(payDate * 1000).toISOString().slice(0, 10);
+        const daysUntil = Math.max(0, Math.ceil((payDate - now) / 86400));
+        const status = payDate <= now ? 'completed' : 'scheduled';
+
+        payments.push({
+          id: `pay-${vault.id}-${asset.id}-${payDate}`,
+          assetName: asset.name,
+          amount: couponAmount,
+          date: dateStr,
+          daysUntil,
+          vaultId: vault.id,
+          vaultName: vault.name,
+          status,
+          recipients: 1,
+        });
+
+        payDate += SIX_MONTHS;
+      }
+    }
+  }
+
+  return payments.sort((a, b) => a.date.localeCompare(b.date));
+}
+
 // ─── GET /v1/dashboard ───────────────────────────────────────────────
 
 router.get('/dashboard', async (_req: Request, res: Response) => {
@@ -387,6 +492,9 @@ router.get('/dashboard', async (_req: Request, res: Response) => {
     try { vaults = await fetchAllVaults(); } catch { /* empty */ }
     try { tokens = await fetchAllTokens(); } catch { /* empty */ }
     try { payments = await fetchAllPayments(); } catch { /* empty */ }
+    if (payments.length === 0) {
+      try { payments = await generatePaymentsFromVaults(); } catch { /* empty */ }
+    }
 
     // Fall back to demo data when on-chain is empty
     if (vaults.length === 0) vaults = DEMO_VAULTS;
@@ -481,6 +589,33 @@ router.get('/vaults/:id', async (req: Request, res: Response) => {
   res.status(404).json({ error: 'Vault not found' });
 });
 
+// ─── POST /v1/vaults/meta — persist vault metadata (name, strategy…) ─
+
+router.post('/vaults/meta', (req: Request, res: Response) => {
+  try {
+    const { onChainId, name, strategy, assetClass, initialDeposit, riskTolerance, investmentHorizon, description } = req.body ?? {};
+    if (onChainId == null || !name) {
+      res.status(400).json({ error: 'onChainId and name are required' });
+      return;
+    }
+    const meta: VaultMeta = {
+      onChainId: Number(onChainId),
+      name,
+      strategy,
+      assetClass,
+      initialDeposit: initialDeposit ? Number(initialDeposit) : undefined,
+      riskTolerance,
+      investmentHorizon,
+      description,
+    };
+    vaultMetaStore.set(meta.onChainId, meta);
+    saveVaultMeta();
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
+  }
+});
+
 // ─── GET /v1/tokens ──────────────────────────────────────────────────
 
 router.get('/tokens', async (_req: Request, res: Response) => {
@@ -496,7 +631,15 @@ router.get('/tokens', async (_req: Request, res: Response) => {
 
 router.get('/payments', async (req: Request, res: Response) => {
   try {
+    // 1. Try Hedera CouponScheduler
     let payments = await fetchAllPayments();
+
+    // 2. Generate from real on-chain vault assets
+    if (payments.length === 0) {
+      try { payments = await generatePaymentsFromVaults(); } catch { /* fall through */ }
+    }
+
+    // 3. Demo fallback
     if (payments.length === 0) payments = DEMO_PAYMENTS;
 
     const { vaultId } = req.query;
@@ -582,9 +725,59 @@ router.get('/ai/score-history', (req: Request, res: Response) => {
   }
 });
 
+// ─── Canton Data Room — party & trade persistence ────────────────────
+
+interface CantonParty {
+  id: string;
+  name: string;
+  role: 'owner' | 'counterparty' | 'auditor';
+  publicKey: string;
+  joinedAt: string;
+}
+
+interface CantonTrade {
+  id: string;
+  from: string;
+  to: string;
+  assetName: string;
+  amount: number;
+  price: number;
+  status: string;
+  createdAt: string;
+  message?: string;
+}
+
+interface CantonVaultOverlay {
+  vaultId: string;
+  parties: CantonParty[];
+  trades: CantonTrade[];
+}
+
+const CANTON_OVERLAY_FILE = resolve(VAULT_META_DIR, 'canton-overlay.json');
+
+function loadCantonOverlays(): Map<string, CantonVaultOverlay> {
+  try {
+    if (existsSync(CANTON_OVERLAY_FILE)) {
+      const data = JSON.parse(readFileSync(CANTON_OVERLAY_FILE, 'utf-8')) as CantonVaultOverlay[];
+      return new Map(data.map((o) => [o.vaultId, o]));
+    }
+  } catch { /* start fresh */ }
+  return new Map();
+}
+
+function saveCantonOverlays(): void {
+  try {
+    if (!existsSync(VAULT_META_DIR)) mkdirSync(VAULT_META_DIR, { recursive: true });
+    writeFileSync(CANTON_OVERLAY_FILE, JSON.stringify(Array.from(cantonOverlays.values()), null, 2));
+  } catch { /* non-critical */ }
+}
+
+const cantonOverlays = loadCantonOverlays();
+
 // ─── GET /v1/canton/vaults ───────────────────────────────────────────
 
 router.get('/canton/vaults', async (_req: Request, res: Response) => {
+  // Try Canton first
   try {
     const result = await cantonClient.query('ConfidentialVault', 'admin');
     if (Array.isArray(result) && result.length > 0) {
@@ -593,7 +786,120 @@ router.get('/canton/vaults', async (_req: Request, res: Response) => {
     }
   } catch { /* fall through */ }
 
+  // Build from real on-chain ADI vaults
+  try {
+    const vaults = await fetchAllVaults();
+    if (vaults.length > 0) {
+      const confidentialVaults = vaults.map((v) => {
+        const overlay = cantonOverlays.get(v.id);
+        const ownerShort = typeof v.owner === 'string'
+          ? `${v.owner.slice(0, 6)}...${v.owner.slice(-4)}`
+          : 'Unknown';
+
+        // Default owner party if no overlay exists
+        const defaultParties: CantonParty[] = [{
+          id: `party-${v.id}-owner`,
+          name: ownerShort,
+          role: 'owner',
+          publicKey: typeof v.owner === 'string' ? v.owner : '0x0',
+          joinedAt: v.createdAt,
+        }];
+
+        return {
+          id: v.id,
+          name: `${v.name} — Data Room`,
+          owner: ownerShort,
+          parties: overlay?.parties ?? defaultParties,
+          trades: overlay?.trades ?? [],
+          assets: v.assets,
+          assetCount: v.assetCount,
+          totalValue: v.totalValue,
+          createdAt: v.createdAt,
+        };
+      });
+      res.json(confidentialVaults);
+      return;
+    }
+  } catch { /* fall through */ }
+
   res.json(DEMO_CONFIDENTIAL_VAULTS);
+});
+
+// ─── POST /v1/canton/vaults/:vaultId/parties — add party to overlay ──
+
+router.post('/canton/vaults/:vaultId/parties', (req: Request, res: Response) => {
+  const vaultId = req.params.vaultId as string;
+  const { name, role, publicKey } = req.body ?? {};
+  if (!name || !role || !publicKey) {
+    res.status(400).json({ error: 'name, role, and publicKey are required' });
+    return;
+  }
+
+  if (!cantonOverlays.has(vaultId)) {
+    cantonOverlays.set(vaultId, { vaultId, parties: [], trades: [] });
+  }
+  const overlay = cantonOverlays.get(vaultId)!;
+
+  const party: CantonParty = {
+    id: `party-${Date.now()}`,
+    name,
+    role,
+    publicKey,
+    joinedAt: new Date().toISOString().slice(0, 10),
+  };
+  overlay.parties.push(party);
+  saveCantonOverlays();
+  res.json(party);
+});
+
+// ─── POST /v1/canton/vaults/:vaultId/trades — add trade to overlay ───
+
+router.post('/canton/vaults/:vaultId/trades', (req: Request, res: Response) => {
+  const vaultId = req.params.vaultId as string;
+  const { from, to, assetName, amount, price, message } = req.body ?? {};
+  if (!from || !to || !assetName || !amount || !price) {
+    res.status(400).json({ error: 'from, to, assetName, amount, and price are required' });
+    return;
+  }
+
+  if (!cantonOverlays.has(vaultId)) {
+    cantonOverlays.set(vaultId, { vaultId, parties: [], trades: [] });
+  }
+  const overlay = cantonOverlays.get(vaultId)!;
+
+  const trade: CantonTrade = {
+    id: `trade-${Date.now()}`,
+    from,
+    to,
+    assetName,
+    amount: Number(amount),
+    price: Number(price),
+    status: 'pending',
+    createdAt: new Date().toISOString().slice(0, 10),
+    message,
+  };
+  overlay.trades.push(trade);
+  saveCantonOverlays();
+  res.json(trade);
+});
+
+// ─── POST /v1/canton/trades/:tradeId/status — update trade status ────
+
+router.post('/canton/trades/:tradeId/status', (req: Request, res: Response) => {
+  const { tradeId } = req.params;
+  const { status } = req.body ?? {};
+  if (!status) { res.status(400).json({ error: 'status is required' }); return; }
+
+  for (const overlay of cantonOverlays.values()) {
+    const trade = overlay.trades.find((t) => t.id === tradeId);
+    if (trade) {
+      trade.status = status;
+      saveCantonOverlays();
+      res.json(trade);
+      return;
+    }
+  }
+  res.status(404).json({ error: 'Trade not found' });
 });
 
 // ─── GET /v1/admin/wallets ───────────────────────────────────────────

@@ -17,6 +17,8 @@ import {
 } from '@/lib/mock-data';
 import { api } from '@/lib/api';
 import { RoleGate } from '@/components/role-gate';
+import { TxStatusBanner } from '@/components/tx-status';
+import { useCreateVault } from '@/hooks/use-adi-write';
 
 interface VaultForm {
   name: string;
@@ -64,7 +66,7 @@ export default function VaultsPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [vaultForm, setVaultForm] = useState<VaultForm>(initialVaultForm);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { createVault, status: vaultTxStatus, txHash: vaultTxHash, error: vaultTxError, reset: resetVaultTx, onChainVaultId } = useCreateVault();
 
   useEffect(() => {
     api.get<any[]>('/api/v1/vaults')
@@ -73,39 +75,60 @@ export default function VaultsPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (vaultTxStatus === 'success') {
+      // Persist vault metadata to backend so it survives page reload
+      if (onChainVaultId != null) {
+        api.post('/api/v1/vaults/meta', {
+          onChainId: onChainVaultId,
+          name: vaultForm.name,
+          strategy: vaultForm.strategy,
+          assetClass: vaultForm.assetClass,
+          initialDeposit: vaultForm.initialDeposit,
+          riskTolerance: vaultForm.riskTolerance,
+          investmentHorizon: vaultForm.investmentHorizon,
+          description: vaultForm.description,
+        }).catch(() => { /* best-effort */ });
+      }
+
+      const riskMap: Record<string, { score: number; level: RiskLevel }> = {
+        low: { score: 18, level: 'low' },
+        moderate: { score: 42, level: 'moderate' },
+        high: { score: 67, level: 'high' },
+      };
+      const risk = riskMap[vaultForm.riskTolerance] || riskMap.moderate;
+
+      const newVault = {
+        id: onChainVaultId != null ? `vault-${onChainVaultId}` : `vault-new-${Date.now()}`,
+        name: vaultForm.name,
+        totalValue: Number(vaultForm.initialDeposit) || 0,
+        riskScore: risk.score,
+        riskLevel: risk.level,
+        status: 'active',
+        assetCount: 0,
+        yieldYTD: 0,
+        createdAt: new Date().toISOString().slice(0, 10),
+        assets: [],
+      };
+
+      setAllVaults((prev) => [newVault, ...prev]);
+      setVaultForm(initialVaultForm);
+      const timer = setTimeout(() => {
+        setCreateOpen(false);
+        resetVaultTx();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [vaultTxStatus]);
+
   const handleFormChange = (field: keyof VaultForm, value: string) => {
     setVaultForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleCreateVault = async (e: React.FormEvent) => {
+  const handleCreateVault = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    const riskMap: Record<string, { score: number; level: RiskLevel }> = {
-      low: { score: 18, level: 'low' },
-      moderate: { score: 42, level: 'moderate' },
-      high: { score: 67, level: 'high' },
-    };
-    const risk = riskMap[vaultForm.riskTolerance] || riskMap.moderate;
-
-    const newVault = {
-      id: `vault-new-${Date.now()}`,
-      name: vaultForm.name,
-      totalValue: Number(vaultForm.initialDeposit) || 0,
-      riskScore: risk.score,
-      riskLevel: risk.level,
-      status: 'active',
-      assetCount: 0,
-      yieldYTD: 0,
-      createdAt: new Date().toISOString().slice(0, 10),
-      assets: [],
-    };
-
-    setAllVaults((prev) => [newVault, ...prev]);
-    setVaultForm(initialVaultForm);
-    setIsSubmitting(false);
-    setCreateOpen(false);
+    resetVaultTx();
+    createVault();
   };
 
   if (loading) {
@@ -294,12 +317,21 @@ export default function VaultsPage() {
                 </div>
               )}
 
+              {vaultTxStatus !== 'idle' && (
+                <TxStatusBanner
+                  status={vaultTxStatus}
+                  txHash={vaultTxHash}
+                  error={vaultTxError}
+                  successMessage="Vault created on-chain."
+                />
+              )}
+
               <button
                 type="submit"
-                disabled={isSubmitting || !vaultForm.name}
+                disabled={vaultTxStatus === 'pending' || vaultTxStatus === 'confirming' || !vaultForm.name}
                 className="w-full bg-black text-white text-sm font-medium py-2.5 hover:bg-black/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? 'Creating...' : 'Create Vault'}
+                {vaultTxStatus === 'pending' ? 'Confirm in wallet...' : vaultTxStatus === 'confirming' ? 'Confirming...' : 'Create Vault'}
               </button>
             </form>
           </DialogContent>

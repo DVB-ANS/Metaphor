@@ -24,6 +24,8 @@ import {
 } from '@/lib/mock-data';
 import { api } from '@/lib/api';
 import { RoleGate } from '@/components/role-gate';
+import { TxStatusBanner } from '@/components/tx-status';
+import { useDeposit } from '@/hooks/use-adi-write';
 
 const COLORS = ['#000', '#555', '#888', '#aaa', '#ccc'];
 
@@ -73,6 +75,47 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
   const [actionError, setActionError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'upcoming' | 'completed'>('upcoming');
+
+  // Deposit dialog state
+  const [depositOpen, setDepositOpen] = useState(false);
+  const [availableTokens, setAvailableTokens] = useState<{ address: string; name: string; symbol: string }[]>([]);
+  const [depositForm, setDepositForm] = useState({ token: '', amount: '' });
+  const { deposit, status: depositStatus, txHash: depositTxHash, error: depositError, reset: resetDeposit } = useDeposit();
+
+  useEffect(() => {
+    api.get<any[]>('/api/v1/tokens')
+      .then(setAvailableTokens)
+      .catch(() => {});
+  }, []);
+
+  // Extract on-chain vault ID from the vault id string (e.g. "vault-3" → 3)
+  const onChainId = id.startsWith('vault-') ? parseInt(id.replace('vault-', ''), 10) : NaN;
+
+  const handleDeposit = () => {
+    if (!depositForm.token || !depositForm.amount || isNaN(onChainId)) return;
+    resetDeposit();
+    deposit({
+      vaultId: BigInt(onChainId),
+      token: depositForm.token as `0x${string}`,
+      amount: depositForm.amount,
+    });
+  };
+
+  // Reload vault data after successful deposit
+  useEffect(() => {
+    if (depositStatus === 'success') {
+      const timer = setTimeout(() => {
+        setDepositOpen(false);
+        setDepositForm({ token: '', amount: '' });
+        resetDeposit();
+        // Refresh vault data
+        api.get<Vault>(`/api/v1/vaults/${id}`)
+          .then(setVault)
+          .catch(() => {});
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [depositStatus]);
 
   useEffect(() => {
     Promise.all([
@@ -227,13 +270,21 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
               Created {vault.createdAt} &middot; {vault.assetCount} assets &middot; {statusLabel}
             </p>
           </div>
-          <button
-            onClick={handleAnalyze}
-            disabled={analyzing}
-            className="text-xs font-medium text-black/40 hover:text-black transition-colors disabled:opacity-40 disabled:cursor-not-allowed border border-black/10 px-3 py-1.5 rounded"
-          >
-            {analyzing ? 'Analyzing...' : 'Analyze with AI'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { resetDeposit(); setDepositOpen(true); }}
+              className="text-xs font-medium text-white bg-black px-3 py-1.5 hover:bg-black/80 transition-colors"
+            >
+              Deposit Token
+            </button>
+            <button
+              onClick={handleAnalyze}
+              disabled={analyzing}
+              className="text-xs font-medium text-black/40 hover:text-black transition-colors disabled:opacity-40 disabled:cursor-not-allowed border border-black/10 px-3 py-1.5"
+            >
+              {analyzing ? 'Analyzing...' : 'Analyze with AI'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -594,6 +645,77 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
                 className="text-sm font-medium text-white bg-black px-4 py-1.5 rounded hover:bg-black/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {actionLoading ? 'Confirming...' : 'Confirm & Execute'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deposit Dialog */}
+      {depositOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/20"
+            onClick={() => setDepositOpen(false)}
+          />
+          <div className="relative z-10 w-full max-w-md bg-white p-8 shadow-xl border border-black/10">
+            <h3 className="text-base font-semibold text-black">Deposit Token into Vault</h3>
+            <p className="mt-1 text-sm text-black/45">
+              Select a token and amount. You will sign two transactions: ERC-20 approve, then deposit.
+            </p>
+
+            {depositStatus !== 'idle' && (
+              <div className="mt-4">
+                <TxStatusBanner
+                  status={depositStatus}
+                  txHash={depositTxHash}
+                  error={depositError}
+                  successMessage="Deposit confirmed. Refreshing vault..."
+                />
+              </div>
+            )}
+
+            <div className="mt-6 space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-medium uppercase tracking-widest text-black/30">Token</label>
+                <select
+                  value={depositForm.token}
+                  onChange={(e) => setDepositForm((prev) => ({ ...prev, token: e.target.value }))}
+                  className="w-full border border-black/10 bg-white px-3 py-2 text-sm text-black focus:border-black/30 focus:outline-none appearance-none"
+                >
+                  <option value="">Select token</option>
+                  {availableTokens.map((t) => (
+                    <option key={t.address} value={t.address}>
+                      {t.name} ({t.symbol})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium uppercase tracking-widest text-black/30">Amount</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 1000"
+                  value={depositForm.amount}
+                  onChange={(e) => setDepositForm((prev) => ({ ...prev, amount: e.target.value }))}
+                  className="w-full border border-black/10 bg-transparent px-3 py-2 text-sm text-black placeholder:text-black/25 focus:border-black/30 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setDepositOpen(false)}
+                className="text-sm text-black/40 hover:text-black transition-colors px-3 py-1.5"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeposit}
+                disabled={!depositForm.token || !depositForm.amount || depositStatus === 'pending' || depositStatus === 'confirming'}
+                className="text-sm font-medium text-white bg-black px-4 py-1.5 hover:bg-black/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {depositStatus === 'pending' ? 'Confirm in wallet...' : depositStatus === 'confirming' ? 'Confirming...' : 'Deposit'}
               </button>
             </div>
           </div>
