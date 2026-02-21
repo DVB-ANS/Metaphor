@@ -94,25 +94,33 @@ function requestBodyToVaultData(body: AnalyzeRequestBody): VaultData {
 
 // ─── Call ai-engine (mock or live) ───────────────────────────
 
+async function callMock(vaultData: VaultData): Promise<AnalysisResult> {
+  const { generateMockRiskReport } = await import('ai-engine/dist/mock.js');
+  const startTime = Date.now();
+  const report: RiskReport = generateMockRiskReport(vaultData);
+  return {
+    report,
+    generatedAt: new Date().toISOString(),
+    model: 'mock-local',
+    provider: 'mock',
+    verifiable: false,
+    durationMs: Date.now() - startTime,
+  };
+}
+
 async function callAiEngine(vaultData: VaultData): Promise<AnalysisResult> {
   if (useMock) {
-    // Import mock directly — avoids loading 0g-client + @0glabs/0g-serving-broker
-    const { generateMockRiskReport } = await import('ai-engine/dist/mock.js');
-    const startTime = Date.now();
-    const report: RiskReport = generateMockRiskReport(vaultData);
-    return {
-      report,
-      generatedAt: new Date().toISOString(),
-      model: 'mock-local',
-      provider: 'mock',
-      verifiable: false,
-      durationMs: Date.now() - startTime,
-    };
+    return callMock(vaultData);
   }
 
   // Live mode — load full ai-engine (includes 0g-client)
-  const { analyzeVault: aiEngineAnalyze } = await import('ai-engine');
-  return aiEngineAnalyze(vaultData, { useMock: false });
+  try {
+    const { analyzeVault: aiEngineAnalyze } = await import('ai-engine');
+    return await aiEngineAnalyze(vaultData, { useMock: false });
+  } catch (err) {
+    console.warn(`[AI] Live 0G inference failed: ${(err as Error).message}. Falling back to mock.`);
+    return callMock(vaultData);
+  }
 }
 
 // ─── Adapter: AnalysisResult → AIReport ──────────────────────
