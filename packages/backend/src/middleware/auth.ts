@@ -3,8 +3,11 @@ import jwt from 'jsonwebtoken';
 import { ethers } from 'ethers';
 import type { AuthPayload } from '../types/auth.js';
 
-if (!process.env.JWT_SECRET) throw new Error('Missing JWT_SECRET in .env — required for authentication');
-const JWT_SECRET: string = process.env.JWT_SECRET;
+const JWT_SECRET: string = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === 'production') throw new Error('Missing JWT_SECRET in .env — required for authentication');
+  console.warn('WARNING: Using dev JWT secret. Set JWT_SECRET in .env for production.');
+  return 'metaphor-dev-secret-do-not-use-in-prod';
+})();
 const JWT_EXPIRY = '24h';
 
 // In-memory nonce store: address → { nonce, createdAt }
