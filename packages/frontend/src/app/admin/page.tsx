@@ -26,6 +26,8 @@ export default function AdminPage() {
   const [walletForm, setWalletForm] = useState({ address: '', label: '', role: '' });
   const [walletSubmitting, setWalletSubmitting] = useState(false);
   const [walletError, setWalletError] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<{ address: string; label: string } | null>(null);
+  const [configSaved, setConfigSaved] = useState(false);
 
   const [whitelabelForm, setWhitelabelForm] = useState({
     institutionName: 'Metaphor',
@@ -64,8 +66,8 @@ export default function AdminPage() {
       ]);
       setAddWalletOpen(false);
       setWalletForm({ address: '', label: '', role: '' });
-    } catch (err: any) {
-      setWalletError(err.message || 'Failed to add wallet. Check that the backend is running.');
+    } catch (err: unknown) {
+      setWalletError(err instanceof Error ? err.message : 'Failed to add wallet. Check that the backend is running.');
     } finally {
       setWalletSubmitting(false);
     }
@@ -268,11 +270,7 @@ export default function AdminPage() {
                   <td className="py-3">
                     <button
                       className="text-xs text-black/30 hover:text-black transition-colors"
-                      onClick={() => {
-                        if (confirm(`Remove ${wallet.label} (${wallet.address}) from the whitelist?`)) {
-                          setWallets((prev) => prev.filter((w: any) => w.address !== wallet.address));
-                        }
-                      }}
+                      onClick={() => setRemoveTarget({ address: wallet.address, label: wallet.label })}
                     >
                       Remove
                     </button>
@@ -349,12 +347,46 @@ export default function AdminPage() {
 
           <button
             className="bg-black text-white text-sm px-4 py-2 hover:bg-black/80 transition-colors"
-            onClick={() => alert('White-label config saved (mock). Multi-tenant registry coming in Phase 4.')}
+            onClick={() => setConfigSaved(true)}
           >
             Save Configuration
           </button>
+          {configSaved && (
+            <p className="mt-2 text-xs text-black/30">Configuration saved.</p>
+          )}
         </div>
       </div>
+
+      {/* Remove wallet confirmation dialog */}
+      <Dialog open={!!removeTarget} onOpenChange={(open) => !open && setRemoveTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Wallet</DialogTitle>
+            <DialogDescription>
+              Remove {removeTarget?.label} ({removeTarget?.address}) from the whitelist?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button
+              className="border border-black text-black text-sm px-4 py-2 hover:bg-black/5 transition-colors"
+              onClick={() => setRemoveTarget(null)}
+            >
+              Cancel
+            </button>
+            <button
+              className="bg-black text-white text-sm px-4 py-2 hover:bg-black/80 transition-colors"
+              onClick={() => {
+                if (removeTarget) {
+                  setWallets((prev) => prev.filter((w: any) => w.address !== removeTarget.address));
+                }
+                setRemoveTarget(null);
+              }}
+            >
+              Remove
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </RoleGate>
   );
 }

@@ -70,6 +70,7 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [selectedRecId, setSelectedRecId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'upcoming' | 'completed'>('upcoming');
 
@@ -142,8 +143,8 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
         })),
       });
       setAnalysisResult(mapBackendReport(raw));
-    } catch (err: any) {
-      alert(`Analysis failed: ${err.message}`);
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Analysis failed');
     } finally {
       setAnalyzing(false);
     }
@@ -167,8 +168,8 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
       const updated = mapBackendReport(raw);
       if (analysisResult) setAnalysisResult(updated);
       else setExistingReport(updated);
-    } catch (err: any) {
-      alert(`Approve failed: ${err.message}`);
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Approve failed');
     } finally {
       setActionLoading(null);
       setApproveDialogOpen(false);
@@ -187,8 +188,8 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
       const updated = mapBackendReport(raw);
       if (analysisResult) setAnalysisResult(updated);
       else setExistingReport(updated);
-    } catch (err: any) {
-      alert(`Reject failed: ${err.message}`);
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Reject failed');
     } finally {
       setActionLoading(null);
     }
@@ -202,6 +203,13 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
   return (
     <RoleGate allowed={['ADMIN', 'ISSUER', 'INVESTOR']}>
     <div className="mx-auto max-w-4xl space-y-16 pt-4">
+      {/* Action error banner */}
+      {actionError && (
+        <div className="flex items-center justify-between border border-black/10 bg-white p-3">
+          <p className="text-sm text-black/60">{actionError}</p>
+          <button onClick={() => setActionError(null)} className="text-xs text-black/30 hover:text-black">Dismiss</button>
+        </div>
+      )}
       {/* Header */}
       <div>
         <Link

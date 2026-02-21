@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
@@ -43,6 +44,12 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 }));
 app.use(express.json({ limit: '10mb' }));
+
+// Rate limiting
+const apiLimiter = rateLimit({ windowMs: 60_000, max: 100, standardHeaders: true, legacyHeaders: false });
+const authLimiter = rateLimit({ windowMs: 60_000, max: 10, standardHeaders: true, legacyHeaders: false });
+app.use('/api/auth', authLimiter);
+app.use('/api', apiLimiter);
 
 // Routes
 app.use('/api', healthRouter);
