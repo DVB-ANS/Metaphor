@@ -97,9 +97,6 @@ template AuditRight
   where
     signatory vaultOwner, auditor
 
-    key (vaultOwner, auditor, vaultId) : (Party, Party, Text)
-    maintainer key._1
-
     ensure totalValue >= 0.0 && assetCount >= 0
 
     -- | Owner updates the compliance data when the vault changes.
