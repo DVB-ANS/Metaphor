@@ -5,14 +5,20 @@ import {
 } from "@hashgraph/sdk";
 import { readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
-import { getHederaClient } from "./config";
+import { getHederaClient, getOperatorEvmAddress } from "./config";
 
 async function main() {
     const client = getHederaClient();
     const operatorId = client.operatorAccountId!;
 
+    // IMPORTANT: Use the ECDSA-derived EVM address, NOT operatorId.toSolidityAddress().
+    // On Hedera, msg.sender in the EVM resolves to this ECDSA alias address,
+    // so Ownable.owner() must store this format for onlyOwner checks to pass.
+    const adminAddress = getOperatorEvmAddress();
+
     console.log("Deploying contracts to Hedera Testnet...");
     console.log(`Operator: ${operatorId.toString()}`);
+    console.log(`Admin EVM address (ECDSA alias): 0x${adminAddress}`);
 
     // Read compiled bytecodes
     const schedulerBytecode = readFileSync(
@@ -39,9 +45,7 @@ async function main() {
         .setBytecode(schedulerJson.bytecode.object)
         .setGas(5_000_000)
         .setConstructorParameters(
-            new ContractFunctionParameters().addAddress(
-                operatorId.toSolidityAddress()
-            )
+            new ContractFunctionParameters().addAddress(adminAddress)
         );
 
     const schedulerResponse = await schedulerTx.execute(client);
@@ -56,9 +60,7 @@ async function main() {
         .setBytecode(distributorJson.bytecode.object)
         .setGas(5_000_000)
         .setConstructorParameters(
-            new ContractFunctionParameters().addAddress(
-                operatorId.toSolidityAddress()
-            )
+            new ContractFunctionParameters().addAddress(adminAddress)
         );
 
     const distributorResponse = await distributorTx.execute(client);
@@ -70,6 +72,7 @@ async function main() {
     const deployments = {
         network: process.env.HEDERA_NETWORK || 'testnet',
         deployer: operatorId.toString(),
+        adminEvmAddress: adminAddress,
         deployedAt: new Date().toISOString(),
         contracts: {
             couponScheduler: {

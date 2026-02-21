@@ -31,5 +31,78 @@
     ],
     "status": "pending_approval",
     "createdAt": "2026-02-20T22:26:55.340Z"
+  },
+  {
+    "reportId": "report-002",
+    "vaultId": "vault-0",
+    "riskScore": 42,
+    "riskLevel": "moderate",
+    "summary": "[Mock] Analysis for vault vault-0. 2 assets, total nominal $3 900 000. Risk score: 42.",
+    "recommendations": [],
+    "stressTests": [
+      {
+        "scenario": "Interest rate +1%",
+        "impact": "-2.0%"
+      },
+      {
+        "scenario": "Credit spread widening +100bps",
+        "impact": "-4.0%"
+      },
+      {
+        "scenario": "Sovereign default (largest exposure)",
+        "impact": "-15.0%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "0x543073CAdD1d8Bcfa98223415EA140461Bfe1eb5",
+        "name": "France Sovereign OAT 2028",
+        "score": 25,
+        "riskLevel": "low",
+        "comment": "[Mock] Coupon rate 2.1%, nominal $2 080 000."
+      },
+      {
+        "assetId": "0xf8D986C993E6A46cF9f2da3995284d2108a9407B",
+        "name": "Siemens AG Corporate 2027",
+        "score": 52,
+        "riskLevel": "moderate",
+        "comment": "[Mock] Coupon rate 4.3%, nominal $1 820 000."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T04:39:03.285Z"
+  },
+  {
+    "reportId": "report-003",
+    "vaultId": "vault-1",
+    "riskScore": 40,
+    "riskLevel": "moderate",
+    "summary": "[Mock] Analysis for vault vault-1. 1 assets, total nominal $2 400 000. Risk score: 40.",
+    "recommendations": [],
+    "stressTests": [
+      {
+        "scenario": "Interest rate +1%",
+        "impact": "-2.0%"
+      },
+      {
+        "scenario": "Credit spread widening +100bps",
+        "impact": "-4.0%"
+      },
+      {
+        "scenario": "Sovereign default (largest exposure)",
+        "impact": "-15.0%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "0x8689df8C3AF99975E822484b5527745A407E7326",
+        "name": "US Treasury 10Y 2035",
+        "score": 42,
+        "riskLevel": "moderate",
+        "comment": "[Mock] Coupon rate 3.5%, nominal $2 400 000."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T04:39:04.241Z"
   }
 ]

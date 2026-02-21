@@ -92,6 +92,24 @@ main      ← version stable, déployable (on ne push JAMAIS directement ici)
 - No secrets in repo — use `.env` (template in `.env.example`)
 - All user-facing text across the entire site must be in English. All units must use the imperial system.
 
+## Known Bugs / Blockers
+
+### Hedera — `registerBond` reverts (`CONTRACT_REVERT_EXECUTED`)
+
+**Status**: FIXED — redeploy required (`pnpm deploy` in `packages/contracts-hedera`)
+
+**Root cause**: On Hedera, `msg.sender` in the EVM resolves to the **ECDSA-derived alias address** (keccak256 of the public key, e.g. `0x40a1Db6B...`), NOT the long-zero address from `AccountId.toSolidityAddress()` (e.g. `0x0000...79af01`). The deploy script was passing the long-zero format to the `Ownable` constructor, so `onlyOwner` checks always failed because `msg.sender != owner()`.
+
+**Fix applied**: `deploy.ts` now uses `PrivateKey.publicKey.toEvmAddress()` to derive the ECDSA alias and passes it as the `admin` constructor parameter. All scripts updated to use `getOperatorEvmAddress()` from `config.ts`. This ensures `owner()` stores the same address format as `msg.sender`.
+
+**IMPORTANT — Hedera address convention**: Never use `AccountId.toSolidityAddress()` for addresses that will be compared against `msg.sender` in Solidity (Ownable admin, issuer, access control roles). Always use `getOperatorEvmAddress()` from `config.ts`.
+
+**New contracts deployed** (2026-02-21):
+- CouponScheduler: `0.0.7996912` / `0x00000000000000000000000000000000007a05f0`
+- YieldDistributor: `0.0.7996914` / `0x00000000000000000000000000000000007a05f2`
+- Admin (ECDSA alias): `0x40a1db6bf87e0416fde0d9cedd1d148186475ea0`
+- 2 bonds registered (France OAT 2028 + US Treasury 10Y)
+
 ## Bounty Requirements (must not forget)
 
 - **ADI**: MVP on ADI chain, real economic utility, white-label ready, RBAC/multisig

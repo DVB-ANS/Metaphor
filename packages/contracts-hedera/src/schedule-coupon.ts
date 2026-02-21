@@ -4,17 +4,20 @@ import {
     ContractCallQuery,
     ContractId,
 } from "@hashgraph/sdk";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 import { getHederaClient } from "./config";
 
 async function main() {
     const client = getHederaClient();
-    const contractId = process.env.COUPON_SCHEDULER_CONTRACT_ID;
 
-    if (!contractId) {
-        throw new Error("Missing COUPON_SCHEDULER_CONTRACT_ID in .env");
-    }
-
-    const schedulerContractId = ContractId.fromString(contractId);
+    // Read deployed contract ID from deployments.json
+    const deployments = JSON.parse(
+        readFileSync(resolve(__dirname, "../deployments.json"), "utf-8")
+    );
+    const schedulerContractId = ContractId.fromString(
+        deployments.contracts.couponScheduler.contractId
+    );
 
     // Step 1: Authorize the contract with Hedera Schedule Service
     console.log("1. Authorizing contract with Schedule Service...");

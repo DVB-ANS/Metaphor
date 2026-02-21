@@ -11,7 +11,7 @@ import {
 } from '@hashgraph/sdk';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { getHederaClient } from './config';
+import { getHederaClient, getOperatorEvmAddress } from './config';
 
 async function main() {
     const client = getHederaClient();
@@ -54,9 +54,11 @@ async function main() {
     const rate = 500; // 5% annual
     const frequency = 1; // Quarterly
 
-    // Use placeholder addresses for bond/payment tokens (EVM addresses)
-    const bondTokenAddr = operatorId.toSolidityAddress();
-    const paymentTokenAddr = operatorId.toSolidityAddress();
+    // Use the ECDSA-derived EVM address for issuer (matches msg.sender in Hedera EVM)
+    const evmAddress = getOperatorEvmAddress();
+    // Placeholder token addresses (using EVM alias — format doesn't matter for tokens)
+    const bondTokenAddr = evmAddress;
+    const paymentTokenAddr = evmAddress;
 
     const registerTx = new ContractExecuteTransaction()
         .setContractId(schedulerContractId)
@@ -71,7 +73,7 @@ async function main() {
                 .addUint8(frequency)
                 .addUint256(startDate)
                 .addUint256(maturityDate)
-                .addAddress(operatorId.toSolidityAddress()),
+                .addAddress(evmAddress),
         );
 
     const registerResponse = await registerTx.execute(client);

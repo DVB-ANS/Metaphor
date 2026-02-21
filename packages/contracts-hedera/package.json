@@ -7,6 +7,8 @@
     "test": "forge test -vvv",
     "test:gas": "forge test --gas-report",
     "deploy": "tsx src/deploy.ts",
+    "check-owner": "tsx src/check-owner.ts",
+    "register-bond": "tsx src/register-bond.ts",
     "schedule": "tsx src/schedule-coupon.ts",
     "e2e": "tsx src/e2e-test.ts",
     "lint": "forge fmt --check"

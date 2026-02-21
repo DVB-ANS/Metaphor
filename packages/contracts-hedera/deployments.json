@@ -1,15 +1,16 @@
 {
   "network": "testnet",
   "deployer": "0.0.7974657",
-  "deployedAt": "2026-02-21T04:41:35.491Z",
+  "adminEvmAddress": "40a1db6bf87e0416fde0d9cedd1d148186475ea0",
+  "deployedAt": "2026-02-21T05:16:35.386Z",
   "contracts": {
     "couponScheduler": {
-      "contractId": "0.0.7996632",
-      "evmAddress": "00000000000000000000000000000000007a04d8"
+      "contractId": "0.0.7996912",
+      "evmAddress": "00000000000000000000000000000000007a05f0"
     },
     "yieldDistributor": {
-      "contractId": "0.0.7996635",
-      "evmAddress": "00000000000000000000000000000000007a04db"
+      "contractId": "0.0.7996914",
+      "evmAddress": "00000000000000000000000000000000007a05f2"
     }
   }
 }
