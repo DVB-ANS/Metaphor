@@ -983,35 +983,96 @@ router.post('/canton/trades/:tradeId/status', (req: Request, res: Response) => {
   res.status(404).json({ error: 'Trade not found' });
 });
 
+// ─── Wallet registry (persistent JSON) ───────────────────────────────
+
+interface WalletEntry {
+  address: string;
+  label: string;
+  role: string;
+  addedAt: string;
+  kycStatus: 'pending' | 'verified';
+}
+
+const WALLET_REGISTRY_FILE = resolve(VAULT_META_DIR, 'wallet-registry.json');
+
+function loadWalletRegistry(): WalletEntry[] {
+  try {
+    if (existsSync(WALLET_REGISTRY_FILE)) {
+      return JSON.parse(readFileSync(WALLET_REGISTRY_FILE, 'utf-8')) as WalletEntry[];
+    }
+  } catch { /* start fresh */ }
+  return [];
+}
+
+function saveWalletRegistry(): void {
+  try {
+    if (!existsSync(VAULT_META_DIR)) mkdirSync(VAULT_META_DIR, { recursive: true });
+    writeFileSync(WALLET_REGISTRY_FILE, JSON.stringify(walletRegistry, null, 2));
+  } catch { /* non-critical */ }
+}
+
+const walletRegistry = loadWalletRegistry();
+
 // ─── GET /v1/admin/wallets ───────────────────────────────────────────
 
 router.get('/admin/wallets', async (_req: Request, res: Response) => {
-  try {
-    const ac = getContract('AccessControl', ADDRESSES.accessControl);
-    const wallets: any[] = [];
-    const roles = ['ADMIN', 'ISSUER', 'INVESTOR', 'AUDITOR'];
+  // Enrich registry with on-chain whitelist status
+  if (walletRegistry.length > 0) {
+    try {
+      const ac = getContract('AccessControl', ADDRESSES.accessControl);
+      await Promise.all(walletRegistry.map(async (w) => {
+        try {
+          const isWL = await ac.isWhitelisted(w.address);
+          if (isWL && w.kycStatus === 'pending') {
+            w.kycStatus = 'verified';
+          }
+        } catch { /* skip */ }
+      }));
+    } catch { /* skip enrichment */ }
+    res.json(walletRegistry);
+    return;
+  }
+  res.json([]);
+});
 
-    for (const roleName of roles) {
-      try {
-        const roleHash = ethers.id(roleName + '_ROLE');
-        const count = Number(await ac.getRoleMemberCount(roleHash));
-        for (let i = 0; i < count; i++) {
-          const addr = await ac.getRoleMember(roleHash, i);
-          wallets.push({
-            address: addr,
-            role: roleName.toLowerCase(),
-            label: `${roleName.charAt(0) + roleName.slice(1).toLowerCase()} ${i + 1}`,
-            addedAt: new Date().toISOString().slice(0, 10),
-            kycStatus: 'verified',
-          });
-        }
-      } catch { /* role enumeration not supported */ }
-    }
+// ─── POST /v1/admin/wallets — add wallet to registry ─────────────────
 
-    if (wallets.length > 0) { res.json(wallets); return; }
-  } catch { /* fall through */ }
+router.post('/admin/wallets', (req: Request, res: Response) => {
+  const { address, label, role, kycStatus } = req.body ?? {};
+  if (!address) { res.status(400).json({ error: 'address is required' }); return; }
 
-  res.json(DEMO_WALLETS);
+  const existing = walletRegistry.find((w) => w.address.toLowerCase() === address.toLowerCase());
+  if (existing) {
+    // Update existing
+    if (label) existing.label = label;
+    if (role) existing.role = role;
+    if (kycStatus) existing.kycStatus = kycStatus;
+    saveWalletRegistry();
+    res.json(existing);
+    return;
+  }
+
+  const entry: WalletEntry = {
+    address,
+    label: label || `Wallet ${walletRegistry.length + 1}`,
+    role: role || 'investor',
+    addedAt: new Date().toISOString().slice(0, 10),
+    kycStatus: kycStatus || 'pending',
+  };
+  walletRegistry.push(entry);
+  saveWalletRegistry();
+  res.json(entry);
+});
+
+// ─── POST /v1/admin/wallets/:address/verify — mark as verified ───────
+
+router.post('/admin/wallets/:address/verify', (req: Request, res: Response) => {
+  const addr = req.params.address as string;
+  const wallet = walletRegistry.find((w) => w.address.toLowerCase() === addr.toLowerCase());
+  if (!wallet) { res.status(404).json({ error: 'Wallet not found' }); return; }
+  wallet.kycStatus = 'verified';
+  saveWalletRegistry();
+  res.json(wallet);
 });
 
 export default router;

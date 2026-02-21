@@ -28,9 +28,31 @@ export default function AdminPage() {
   const [walletForm, setWalletForm] = useState({ address: '', label: '', role: '' });
   const [removeTarget, setRemoveTarget] = useState<{ address: string; label: string } | null>(null);
   const [configSaved, setConfigSaved] = useState(false);
+  const [verifyingAddress, setVerifyingAddress] = useState<string | null>(null);
 
   const { addToWhitelist, status: whitelistStatus, txHash: whitelistTxHash, error: whitelistError, reset: resetWhitelist } = useAddToWhitelist();
   const { grantRole, status: roleStatus, txHash: roleTxHash, error: roleError, reset: resetRole } = useGrantRole();
+
+  // Verify KYC hook (separate instance for inline verify button)
+  const { addToWhitelist: verifyOnChain, status: verifyStatus, reset: resetVerify } = useAddToWhitelist();
+
+  useEffect(() => {
+    if (verifyStatus === 'success' && verifyingAddress) {
+      // Persist to backend + update local state
+      api.post(`/api/v1/admin/wallets/${verifyingAddress}/verify`).catch(() => {});
+      setWallets((prev) => prev.map((w: any) =>
+        w.address.toLowerCase() === verifyingAddress.toLowerCase() ? { ...w, kycStatus: 'verified' } : w
+      ));
+      setVerifyingAddress(null);
+      resetVerify();
+    }
+  }, [verifyStatus]);
+
+  const handleVerifyKyc = (address: string) => {
+    setVerifyingAddress(address);
+    resetVerify();
+    verifyOnChain(address as `0x${string}`);
+  };
 
   // Step 2: after whitelist tx confirms, grant role if one was selected
   useEffect(() => {
@@ -39,20 +61,20 @@ export default function AdminPage() {
     }
   }, [whitelistStatus]);
 
-  // Step 3: after role tx confirms (or whitelist if no role), update UI
+  // Step 3: after role tx confirms (or whitelist if no role), update UI + persist
   const finalStatus = walletForm.role ? roleStatus : whitelistStatus;
   useEffect(() => {
     if (finalStatus === 'success') {
-      setWallets((prev) => [
-        ...prev,
-        {
-          address: walletForm.address,
-          label: walletForm.label,
-          role: walletForm.role || 'investor',
-          addedAt: new Date().toISOString().slice(0, 10),
-          kycStatus: 'pending',
-        },
-      ]);
+      const newWallet = {
+        address: walletForm.address,
+        label: walletForm.label,
+        role: walletForm.role || 'investor',
+        addedAt: new Date().toISOString().slice(0, 10),
+        kycStatus: 'verified' as const, // whitelisted on-chain = verified
+      };
+      setWallets((prev) => [...prev, newWallet]);
+      // Persist to backend
+      api.post('/api/v1/admin/wallets', { ...newWallet }).catch(() => {});
       const timer = setTimeout(() => {
         setAddWalletOpen(false);
         setWalletForm({ address: '', label: '', role: '' });
@@ -289,10 +311,13 @@ export default function AdminPage() {
                       </span>
                     ) : (
                       <button
-                        className="text-xs px-2 py-0.5 border border-black/[0.06] text-black/30 hover:border-black hover:text-black transition-colors"
-                        onClick={() => setWallets((prev) => prev.map((w: any) => w.address === wallet.address ? { ...w, kycStatus: 'verified' } : w))}
+                        className="text-xs px-2 py-0.5 border border-black/[0.06] text-black/30 hover:border-black hover:text-black transition-colors disabled:opacity-40"
+                        disabled={verifyingAddress === wallet.address}
+                        onClick={() => handleVerifyKyc(wallet.address)}
                       >
-                        Pending — Verify
+                        {verifyingAddress === wallet.address
+                          ? verifyStatus === 'pending' ? 'Confirm...' : verifyStatus === 'confirming' ? 'Confirming...' : 'Pending'
+                          : 'Pending — Verify'}
                       </button>
                     )}
                   </td>
