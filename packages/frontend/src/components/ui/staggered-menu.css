@@ -203,6 +203,25 @@
   color: var(--sm-accent, #000);
 }
 
+.sm-panel-item--locked {
+  color: rgba(0, 0, 0, 0.15);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.sm-panel-item--locked:hover {
+  color: rgba(0, 0, 0, 0.15);
+}
+
+.sm-panel-lockIcon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 0.3em;
+  width: 0.45em;
+  height: 0.45em;
+  opacity: 0.6;
+}
+
 .sm-panel-list[data-numbering] {
   counter-reset: smItem;
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { RoleGate } from '@/components/role-gate';
 import {
   Dialog,
   DialogContent,
@@ -141,6 +142,7 @@ export default function DataRoomPage() {
   }
 
   return (
+    <RoleGate allowed={['ADMIN', 'AUDITOR', 'ISSUER']}>
     <div className="max-w-4xl mx-auto space-y-16">
       {/* Header */}
       <div className="flex items-start justify-between">
@@ -373,5 +375,6 @@ export default function DataRoomPage() {
         )}
       </div>
     </div>
+    </RoleGate>
   );
 }
