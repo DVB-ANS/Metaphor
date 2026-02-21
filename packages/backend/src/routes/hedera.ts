@@ -1,5 +1,5 @@
 import { Router, Request, Response, type Router as RouterType } from 'express';
-import { getAdiSigner, getContract, ADDRESSES } from '../config.js';
+import { getHederaSigner, getContract, ADDRESSES } from '../config.js';
 import { requireAuth, optionalAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
 
@@ -77,7 +77,7 @@ router.get('/bonds/:id', async (req: Request, res: Response) => {
 router.post('/bonds', requireAuth, requireRole('ADMIN', 'ISSUER'), async (req: Request, res: Response) => {
     try {
         const { token, paymentToken, faceValue, rate, frequency, startDate, maturityDate, issuer } = req.body;
-        const signer = getAdiSigner();
+        const signer = getHederaSigner();
         const scheduler = getContract('CouponScheduler', ADDRESSES.couponScheduler, signer);
         const tx = await scheduler.registerBond(token, paymentToken, faceValue, rate, frequency, startDate, maturityDate, issuer);
         const receipt = await tx.wait();
@@ -91,7 +91,7 @@ router.post('/bonds', requireAuth, requireRole('ADMIN', 'ISSUER'), async (req: R
 
 router.post('/bonds/:id/schedule-all', requireAuth, requireRole('ISSUER', 'ADMIN'), async (req: Request, res: Response) => {
     try {
-        const signer = getAdiSigner();
+        const signer = getHederaSigner();
         const scheduler = getContract('CouponScheduler', ADDRESSES.couponScheduler, signer);
         const tx = await scheduler.scheduleAllCoupons(req.params.id);
         const receipt = await tx.wait();
@@ -104,7 +104,7 @@ router.post('/bonds/:id/schedule-all', requireAuth, requireRole('ISSUER', 'ADMIN
 router.post('/bonds/:id/schedule', requireAuth, requireRole('ISSUER', 'ADMIN'), async (req: Request, res: Response) => {
     try {
         const { paymentDate } = req.body;
-        const signer = getAdiSigner();
+        const signer = getHederaSigner();
         const scheduler = getContract('CouponScheduler', ADDRESSES.couponScheduler, signer);
         const tx = await scheduler.scheduleCoupon(req.params.id, paymentDate);
         const receipt = await tx.wait();
@@ -116,7 +116,7 @@ router.post('/bonds/:id/schedule', requireAuth, requireRole('ISSUER', 'ADMIN'), 
 
 router.post('/bonds/:bondId/payments/:date/recover', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response) => {
     try {
-        const signer = getAdiSigner();
+        const signer = getHederaSigner();
         const scheduler = getContract('CouponScheduler', ADDRESSES.couponScheduler, signer);
         const tx = await scheduler.recoverPayment(req.params.bondId, req.params.date);
         const receipt = await tx.wait();
@@ -151,7 +151,7 @@ router.get('/yield/snapshots/:id', async (req: Request, res: Response) => {
 router.post('/yield/distribute', requireAuth, requireRole('ADMIN', 'ISSUER'), async (req: Request, res: Response) => {
     try {
         const { token, paymentToken, totalYield, holders } = req.body;
-        const signer = getAdiSigner();
+        const signer = getHederaSigner();
         const distributor = getContract('YieldDistributor', ADDRESSES.yieldDistributor, signer);
         const tx = await distributor.distribute(token, paymentToken, totalYield, holders);
         const receipt = await tx.wait();
@@ -164,7 +164,7 @@ router.post('/yield/distribute', requireAuth, requireRole('ADMIN', 'ISSUER'), as
 router.post('/yield/claim', requireAuth, requireRole('INVESTOR'), async (req: Request, res: Response) => {
     try {
         const { paymentToken, snapshotId } = req.body;
-        const signer = getAdiSigner();
+        const signer = getHederaSigner();
         const distributor = getContract('YieldDistributor', ADDRESSES.yieldDistributor, signer);
         const tx = await distributor.claimYield(paymentToken, snapshotId);
         const receipt = await tx.wait();

@@ -21,6 +21,20 @@ export function getAdiSigner(): ethers.Wallet {
     return new ethers.Wallet(privateKey, provider);
 }
 
+// ─── Hedera Provider + Signer ───────────────────────────────────────
+
+export function getHederaProvider(): ethers.JsonRpcProvider {
+    const rpcUrl = process.env.HEDERA_RPC_URL || 'https://testnet.hashio.io/api';
+    return new ethers.JsonRpcProvider(rpcUrl);
+}
+
+export function getHederaSigner(): ethers.Wallet {
+    const provider = getHederaProvider();
+    const privateKey = process.env.ADI_PRIVATE_KEY;
+    if (!privateKey) throw new Error('Missing ADI_PRIVATE_KEY in .env');
+    return new ethers.Wallet(privateKey, provider);
+}
+
 // ─── Load ABIs ──────────────────────────────────────────────────────
 
 function loadAbi(packageDir: string, contractName: string): any[] {
@@ -49,9 +63,13 @@ export const ADDRESSES = {
     yieldDistributor: process.env.HEDERA_YIELD_DISTRIBUTOR_ADDRESS || '',
 };
 
+// ─── Hedera contract names ──────────────────────────────────────────
+
+const HEDERA_CONTRACTS = new Set(['CouponScheduler', 'YieldDistributor']);
+
 // ─── Contract Instances ─────────────────────────────────────────────
 
 export function getContract(name: keyof typeof ABIS, address: string, signerOrProvider?: ethers.Signer | ethers.Provider) {
-    const sp = signerOrProvider || getAdiProvider();
+    const sp = signerOrProvider || (HEDERA_CONTRACTS.has(name) ? getHederaProvider() : getAdiProvider());
     return new ethers.Contract(address, ABIS[name], sp);
 }

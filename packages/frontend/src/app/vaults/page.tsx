@@ -104,35 +104,38 @@ export default function VaultsPage() {
     setVaultForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const [createError, setCreateError] = useState<string | null>(null);
+
   const handleCreateVault = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setCreateError(null);
 
-    const riskMap: Record<string, { score: number; level: RiskLevel }> = {
-      low: { score: 18, level: 'low' },
-      moderate: { score: 42, level: 'moderate' },
-      high: { score: 67, level: 'high' },
-    };
-    const risk = riskMap[vaultForm.riskTolerance] || riskMap.moderate;
+    try {
+      const result = await api.post<{ txHash: string; vaultId: string }>('/api/adi/vaults');
 
-    const newVault = {
-      id: `vault-new-${Date.now()}`,
-      name: vaultForm.name,
-      totalValue: Number(vaultForm.initialDeposit) || 0,
-      riskScore: risk.score,
-      riskLevel: risk.level,
-      status: 'active',
-      assetCount: 0,
-      yieldYTD: 0,
-      createdAt: new Date().toISOString().slice(0, 10),
-      assets: [],
-    };
+      const newVault = {
+        id: `vault-${result.vaultId}`,
+        onChainId: Number(result.vaultId),
+        name: vaultForm.name || `Vault #${result.vaultId}`,
+        totalValue: 0,
+        riskScore: null,
+        riskLevel: null,
+        status: 'active',
+        assetCount: 0,
+        yieldYTD: null,
+        createdAt: new Date().toISOString().slice(0, 10),
+        assets: [],
+      };
 
-    setAllVaults((prev) => [newVault, ...prev]);
-    setVaultForm(initialVaultForm);
-    setIsSubmitting(false);
-    setCreateOpen(false);
+      setAllVaults((prev) => [newVault, ...prev]);
+      setVaultForm(initialVaultForm);
+      setCreateOpen(false);
+    } catch (err: any) {
+      setCreateError(err.message || 'Failed to create vault. Make sure you are signed in with ISSUER role.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (loading) return <BentoGrid className="space-y-6"><div className="flex h-64 items-center justify-center"><p className="text-sm text-neutral-500 animate-pulse">Loading vaults...</p></div></BentoGrid>;
@@ -170,6 +173,12 @@ export default function VaultsPage() {
                 Configure a new institutional vault. Assets can be allocated after creation via VaultManager.
               </p>
             </DialogHeader>
+
+            {createError && (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+                <p className="text-sm text-red-400">{createError}</p>
+              </div>
+            )}
 
             <form className="my-4 space-y-0" onSubmit={handleCreateVault}>
               {/* Vault Name */}
