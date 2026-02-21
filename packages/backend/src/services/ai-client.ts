@@ -169,6 +169,10 @@ function analysisResultToAIReport(result: AnalysisResult, body: AnalyzeRequestBo
     positionAnalysis,
     status: 'pending_approval',
     createdAt: new Date().toISOString(),
+    provider: result.provider,
+    model: result.model,
+    verifiable: result.verifiable,
+    durationMs: result.durationMs,
   };
 }
 

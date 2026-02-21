@@ -8,7 +8,11 @@
  * Usage: npx tsx scripts/test-integration.ts
  */
 import { config } from 'dotenv';
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Load .env from project root
 config({ path: resolve(__dirname, '../../../.env') });

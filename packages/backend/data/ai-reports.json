@@ -267,5 +267,105 @@
     ],
     "status": "approved",
     "createdAt": "2026-02-21T08:02:27.121Z"
+  },
+  {
+    "reportId": "report-007",
+    "vaultId": "vault-1",
+    "riskScore": 26,
+    "riskLevel": "moderate",
+    "summary": "AI analysis completed for vault vault-1. Risk score: 26/100 (moderate). 2 assets analyzed. Provider: 0xa48f01287233509FD694a22Bf840225062E67836, model: qwen/qwen-2.5-7b-instruct.",
+    "recommendations": [
+      {
+        "id": "report-007-rec-1",
+        "action": "rebalance",
+        "description": "Reduce German corporate bond exposure from 40% to 20%, reallocate to French OATs.",
+        "impact": "Reduce global risk score by approximately 18 points",
+        "status": "pending_approval"
+      }
+    ],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "-2.8%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "-5.4%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "-18.2%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "-9.1%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "FR0014001NN8",
+        "name": "French OAT 2028",
+        "score": 12,
+        "riskLevel": "low",
+        "comment": "AAA-rated sovereign bond with short duration, minimal default risk."
+      },
+      {
+        "assetId": "DE000A1R07V3",
+        "name": "German Corporate Bond",
+        "score": 44,
+        "riskLevel": "moderate",
+        "comment": "Investment-grade corporate bond with moderate credit quality and longer maturity."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T12:31:16.412Z"
+  },
+  {
+    "reportId": "report-008",
+    "vaultId": "vault-2",
+    "riskScore": 16,
+    "riskLevel": "low",
+    "summary": "AI analysis completed for vault vault-2. Risk score: 16/100 (low). 2 assets analyzed. Provider: 0xa48f01287233509FD694a22Bf840225062E67836, model: qwen/qwen-2.5-7b-instruct.",
+    "recommendations": [],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "0.0%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "0.0%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "0.0%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "0.0%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "US912828ZT45",
+        "name": "US Treasury 10Y",
+        "score": 10,
+        "riskLevel": "low",
+        "comment": "AAA-rated sovereign bond with low duration and minimal default risk."
+      },
+      {
+        "assetId": "GB00BDRHNP05",
+        "name": "UK Gilt 2029",
+        "score": 16,
+        "riskLevel": "low",
+        "comment": "AA-rated sovereign bond with moderate duration and slightly higher coupon rate."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T12:33:30.090Z",
+    "provider": "0xa48f01287233509FD694a22Bf840225062E67836",
+    "model": "qwen/qwen-2.5-7b-instruct",
+    "verifiable": true,
+    "durationMs": 14068
   }
 ]

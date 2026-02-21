@@ -352,8 +352,21 @@ export default function AIReportsPage() {
                   </div>
                 )}
 
-                <div className="flex gap-2">
-                  <span className="text-xs border border-black/[0.06] px-2 py-0.5 text-black/30">0G Compute</span>
+                <div className="flex flex-wrap gap-2">
+                  {report.model ? (
+                    <>
+                      <span className="text-xs border border-black/20 px-2 py-0.5 text-black/60 font-medium">0G Compute</span>
+                      <span className="text-xs border border-black/[0.06] px-2 py-0.5 text-black/30 font-mono">{report.model}</span>
+                      {report.verifiable && (
+                        <span className="text-xs border border-black/20 px-2 py-0.5 text-black/60">Verifiable (TeeML)</span>
+                      )}
+                      {report.durationMs && (
+                        <span className="text-xs border border-black/[0.06] px-2 py-0.5 text-black/30">{(report.durationMs / 1000).toFixed(1)}s</span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-xs border border-black/[0.06] px-2 py-0.5 text-black/30">0G Compute</span>
+                  )}
                   {report.recommendations.length > 0 && (
                     <span className="text-xs border border-black/[0.06] px-2 py-0.5 text-black/30">
                       {report.recommendations.length} action(s)

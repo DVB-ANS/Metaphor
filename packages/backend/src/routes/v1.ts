@@ -225,6 +225,11 @@ function normalizeAIReport(report: AIReport) {
       riskLevel: p.riskLevel,
       comment: p.comment,
     })),
+    // 0G Compute metadata
+    provider: report.provider,
+    model: report.model,
+    verifiable: report.verifiable,
+    durationMs: report.durationMs,
   };
 }
 

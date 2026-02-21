@@ -50,4 +50,9 @@ export interface AIReport {
   positionAnalysis: PositionAnalysis[];
   status: ReportStatus;
   createdAt: string;
+  // 0G Compute metadata
+  provider?: string;
+  model?: string;
+  verifiable?: boolean;
+  durationMs?: number;
 }
