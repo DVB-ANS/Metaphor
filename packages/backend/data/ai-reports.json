@@ -208,5 +208,64 @@
     ],
     "status": "pending_approval",
     "createdAt": "2026-02-21T06:58:19.536Z"
+  },
+  {
+    "reportId": "report-006",
+    "vaultId": "vault-e2e",
+    "riskScore": 36,
+    "riskLevel": "moderate",
+    "summary": "AI analysis completed for vault vault-e2e. Risk score: 36/100 (moderate). 3 assets analyzed. Provider: mock, model: mock-local.",
+    "recommendations": [
+      {
+        "id": "report-006-rec-1",
+        "action": "hold",
+        "description": "Portfolio is well balanced. No immediate action required.",
+        "impact": "No change to risk score",
+        "status": "approved"
+      }
+    ],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "-2.5%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "-5.1%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "-40.0%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "-8.5%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "FR0013508470",
+        "name": "France OAT 2028",
+        "score": 38,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 40% warrants diversification."
+      },
+      {
+        "assetId": "DE000A1EWWW0",
+        "name": "Siemens AG 2027",
+        "score": 35,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 35% warrants diversification."
+      },
+      {
+        "assetId": "IT0005386245",
+        "name": "Milan Factoring Q3",
+        "score": 35,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. High coupon rate (7.8%) suggests higher credit risk."
+      }
+    ],
+    "status": "approved",
+    "createdAt": "2026-02-21T08:02:27.121Z"
   }
 ]
