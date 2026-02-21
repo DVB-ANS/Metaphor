@@ -367,5 +367,690 @@
     "model": "qwen/qwen-2.5-7b-instruct",
     "verifiable": true,
     "durationMs": 14068
+  },
+  {
+    "reportId": "report-009",
+    "vaultId": "vault-4",
+    "riskScore": 40,
+    "riskLevel": "moderate",
+    "summary": "AI analysis completed for vault vault-4. Risk score: 40/100 (moderate). 2 assets analyzed. Provider: mock, model: mock-local.",
+    "recommendations": [
+      {
+        "id": "report-009-rec-1",
+        "action": "hold",
+        "description": "Portfolio is well balanced. No immediate action required.",
+        "impact": "No change to risk score",
+        "status": "pending_approval"
+      }
+    ],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "-2.5%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "-5.1%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "-50.0%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "-8.5%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "XXSET-4-0",
+        "name": "asset-4-0",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 50% warrants diversification."
+      },
+      {
+        "assetId": "XXSET-4-1",
+        "name": "asset-4-1",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 50% warrants diversification."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T13:24:15.891Z",
+    "provider": "mock",
+    "model": "mock-local",
+    "verifiable": false,
+    "durationMs": 1
+  },
+  {
+    "reportId": "report-010",
+    "vaultId": "vault-4",
+    "riskScore": 40,
+    "riskLevel": "moderate",
+    "summary": "AI analysis completed for vault vault-4. Risk score: 40/100 (moderate). 2 assets analyzed. Provider: mock, model: mock-local.",
+    "recommendations": [
+      {
+        "id": "report-010-rec-1",
+        "action": "hold",
+        "description": "Portfolio is well balanced. No immediate action required.",
+        "impact": "No change to risk score",
+        "status": "pending_approval"
+      }
+    ],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "-2.5%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "-5.1%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "-50.0%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "-8.5%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "XXSET-4-0",
+        "name": "asset-4-0",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 50% warrants diversification."
+      },
+      {
+        "assetId": "XXSET-4-1",
+        "name": "asset-4-1",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 50% warrants diversification."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T13:24:17.700Z",
+    "provider": "mock",
+    "model": "mock-local",
+    "verifiable": false,
+    "durationMs": 0
+  },
+  {
+    "reportId": "report-011",
+    "vaultId": "vault-4",
+    "riskScore": 40,
+    "riskLevel": "moderate",
+    "summary": "AI analysis completed for vault vault-4. Risk score: 40/100 (moderate). 2 assets analyzed. Provider: mock, model: mock-local.",
+    "recommendations": [
+      {
+        "id": "report-011-rec-1",
+        "action": "hold",
+        "description": "Portfolio is well balanced. No immediate action required.",
+        "impact": "No change to risk score",
+        "status": "pending_approval"
+      }
+    ],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "-2.5%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "-5.1%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "-50.0%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "-8.5%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "XXSET-4-0",
+        "name": "asset-4-0",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 50% warrants diversification."
+      },
+      {
+        "assetId": "XXSET-4-1",
+        "name": "asset-4-1",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 50% warrants diversification."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T13:24:18.598Z",
+    "provider": "mock",
+    "model": "mock-local",
+    "verifiable": false,
+    "durationMs": 0
+  },
+  {
+    "reportId": "report-012",
+    "vaultId": "vault-4",
+    "riskScore": 40,
+    "riskLevel": "moderate",
+    "summary": "AI analysis completed for vault vault-4. Risk score: 40/100 (moderate). 2 assets analyzed. Provider: mock, model: mock-local.",
+    "recommendations": [
+      {
+        "id": "report-012-rec-1",
+        "action": "hold",
+        "description": "Portfolio is well balanced. No immediate action required.",
+        "impact": "No change to risk score",
+        "status": "pending_approval"
+      }
+    ],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "-2.5%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "-5.1%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "-50.0%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "-8.5%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "XXSET-4-0",
+        "name": "asset-4-0",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 50% warrants diversification."
+      },
+      {
+        "assetId": "XXSET-4-1",
+        "name": "asset-4-1",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 50% warrants diversification."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T13:24:19.265Z",
+    "provider": "mock",
+    "model": "mock-local",
+    "verifiable": false,
+    "durationMs": 0
+  },
+  {
+    "reportId": "report-013",
+    "vaultId": "vault-4",
+    "riskScore": 40,
+    "riskLevel": "moderate",
+    "summary": "AI analysis completed for vault vault-4. Risk score: 40/100 (moderate). 2 assets analyzed. Provider: mock, model: mock-local.",
+    "recommendations": [
+      {
+        "id": "report-013-rec-1",
+        "action": "hold",
+        "description": "Portfolio is well balanced. No immediate action required.",
+        "impact": "No change to risk score",
+        "status": "pending_approval"
+      }
+    ],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "-2.5%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "-5.1%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "-50.0%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "-8.5%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "XXSET-4-0",
+        "name": "asset-4-0",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 50% warrants diversification."
+      },
+      {
+        "assetId": "XXSET-4-1",
+        "name": "asset-4-1",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 50% warrants diversification."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T13:24:45.871Z",
+    "provider": "mock",
+    "model": "mock-local",
+    "verifiable": false,
+    "durationMs": 0
+  },
+  {
+    "reportId": "report-014",
+    "vaultId": "vault-4",
+    "riskScore": 40,
+    "riskLevel": "moderate",
+    "summary": "AI analysis completed for vault vault-4. Risk score: 40/100 (moderate). 2 assets analyzed. Provider: mock, model: mock-local.",
+    "recommendations": [
+      {
+        "id": "report-014-rec-1",
+        "action": "hold",
+        "description": "Portfolio is well balanced. No immediate action required.",
+        "impact": "No change to risk score",
+        "status": "pending_approval"
+      }
+    ],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "-2.5%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "-5.1%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "-50.0%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "-8.5%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "XXSET-4-0",
+        "name": "asset-4-0",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 50% warrants diversification."
+      },
+      {
+        "assetId": "XXSET-4-1",
+        "name": "asset-4-1",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 50% warrants diversification."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T13:31:31.984Z",
+    "provider": "mock",
+    "model": "mock-local",
+    "verifiable": false,
+    "durationMs": 0
+  },
+  {
+    "reportId": "report-015",
+    "vaultId": "vault-4",
+    "riskScore": 40,
+    "riskLevel": "moderate",
+    "summary": "AI analysis completed for vault vault-4. Risk score: 40/100 (moderate). 2 assets analyzed. Provider: mock, model: mock-local.",
+    "recommendations": [
+      {
+        "id": "report-015-rec-1",
+        "action": "hold",
+        "description": "Portfolio is well balanced. No immediate action required.",
+        "impact": "No change to risk score",
+        "status": "pending_approval"
+      }
+    ],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "-2.5%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "-5.1%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "-50.0%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "-8.5%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "XXSET-4-0",
+        "name": "asset-4-0",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 50% warrants diversification."
+      },
+      {
+        "assetId": "XXSET-4-1",
+        "name": "asset-4-1",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 50% warrants diversification."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T13:31:33.136Z",
+    "provider": "mock",
+    "model": "mock-local",
+    "verifiable": false,
+    "durationMs": 0
+  },
+  {
+    "reportId": "report-016",
+    "vaultId": "vault-4",
+    "riskScore": 40,
+    "riskLevel": "moderate",
+    "summary": "AI analysis completed for vault vault-4. Risk score: 40/100 (moderate). 2 assets analyzed. Provider: mock, model: mock-local.",
+    "recommendations": [
+      {
+        "id": "report-016-rec-1",
+        "action": "hold",
+        "description": "Portfolio is well balanced. No immediate action required.",
+        "impact": "No change to risk score",
+        "status": "pending_approval"
+      }
+    ],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "-2.5%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "-5.1%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "-50.0%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "-8.5%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "XXSET-4-0",
+        "name": "asset-4-0",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 50% warrants diversification."
+      },
+      {
+        "assetId": "XXSET-4-1",
+        "name": "asset-4-1",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 50% warrants diversification."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T13:31:33.885Z",
+    "provider": "mock",
+    "model": "mock-local",
+    "verifiable": false,
+    "durationMs": 0
+  },
+  {
+    "reportId": "report-017",
+    "vaultId": "vault-3",
+    "riskScore": 40,
+    "riskLevel": "moderate",
+    "summary": "AI analysis completed for vault vault-3. Risk score: 40/100 (moderate). 1 assets analyzed. Provider: mock, model: mock-local.",
+    "recommendations": [
+      {
+        "id": "report-017-rec-1",
+        "action": "hold",
+        "description": "Portfolio is well balanced. No immediate action required.",
+        "impact": "No change to risk score",
+        "status": "approved"
+      }
+    ],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "-2.5%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "-5.1%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "-100.0%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "-8.5%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "empty-vault",
+        "name": "Empty Vault (no deposits)",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 100% warrants diversification."
+      }
+    ],
+    "status": "approved",
+    "createdAt": "2026-02-21T13:35:03.110Z",
+    "provider": "mock",
+    "model": "mock-local",
+    "verifiable": false,
+    "durationMs": 0
+  },
+  {
+    "reportId": "report-018",
+    "vaultId": "vault-3",
+    "riskScore": 40,
+    "riskLevel": "moderate",
+    "summary": "AI analysis completed for vault vault-3. Risk score: 40/100 (moderate). 1 assets analyzed. Provider: mock, model: mock-local.",
+    "recommendations": [
+      {
+        "id": "report-018-rec-1",
+        "action": "hold",
+        "description": "Portfolio is well balanced. No immediate action required.",
+        "impact": "No change to risk score",
+        "status": "rejected"
+      }
+    ],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "-2.5%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "-5.1%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "-100.0%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "-8.5%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "empty-vault",
+        "name": "Empty Vault (no deposits)",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Moderate risk exposure. Concentration at 100% warrants diversification."
+      }
+    ],
+    "status": "rejected",
+    "createdAt": "2026-02-21T13:35:21.708Z",
+    "provider": "mock",
+    "model": "mock-local",
+    "verifiable": false,
+    "durationMs": 0
+  },
+  {
+    "reportId": "report-019",
+    "vaultId": "vault-3",
+    "riskScore": 40,
+    "riskLevel": "moderate",
+    "summary": "Portfolio analysis across 1 position ($0 notional). Global risk score: 40/100 — moderate risk concentration detected. 1 recommendation generated. Analysis via 0G Compute (mock) in 2ms.",
+    "recommendations": [
+      {
+        "id": "report-019-rec-1",
+        "action": "rebalance",
+        "description": "Reduce Empty Vault (no deposits) from 100% to 70% allocation. Reallocate $0 to shorter-duration investment-grade positions to improve portfolio Sharpe ratio.",
+        "impact": "Expected risk score reduction: 40/100 → 28/100 (global: -6 pts)",
+        "status": "pending_approval"
+      }
+    ],
+    "stressTests": [
+      {
+        "scenario": "Fed/ECB rate hike +100bps",
+        "impact": "-1.8%"
+      },
+      {
+        "scenario": "Aggressive tightening +250bps",
+        "impact": "-3.6%"
+      },
+      {
+        "scenario": "Default of largest position (100% exposure)",
+        "impact": "-85.0%"
+      },
+      {
+        "scenario": "Credit spread widening +200bps",
+        "impact": "-3.0%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "empty-vault",
+        "name": "Empty Vault (no deposits)",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Investment-grade profile (implied AAA/AA) with 0.00% coupon. Short duration (2.0yr) limits mark-to-market volatility. Position represents 100% of vault — well above single-name concentration limit (typically 20-25%)."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T13:38:05.178Z",
+    "provider": "mock",
+    "model": "mock-local",
+    "verifiable": false,
+    "durationMs": 2
+  },
+  {
+    "reportId": "report-020",
+    "vaultId": "vault-3",
+    "riskScore": 25,
+    "riskLevel": "low",
+    "summary": "Portfolio analysis across 1 position ($0 notional). Global risk score: 25/100 — within acceptable risk parameters. 0 recommendations generated. Analysis via 0G Compute (qwen/qwen-2.5-7b-instruct) in 4095ms.",
+    "recommendations": [],
+    "stressTests": [
+      {
+        "scenario": "Central bank rate +1%",
+        "impact": "0.0%"
+      },
+      {
+        "scenario": "Central bank rate +2%",
+        "impact": "0.0%"
+      },
+      {
+        "scenario": "Default of highest-risk issuer",
+        "impact": "0.0%"
+      },
+      {
+        "scenario": "Sectoral crisis (most exposed sector)",
+        "impact": "0.0%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "empty-vault",
+        "name": "Empty Vault (no deposits)",
+        "score": 25,
+        "riskLevel": "low",
+        "comment": "No actual assets, only metadata. Current risk is minimal as there are no deposited RWA positions."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T13:38:11.525Z",
+    "provider": "0xa48f01287233509FD694a22Bf840225062E67836",
+    "model": "qwen/qwen-2.5-7b-instruct",
+    "verifiable": true,
+    "durationMs": 4095
+  },
+  {
+    "reportId": "report-021",
+    "vaultId": "vault-5",
+    "riskScore": 40,
+    "riskLevel": "moderate",
+    "summary": "Portfolio analysis across 1 position ($0 notional). Global risk score: 40/100 — moderate risk concentration detected. 1 recommendation generated. Analysis via 0G Compute (mock) in 1ms.",
+    "recommendations": [
+      {
+        "id": "report-021-rec-1",
+        "action": "rebalance",
+        "description": "Reduce Empty Vault (no deposits) from 100% to 70% allocation. Reallocate $0 to shorter-duration investment-grade positions to improve portfolio Sharpe ratio.",
+        "impact": "Expected risk score reduction: 40/100 → 28/100 (global: -6 pts)",
+        "status": "pending_approval"
+      }
+    ],
+    "stressTests": [
+      {
+        "scenario": "Fed/ECB rate hike +100bps",
+        "impact": "-1.8%"
+      },
+      {
+        "scenario": "Aggressive tightening +250bps",
+        "impact": "-3.6%"
+      },
+      {
+        "scenario": "Default of largest position (100% exposure)",
+        "impact": "-85.0%"
+      },
+      {
+        "scenario": "Credit spread widening +200bps",
+        "impact": "-3.0%"
+      }
+    ],
+    "positionAnalysis": [
+      {
+        "assetId": "empty-vault",
+        "name": "Empty Vault (no deposits)",
+        "score": 40,
+        "riskLevel": "moderate",
+        "comment": "Investment-grade profile (implied AAA/AA) with 0.00% coupon. Short duration (2.0yr) limits mark-to-market volatility. Position represents 100% of vault — well above single-name concentration limit (typically 20-25%)."
+      }
+    ],
+    "status": "pending_approval",
+    "createdAt": "2026-02-21T13:48:33.911Z",
+    "provider": "mock",
+    "model": "mock-local",
+    "verifiable": false,
+    "durationMs": 1
   }
 ]
