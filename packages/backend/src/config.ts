@@ -30,8 +30,8 @@ export function getHederaProvider(): ethers.JsonRpcProvider {
 
 export function getHederaSigner(): ethers.Wallet {
     const provider = getHederaProvider();
-    const privateKey = process.env.ADI_PRIVATE_KEY;
-    if (!privateKey) throw new Error('Missing ADI_PRIVATE_KEY in .env');
+    // Use Hedera operator key (ECDSA raw) — different from ADI signer
+    const privateKey = process.env.HEDERA_PRIVATE_KEY || '0x05a0252ccdfea79d6ba3b8a222e365108414f50b6edebc9a6d68dadc0f4d4cf2';
     return new ethers.Wallet(privateKey, provider);
 }
 

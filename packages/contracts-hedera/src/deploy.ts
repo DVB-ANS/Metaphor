@@ -37,7 +37,7 @@ async function main() {
     console.log("\n1. Deploying CouponScheduler...");
     const schedulerTx = new ContractCreateFlow()
         .setBytecode(schedulerJson.bytecode.object)
-        .setGas(2_000_000)
+        .setGas(5_000_000)
         .setConstructorParameters(
             new ContractFunctionParameters().addAddress(
                 operatorId.toSolidityAddress()
@@ -54,7 +54,7 @@ async function main() {
     console.log("\n2. Deploying YieldDistributor...");
     const distributorTx = new ContractCreateFlow()
         .setBytecode(distributorJson.bytecode.object)
-        .setGas(2_000_000)
+        .setGas(5_000_000)
         .setConstructorParameters(
             new ContractFunctionParameters().addAddress(
                 operatorId.toSolidityAddress()
