@@ -3,8 +3,8 @@ import jwt from 'jsonwebtoken';
 import { ethers } from 'ethers';
 import type { AuthPayload } from '../types/auth.js';
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) throw new Error('Missing JWT_SECRET in .env — required for authentication');
+if (!process.env.JWT_SECRET) throw new Error('Missing JWT_SECRET in .env — required for authentication');
+const JWT_SECRET: string = process.env.JWT_SECRET;
 const JWT_EXPIRY = '24h';
 
 // In-memory nonce store: address → { nonce, createdAt }

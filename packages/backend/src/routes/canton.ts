@@ -21,10 +21,11 @@ function param(req: Request, name: string): string {
   return Array.isArray(v) ? v[0] : v;
 }
 
+const CANTON_ROLES = ['admin', 'issuer', 'investor', 'auditor'] as const;
 const ALLOWED_CANTON_PARTIES = new Set(
-  ['admin', 'issuer', 'investor', 'auditor']
-    .map((role) => cantonClient.resolveParty(role))
-    .filter(Boolean),
+  CANTON_ROLES
+    .map((role) => { try { return cantonClient.resolveParty(role); } catch { return null; } })
+    .filter(Boolean) as string[],
 );
 
 function getParty(req: Request): string {

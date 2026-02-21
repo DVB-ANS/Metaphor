@@ -115,25 +115,46 @@ aiRouter.post('/reports/:reportId/approve', requireAuth, requireRole('ADMIN', 'I
 
     // Try to execute the approved recommendation on-chain
     let executionTx: string | null = null;
+    let executionStatus: 'executed' | 'skipped' | 'failed' = 'skipped';
+
     if (recommendationId) {
       const rec = report.recommendations.find((r) => r.id === recommendationId);
-      if (rec && rec.action === 'rebalance') {
-        try {
-          const match = report.vaultId.match(/^vault-(\d+)$/);
-          if (match) {
-            const signer = (await import('../config.js')).getAdiSigner();
+      if (rec) {
+        const match = report.vaultId.match(/^vault-(\d+)$/);
+        const vaultIdx = match ? Number(match[1]) : null;
+
+        if (vaultIdx !== null) {
+          try {
+            const { getAdiSigner } = await import('../config.js');
+            const signer = getAdiSigner();
             const vm = getContract('VaultManager', ADDRESSES.vaultManager, signer);
-            // Log execution attempt — actual rebalance requires specific asset params
-            console.log(`[AI] Executing recommendation ${rec.id} for vault ${report.vaultId}: ${rec.action}`);
-            executionTx = 'pending_manual_execution';
+
+            if (rec.action === 'rebalance' || rec.action === 'exit_position') {
+              // Deallocate: free allocated funds so investor can withdraw/rebalance
+              const tokens: string[] = await vm.getVaultTokens(vaultIdx);
+              if (tokens.length > 0) {
+                const targetToken = tokens[0]; // first token as target
+                const allocated = await vm.getAllocation(vaultIdx, targetToken, signer.address);
+                if (allocated > 0n) {
+                  const tx = await vm.deallocate(vaultIdx, targetToken, signer.address, allocated);
+                  const receipt = await tx.wait();
+                  executionTx = receipt.hash;
+                  executionStatus = 'executed';
+                }
+              }
+            } else {
+              // hold, add_collateral, etc. — no on-chain action needed
+              executionStatus = 'skipped';
+            }
+          } catch (err) {
+            executionStatus = 'failed';
+            executionTx = (err as Error).message;
           }
-        } catch (err) {
-          console.log(`[AI] On-chain execution skipped: ${(err as Error).message}`);
         }
       }
     }
 
-    res.json({ ...report, executionTx });
+    res.json({ ...report, executionTx, executionStatus });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

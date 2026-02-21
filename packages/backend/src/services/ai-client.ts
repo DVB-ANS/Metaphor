@@ -70,7 +70,9 @@ function requestBodyToVaultData(body: AnalyzeRequestBody): VaultData {
       tokenAddress: a.assetId,
       name: a.name || a.assetId,
       symbol: `RWA-${i}`,
-      isin: a.assetId,
+      isin: a.name?.match(/[A-Z]{2}\d{10}/)
+        ? a.name.match(/[A-Z]{2}\d{10}/)![0]
+        : `XX${a.assetId.slice(2, 12).toUpperCase()}`,
       rate: rateBps,
       maturity: maturityTs,
       issuer: a.jurisdiction || 'Unknown',
@@ -133,7 +135,7 @@ function analysisResultToAIReport(result: AnalysisResult, body: AnalyzeRequestBo
   const positionAnalysis = report.assetAnalysis.map((a) => {
     const assetScore = a.score;
     const assetLevel = (assetScore < 30 ? 'low' : assetScore < 60 ? 'moderate' : 'high') as 'low' | 'moderate' | 'high';
-    const bodyAsset = body.assets.find((ba) => ba.assetId === a.isin || ba.name === a.name);
+    const bodyAsset = body.assets.find((ba) => ba.name === a.name || ba.assetId === a.isin);
     return {
       assetId: bodyAsset?.assetId || a.isin,
       name: a.name,

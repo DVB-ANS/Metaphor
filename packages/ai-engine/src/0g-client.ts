@@ -86,42 +86,73 @@ export async function setupProvider(providerAddress: string, fundAmount = 1n) {
   await broker.ledger.transferFund(providerAddress, 'inference', BigInt(fundAmount));
 }
 
-export async function infer(
+const INFERENCE_TIMEOUT_MS = 30_000;
+const MAX_RETRIES = 3;
+
+async function inferOnce(
   providerAddress: string,
   messages: ChatMessage[],
 ): Promise<{ content: string; model: string }> {
   const broker = getBroker();
   const { endpoint, model } = await broker.inference.getServiceMetadata(providerAddress);
 
-  // Build the full content string for header generation (concatenate all messages)
   const contentForHeaders = messages.map((m) => m.content).join('\n');
   const headers = await broker.inference.getRequestHeaders(providerAddress, contentForHeaders);
 
-  const response = await fetch(`${endpoint}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...headers,
-    },
-    body: JSON.stringify({ model, messages }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), INFERENCE_TIMEOUT_MS);
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`0G inference failed (${response.status}): ${body}`);
+  try {
+    const response = await fetch(`${endpoint}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+      body: JSON.stringify({ model, messages }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`0G inference failed (${response.status}): ${body}`);
+    }
+
+    const data = (await response.json()) as ChatCompletionResponse;
+    const choice = data.choices?.[0];
+
+    if (!choice?.message?.content) {
+      throw new Error('0G inference returned empty response.');
+    }
+
+    return {
+      content: choice.message.content,
+      model: data.model || model,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function infer(
+  providerAddress: string,
+  messages: ChatMessage[],
+): Promise<{ content: string; model: string }> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      return await inferOnce(providerAddress, messages);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < MAX_RETRIES - 1) {
+        const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
   }
 
-  const data = (await response.json()) as ChatCompletionResponse;
-  const choice = data.choices?.[0];
-
-  if (!choice?.message?.content) {
-    throw new Error('0G inference returned empty response.');
-  }
-
-  return {
-    content: choice.message.content,
-    model: data.model || model,
-  };
+  throw lastError ?? new Error('0G inference failed after retries');
 }
 
 export function getActiveProvider(): ZGProvider | null {
