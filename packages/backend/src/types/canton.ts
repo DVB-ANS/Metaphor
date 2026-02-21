@@ -1,19 +1,22 @@
 // ─── Canton / Daml Types ─────────────────────────────────────
-// Maps to Dev B's Daml templates: ConfidentialVault, VaultInvitation, TradeRequest
+// Maps to Daml templates: ConfidentialVault, VaultInvitation, TradeRequest,
+// TradeSettlement, AuditInvitation, AuditRight, TradeProposal, TradeAgreement
 
-export type VaultStatus = 'active' | 'frozen' | 'closed';
+export type VaultStatus = 'Active' | 'Frozen' | 'Closed';
+export type AssetType = 'Bond' | 'Invoice' | 'Mortgage' | 'Equity';
 export type VisibilityLevel = 'owner' | 'counterparty' | 'auditor';
 export type TradeStatus = 'pending' | 'accepted' | 'rejected';
 export type InvitationStatus = 'pending' | 'accepted' | 'declined';
 
 export interface CantonAsset {
   assetId: string;
+  assetType: AssetType;
   name: string;
+  isin: string;
   nominalValue: number;
   couponRate: number;
   maturityDate: string;
-  jurisdiction: string;
-  rating: string;
+  issuerName: string;
 }
 
 export interface CantonParty {
@@ -25,68 +28,66 @@ export interface CantonParty {
 export interface CantonVault {
   contractId: string;
   owner: string; // Daml party
-  name: string;
+  vaultId: string;
+  vaultName: string;
+  description: string;
   status: VaultStatus;
   assets: CantonAsset[];
-  counterparties: CantonParty[];
-  createdAt: string;
+  totalValue: number;
+  counterparties: string[]; // Daml party identifiers
 }
 
 export interface VaultInvitation {
   contractId: string;
+  vaultOwner: string; // party
+  invitee: string; // party
   vaultId: string;
-  from: string; // party
-  to: string; // party
-  role: VisibilityLevel;
-  status: InvitationStatus;
-  createdAt: string;
+  vaultName: string;
 }
 
 export interface TradeRequest {
   contractId: string;
+  vaultOwner: string;
+  requester: string;
   vaultId: string;
-  from: string;
-  to: string;
-  assetName: string;
-  amount: number;
-  price: number;
-  status: TradeStatus;
-  message?: string;
-  createdAt: string;
+  assetId: string;
+  offeredPrice: number;
+  notes: string;
 }
 
 // ─── Request Bodies ──────────────────────────────────────────
 
 export interface CreateVaultBody {
   name: string;
+  vaultId?: string;
+  description?: string;
   owner?: string; // defaults to env party
 }
 
 export interface DepositAssetBody {
   assetId: string;
+  assetType?: AssetType;
   name: string;
+  isin?: string;
   nominalValue: number;
   couponRate: number;
   maturityDate: string;
-  jurisdiction: string;
-  rating: string;
+  jurisdiction?: string;
+  rating?: string;
 }
 
 export interface InvitePartyBody {
   to: string; // party identifier
-  role: VisibilityLevel;
+  vaultName?: string;
 }
 
 export interface RequestTradeBody {
-  to: string;
-  assetName: string;
-  amount: number;
+  assetId?: string;
+  assetName?: string; // fallback for assetId
   price: number;
   message?: string;
 }
 
 export interface AddCounterpartyBody {
   party: string;
-  role: VisibilityLevel;
-  displayName: string;
 }

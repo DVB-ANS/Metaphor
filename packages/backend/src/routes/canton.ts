@@ -37,9 +37,12 @@ cantonRouter.post('/vaults', requireAuth, async (req: Request, res: Response) =>
       'ConfidentialVault',
       {
         owner: party,
-        name: body.name,
-        status: 'active',
+        vaultId: body.vaultId || `vault-${Date.now()}`,
+        vaultName: body.name,
+        description: body.description || '',
         assets: [],
+        totalValue: '0.0',
+        status: 'Active',
         counterparties: [],
       },
       party,
@@ -86,13 +89,16 @@ cantonRouter.post('/vaults/:vaultId/assets', requireAuth, async (req: Request, r
       param(req, 'vaultId'),
       'DepositAsset',
       {
-        assetId: body.assetId,
-        name: body.name,
-        nominalValue: body.nominalValue,
-        couponRate: body.couponRate,
-        maturityDate: body.maturityDate,
-        jurisdiction: body.jurisdiction,
-        rating: body.rating,
+        newAsset: {
+          assetId: body.assetId,
+          assetType: body.assetType || 'Bond',
+          name: body.name,
+          isin: body.isin || body.assetId,
+          nominalValue: String(body.nominalValue),
+          couponRate: String(body.couponRate),
+          maturityDate: body.maturityDate,
+          issuerName: body.jurisdiction || 'Unknown',
+        },
       },
       party,
     );
@@ -112,7 +118,7 @@ cantonRouter.delete('/vaults/:vaultId/assets/:assetId', requireAuth, async (req:
       'ConfidentialVault',
       param(req, 'vaultId'),
       'WithdrawAsset',
-      { assetId: param(req, 'assetId') },
+      { targetAssetId: param(req, 'assetId') },
       party,
     );
 
@@ -133,11 +139,10 @@ cantonRouter.post('/vaults/:vaultId/invite', requireAuth, async (req: Request, r
     const result = await cantonClient.create(
       'VaultInvitation',
       {
+        vaultOwner: party,
+        invitee: body.to,
         vaultId: param(req, 'vaultId'),
-        from: party,
-        to: body.to,
-        role: body.role,
-        status: 'pending',
+        vaultName: body.vaultName || '',
       },
       party,
     );
@@ -198,11 +203,7 @@ cantonRouter.post('/vaults/:vaultId/counterparties', requireAuth, async (req: Re
       'ConfidentialVault',
       param(req, 'vaultId'),
       'AddCounterparty',
-      {
-        party: body.party,
-        role: body.role,
-        displayName: body.displayName,
-      },
+      { newCounterparty: body.party },
       party,
     );
 
@@ -248,11 +249,10 @@ cantonRouter.post('/vaults/:vaultId/trades', requireAuth, async (req: Request, r
       param(req, 'vaultId'),
       'RequestTrade',
       {
-        to: body.to,
-        assetName: body.assetName,
-        amount: body.amount,
-        price: body.price,
-        message: body.message || '',
+        requester: party,
+        assetId: body.assetId || body.assetName,
+        offeredPrice: String(body.price),
+        notes: body.message || '',
       },
       party,
     );

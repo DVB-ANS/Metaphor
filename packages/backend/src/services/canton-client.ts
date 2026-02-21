@@ -6,8 +6,22 @@ const CANTON_JSON_API_HOST = process.env.CANTON_LEDGER_HOST || 'localhost';
 const CANTON_JSON_API_PORT = process.env.CANTON_JSON_API_PORT || '7575';
 const BASE_URL = `http://${CANTON_JSON_API_HOST}:${CANTON_JSON_API_PORT}`;
 
-// Daml package ID — Dev B will provide the real one once deployed
-const PACKAGE_ID = process.env.CANTON_PACKAGE_ID || 'instivault';
+// Daml package ID — set after `daml build` produces the .dar
+const PACKAGE_ID = process.env.CANTON_PACKAGE_ID || 'instivault-canton';
+
+// Mapping: entity name → Daml module name
+// Each Daml file defines a module, and templates live inside modules.
+const ENTITY_MODULE_MAP: Record<string, string> = {
+  ConfidentialVault: 'ConfidentialVault',
+  VaultInvitation: 'ConfidentialVault',
+  VaultAccessRight: 'ConfidentialVault',
+  TradeRequest: 'ConfidentialVault',
+  TradeSettlement: 'ConfidentialVault',
+  TradeProposal: 'PrivateTrade',
+  TradeAgreement: 'PrivateTrade',
+  AuditInvitation: 'AuditRight',
+  AuditRight: 'AuditRight',
+};
 
 interface DamlCreateRequest {
   templateId: {
@@ -48,8 +62,9 @@ interface DamlFetchRequest {
 }
 
 function templateId(entityName: string) {
+  const moduleName = ENTITY_MODULE_MAP[entityName] || entityName;
   return {
-    moduleName: `${PACKAGE_ID}:InstiVault`,
+    moduleName: `${PACKAGE_ID}:${moduleName}`,
     entityName,
   };
 }
