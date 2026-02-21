@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAccount } from 'wagmi';
 import { StaggeredMenu } from '@/components/ui/staggered-menu';
@@ -13,6 +13,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isLanding = pathname === '/';
   const { isAuthenticated, roles, signIn, isSigningIn } = useAuth();
   const { isConnected } = useAccount();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   const menuItems = useMemo(() => {
     // Not authenticated — only show public routes
@@ -59,12 +61,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         displayItemNumbering
         extraHeader={
           <div className="flex items-center gap-3">
-            {isAuthenticated && roles.length > 0 && (
+            {mounted && isAuthenticated && roles.length > 0 && (
               <span className="text-xs tracking-wide text-black/40">
                 {roles.join(' · ')}
               </span>
             )}
-            {isConnected && !isAuthenticated && (
+            {mounted && isConnected && !isAuthenticated && (
               <button
                 onClick={signIn}
                 disabled={isSigningIn}

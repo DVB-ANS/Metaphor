@@ -73,6 +73,7 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
   const [selectedRecId, setSelectedRecId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'upcoming' | 'completed'>('upcoming');
 
@@ -170,8 +171,6 @@ export default function VaultDetailPage({ params }: { params: Promise<{ id: stri
     name: a.name.length > 20 ? a.name.slice(0, 20) + '...' : a.name,
     value: a.allocation,
   }));
-
-  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
