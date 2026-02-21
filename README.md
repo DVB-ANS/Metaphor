@@ -27,7 +27,7 @@ Building a full-stack institutional platform across 4 different blockchain ecosy
 ## Links
 
 - **GitHub Repository**: [github.com/DVB-ANS/ETH-DENVER](https://github.com/DVB-ANS/ETH-DENVER)
-- **Youtube Demo**: (https://youtu.be/Dr8bLcU3o6A)
+- **Youtube Presentation**: https://youtu.be/Dr8bLcU3o6A
 
 ## What is Metaphor's unique value proposition?
 
