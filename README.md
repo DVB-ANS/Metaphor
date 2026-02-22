@@ -2,7 +2,7 @@
 
 ## Built for ETHDenver 2026 — New France Village Track
 
-Metaphor was developed for ETHDenver 2026, targeting 4 bounties: **ADI Foundation**, **Canton Network**, **Hedera**, and **0G Labs**. The hackathon challenges developers to build real-world applications across multiple blockchain ecosystems. Metaphor addresses the fundamental complexity of institutional RWA (Real World Assets) management by unifying tokenization, confidential trading, automated yield payments, and AI-powered risk analysis into a single platform — 4 chains, 1 interface.
+Metaphor was developed for ETHDenver 2026, targeting 4 bounties: **ADI Foundation**, **Canton Network**, **Hedera**, and **0G Labs**, as well as the **New France Village** main track. The hackathon challenges developers to build real-world applications across multiple blockchain ecosystems. Metaphor addresses the fundamental complexity of institutional RWA (Real World Assets) management by unifying tokenization, confidential trading, automated yield payments, and AI-powered risk analysis into a single platform — 4 chains, 1 interface.
 
 ## The problem Metaphor solves
 
