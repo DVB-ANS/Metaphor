@@ -1,6 +1,7 @@
 packages:
   - "packages/frontend"
   - "packages/backend"
+  - "packages/contracts-adi"
   - "packages/contracts-hedera"
   - "packages/contracts-canton"
   - "packages/ai-engine"

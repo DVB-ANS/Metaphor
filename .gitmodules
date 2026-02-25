@@ -1,9 +1,3 @@
-[submodule "packages/contracts-adi/lib/openzeppelin-contracts"]
-	path = packages/contracts-adi/lib/openzeppelin-contracts
-	url = https://github.com/OpenZeppelin/openzeppelin-contracts
 [submodule "packages/contracts-hedera/lib/forge-std"]
 	path = packages/contracts-hedera/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
-[submodule "packages/contracts-hedera/lib/openzeppelin-contracts"]
-	path = packages/contracts-hedera/lib/openzeppelin-contracts
-	url = https://github.com/OpenZeppelin/openzeppelin-contracts
