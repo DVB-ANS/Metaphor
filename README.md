@@ -1,260 +1,262 @@
-# Metaphor
+<div align="center">
 
-## Built for ETHDenver 2026 — New France Village Track
+# 🗻 Metaphor
 
-Metaphor was developed for ETHDenver 2026, targeting 4 bounties: **ADI Foundation**, **Canton Network**, **Hedera**, and **0G Labs**, as well as the **New France Village** main track. The hackathon challenges developers to build real-world applications across multiple blockchain ecosystems. Metaphor addresses the fundamental complexity of institutional RWA (Real World Assets) management by unifying tokenization, confidential trading, automated yield payments, and AI-powered risk analysis into a single platform — 4 chains, 1 interface.
+**A confidential, automated RWA hub for institutions: bonds tokenized on ADI Chain, negotiated in Canton data rooms the rest of the market cannot see, paid on a Hedera schedule with no keeper, and reviewed by an AI on 0G that never signs.**
 
-## The problem Metaphor solves
+[![ADI Chain](https://img.shields.io/badge/ADI%20Chain-Testnet%20(99999)-2563eb?style=flat-square)](https://explorer.ab.testnet.adifoundation.ai/address/0xab3cbc56d958245a2688b2171417679e743b1daf)
+[![Hedera](https://img.shields.io/badge/Hedera-Schedule%20Service%20(0x16b)-7c3aed?style=flat-square)](https://hashscan.io/testnet/contract/0.0.7996912)
+[![Canton](https://img.shields.io/badge/Canton-Daml%203.4-0f9d58?style=flat-square)](packages/contracts-canton)
+[![0G](https://img.shields.io/badge/0G-Compute-1a1a1a?style=flat-square)](packages/ai-engine)
+[![Solidity](https://img.shields.io/badge/Solidity-0.8.24%20%C2%B7%20Foundry-363636?style=flat-square)](packages/contracts-adi)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 
-Institutions tokenizing real-world assets (bonds, invoices, real estate) face three obstacles that no single platform addresses today:
+🏅 **Finalist — ADI Foundation, Open Project Submission ($300) · ETHDenver 2026**
 
-1. **Confidentiality** — Investment strategies and portfolio compositions are exposed on public blockchains. Institutions cannot negotiate without revealing their hand to the entire market.
-2. **Automation** — Coupon and yield payments depend on centralized off-chain servers (cron jobs), creating single points of failure and operational risk.
-3. **Intelligence** — Risk analysis of RWA portfolios remains manual, fragmented across spreadsheets, and disconnected from on-chain data.
+**[Video demo](https://youtu.be/Dr8bLcU3o6A)** · **[Specification](./docs/SPEC.md)** · **[Bounty compliance](./docs/BOUNTY_COMPLIANCE.md)** · **[Demo guide](./docs/DEMO_GUIDE.md)**
 
-Metaphor is intentionally integrated: issuers tokenize assets on ADI chain with on-chain metadata (ISIN, coupon rate, maturity), negotiate in Canton confidential data rooms where visibility is enforced at the protocol level, schedule coupon payments deterministically via Hedera's Schedule Service precompile, and analyze portfolio risk through 0G Compute with human-in-the-loop approval. No intermediaries, no manual settlements, no cron jobs. The entire lifecycle — from issuance to maturity — is trustless, automated, and confidential because each layer is built natively on the right chain for the job.
+</div>
 
-## Challenges we ran into
+Institutions that tokenize bonds on a public chain show their positions to the whole market, pay
+coupons from a cron job on a server, and run risk analysis in spreadsheets that never see the ledger.
+Metaphor gives each of those jobs to the chain built for it, behind a single dashboard: issuance and
+access control on ADI Chain, confidential negotiation on Canton, coupon payments scheduled by the
+Hedera network itself, and risk analysis on 0G Compute with a human approving every recommendation.
+Four chains, one interface.
 
-Building a full-stack institutional platform across 4 different blockchain ecosystems presented several learning curves:
+> 🏅 **Finalist on the ADI Foundation bounty at [ETHDenver 2026](https://ethdenver2026.devfolio.co/), Denver, February 2026.**
+> One of the flagship Ethereum events of the year, with 186 projects submitted to its BUIDLathon.
+> Three students from DeVinci Blockchain built Metaphor there for the New France Village track and
+> four sponsor bounties at once (ADI Foundation, Canton Network, Hedera and 0G Labs), and it was named
+> a finalist on ADI Foundation's $25,000 Open Project Submission bounty.
 
-- **Hedera Address Format**: On Hedera, `msg.sender` resolves to the ECDSA-derived alias address, not the long-zero format from `AccountId.toSolidityAddress()`. Our deploy scripts passed the wrong format to `Ownable`, so `onlyOwner` checks always reverted. We had to derive the ECDSA alias via `PrivateKey.publicKey.toEvmAddress()` for all admin addresses.
-- **Canton Visibility Model**: Implementing true privacy in Daml — where the auditor's transaction tree literally doesn't contain counterparty data (it's not hidden, it doesn't exist) — required rethinking how we structure templates and party roles.
-- **Multi-Chain Orchestration**: Coordinating authentication, role-checking, and data fetching across ADI Chain (ethers.js), Hedera (SDK + EVM), Canton (Daml HTTP JSON API), and 0G Labs (Compute SDK) from a single Express backend.
-- **EIP-170 Bytecode Limit**: `InstitutionRegistry` exceeded the contract size limit, requiring an external `InstitutionDeployer` pattern to separate deployment logic.
-- **Schedule Service Precompile**: Calling Hedera's `0x16b` precompile (IHRC755 + IHRC1215) directly from Solidity for coupon scheduling — no documentation examples existed for this pattern.
+## Table of contents
 
-## Links
+- [How it works](#how-it-works)
+- [Four chains, one interface](#four-chains-one-interface)
+- [Architecture](#architecture)
+- [Deployed contracts](#deployed-contracts)
+- [What's live vs. simulated](#whats-live-vs-simulated)
+- [Getting started](#getting-started)
+- [Tests](#tests)
+- [Tech stack](#tech-stack)
+- [Repository structure](#repository-structure)
+- [Team](#team)
+- [License](#license)
 
-- **GitHub Repository**: [github.com/DVB-ANS/ETH-DENVER](https://github.com/DVB-ANS/ETH-DENVER)
-- **Youtube Presentation**: https://youtu.be/Dr8bLcU3o6A
+## How it works
 
-## What is Metaphor's unique value proposition?
+The life of a tokenized bond, from issuance to coupon:
 
-Metaphor turns institutional RWA management into a unified workflow across 4 specialized chains. Issuers tokenize once on ADI chain, negotiate confidentially on Canton, automate coupon payments on Hedera, and analyze risk via 0G Compute — all from one dashboard. Unlike platforms that force everything onto a single chain (sacrificing privacy or automation), Metaphor uses each chain for what it does best:
+1. **Issue on ADI Chain.** An issuer mints an ERC-20 through `RWATokenFactory`, with the ISIN, coupon
+   rate, maturity and issuer written on chain. A transfer only settles when both wallets are
+   whitelisted, and a token can be fractionalized into sub-tokens.
+2. **Hold it in a vault.** `VaultManager` groups tokens into vaults (create, deposit, withdraw,
+   allocate) behind four on-chain roles, Admin, Issuer, Investor and Auditor, and an emergency pause.
+3. **Negotiate on Canton.** The data room is a Daml contract. The owner sees everything,
+   counterparties see the composition and propose trades, an auditor holds a separate `AuditRight`
+   with aggregate figures only, and for everyone else the contract does not exist.
+4. **Pay the coupons on Hedera.** `CouponScheduler` registers the bond, derives its payment dates and
+   schedules each coupon from Solidity through the Schedule Service precompile at `0x16b`: the network
+   itself calls the payment on its date, with no keeper and no cron job. A payment is all or nothing:
+   without enough liquidity it is marked failed, never paid in part. The issuer then distributes the
+   coupon pro rata to holders through `YieldDistributor`, from a snapshot.
+5. **Review the risk on 0G.** The AI engine sends the vault to 0G Compute and gets back a risk report
+   validated against a schema: a global score, an analysis per position, stress tests and
+   recommendations. Each recommendation waits for a human approval, and the AI has no signing
+   authority.
 
-- **ADI Chain**: ERC-20 tokens with on-chain RWA metadata (ISIN, rate, maturity) + RBAC + multi-tenant white-label with 2-of-N multisig governance
-- **Canton/Daml**: Protocol-level privacy — the same vault shows different data to owners, counterparties, and auditors. Not UI hiding — ledger-enforced
-- **Hedera**: Deterministic coupon payments via Schedule Service precompile `0x16b`, called directly from Solidity. No cron jobs, no off-chain servers
-- **0G Labs**: Structured risk reports (Zod-validated) with stress tests and recommendations. AI never signs transactions — humans approve everything
+Institutions come in as tenants: `InstitutionRegistry` gives each one its own isolated set of
+contracts (access control, token factory, vault manager), and registering an institution takes two
+admin approvals. Signing in is a wallet signature (EIP-191) exchanged for a 24-hour JWT whose roles are
+read on chain.
 
-The product proves it end-to-end: tokenize an asset, create a vault, invite counterparties to a private data room, schedule automated coupon payments, run AI analysis, and approve or reject recommendations — all on-chain, all auditable, all from a single interface.
+## Four chains, one interface
 
-## Who is the target customer?
+| Layer | Where | What runs there |
+|---|---|---|
+| Issuance and access | **ADI Chain** (99999), also on Sepolia | `InstiVaultAccessControl` (four roles, whitelist) · `RWAToken` · `RWATokenFactory` · `VaultManager` · `InstitutionRegistry` (white-label tenants, two approvals) · `InstitutionDeployer` |
+| Confidentiality | **Canton** (Daml) | nine templates in three modules: `ConfidentialVault` (vault, invitation, access right, trade request, settlement), `PrivateTrade` (multi-round offers, agreement), `AuditRight` (invitation, aggregate-only view) |
+| Automation | **Hedera Testnet** | `CouponScheduler` (payment dates, scheduling through `IHRC755` and `IHRC1215`) · `YieldDistributor` (snapshot, pro-rata claims) |
+| Intelligence | **0G Compute** | `ai-engine`: risk analyzer, strategy simulator and stress tests, reports validated with Zod, a deterministic mock as fallback |
 
-**Primary**: Asset managers, private banks, and family offices managing $50M-$500M in fixed income portfolios who need:
-- **Confidential negotiation** without exposing strategies on public chains
-- **Automated yield distribution** without operational overhead
-- **On-chain compliance** with KYC-whitelisted transfers and role-based access
-
-**Secondary**: Corporate treasurers issuing $1M-$50M bonds where traditional underwriting fees (2-5%) are prohibitive, and regulators who benefit from on-chain audit trails with controlled visibility.
-
-## Who are the closest competitors and how is Metaphor different?
-
-Closest competitors include Securitize (Ethereum/Polygon tokenization), Ondo Finance (tokenized treasuries), and Centrifuge (real-world asset financing). These solutions either:
-1. **Expose everything publicly**: Single-chain platforms can't enforce privacy at the protocol level
-2. **Rely on off-chain servers**: Coupon payments triggered by cron jobs create single points of failure
-3. **Lack AI integration**: Risk analysis is disconnected from on-chain portfolio data
-
-Metaphor eliminates all three:
-- **Protocol-level privacy**: Canton/Daml enforces visibility at the ledger — auditors can't see what they shouldn't, even with full database access
-- **On-chain automation**: Hedera Schedule Service precompile executes payments deterministically from Solidity
-- **Integrated intelligence**: 0G Compute analyzes actual portfolio composition with structured, actionable output — and the AI never has signing authority
-
-## Technology Stack
-
-### Smart Contracts (ADI Chain — Solidity)
-- **Foundry**: Build, test, and deploy framework
-- **OpenZeppelin v5.5**: ERC-20, AccessControl, Pausable base contracts
-- **Solidity 0.8.24**: 6 contracts, 111 tests passing
-
-### Smart Contracts (Hedera — Solidity + SDK)
-- **Hedera Smart Contract Service**: EVM-compatible execution
-- **Schedule Service Precompile (0x16b)**: IHRC755 + IHRC1215 interfaces
-- **Hedera SDK (TypeScript)**: Deployment and interaction scripts
-- **Solidity 0.8.24**: 2 contracts, 74 tests passing
-
-### Smart Contracts (Canton — Daml)
-- **Daml SDK 2.10.3**: Native Daml templates with party-scoped visibility
-- **3 modules, 9 templates**: ConfidentialVault, PrivateTrade, AuditRight
-- **28 tests passing**: Visibility separation verified
-
-### AI Engine (0G Labs)
-- **0G Compute**: Decentralized inference for risk analysis
-- **OpenAI SDK**: Compatible client for 0G broker
-- **Zod**: Schema validation for structured AI output
-- **TypeScript**: Risk analyzer + strategy simulator
-
-### Backend (Express)
-- **Express.js**: RESTful API bridging all 4 chains
-- **ethers.js 6**: ADI Chain + Hedera contract interaction
-- **JWT (jsonwebtoken)**: Wallet-based authentication with on-chain role embedding
-- **TypeScript (ESM)**: Strict mode, modern module system
-
-### Frontend (Next.js)
-- **Next.js 16.1**: App Router with 10 pages
-- **TailwindCSS 4**: Utility-first styling
-- **RainbowKit + wagmi 2.x + viem 2.x**: Wallet connection and Web3 integration
-- **Recharts 3**: Portfolio and risk visualization charts
-- **GSAP + Motion**: Scroll animations on landing page
-- **shadcn/ui**: Component library
-
-### Infrastructure
-- **pnpm workspaces**: Monorepo with 6 packages
-- **Node.js 20+**: Runtime requirement
-- **Forge + Vitest**: Solidity and TypeScript testing
-
-## Architecture Overview
+On Canton the visibility is enforced by the ledger, not hidden by the interface:
 
 ```
-                     FRONTEND (Next.js :3000)
-                     ├── 10 pages (App Router)
-                     ├── RoleGate + route-access.ts
-                     ├── auth-context (JWT + wagmi)
-                     └── RainbowKit (wallet connect)
-                                |
-                                | fetch + JWT Bearer
-                                v
-                     BACKEND (Express :3001)
-                     ├── middleware/auth.ts (JWT verify)
-                     ├── middleware/rbac.ts (on-chain roles)
-                     ├── routes/v1.ts (aggregated API)
-                     └── services/ (ai-client, canton-client)
-                      /        |         |          \
-                ethers.js   ethers.js   HTTP      0G SDK
-                  |            |         |          |
-             ADI Chain     Hedera    Canton      0G Labs
-             (99999)      Testnet    Devnet     Compute
-                |            |         |          |
-          6 contracts   2 contracts  3 Daml    risk-analyzer
-          111 tests     74 tests    28 tests   ~20 tests
+Owner (signatory)          full access: manage parties, trade, settle
+Counterparty (observer)    sees the vault composition, proposes trades
+Auditor                    separate AuditRight contract, aggregate data only
+Everyone else              nothing: the contract does not exist for them
 ```
 
-### Authentication Flow
-1. User connects wallet (RainbowKit)
-2. Frontend requests nonce → Backend generates nonce (5 min expiry)
-3. User signs EIP-191 message → Frontend submits signature
-4. Backend verifies signature + fetches roles on-chain via `hasRole()`
-5. JWT returned with address + roles (24h expiry)
-6. All API requests include JWT Bearer token
+Three things the build had to get right:
 
-### Monorepo Structure
+- **The Hedera sender.** Inside the EVM, `msg.sender` is the ECDSA alias of the account, not the
+  long-zero address returned by `AccountId.toSolidityAddress()`. Every script derives the owner from
+  the public key; with the long-zero form, `onlyOwner` always reverts.
+- **Scheduling from Solidity.** The coupons are scheduled by calling the `0x16b` precompile directly
+  from the contract, a pattern with no example in the Hedera documentation at the time.
+- **The contract size limit.** `InstitutionRegistry` outgrew the EIP-170 bytecode limit, so deploying a
+  tenant's contracts moved to the external `InstitutionDeployer`.
+
+## Architecture
+
+```
+                     Next.js dashboard (:3000)
+               RainbowKit · wagmi · viem · 10 pages
+                                 │
+                                 │  EIP-191 sign-in, JWT bearer
+                                 ▼
+                        Express API (:3001)
+             on-chain roles · RBAC · aggregated v1 API
+        ┌────────────────┬───────┴───────┬────────────────┐
+    ethers.js        ethers.js       JSON API         0G broker
+        │                │               │                │
+    ADI Chain         Hedera          Canton         0G Compute
+     (99999)          Testnet          Daml           inference
+   6 contracts      2 contracts     9 templates     risk reports
+```
+
+The backend is the only component that talks to the four networks: ethers.js for ADI Chain and for
+Hedera's JSON-RPC relay, the JSON API for the Daml ledger, and the 0G serving broker for inference. Its
+aggregated `v1` API feeds the dashboard and falls back to demo data when a network is unreachable.
+
+## Deployed contracts
+
+**ADI Chain testnet** (chain 99999, [explorer](https://explorer.ab.testnet.adifoundation.ai/)) and
+**Ethereum Sepolia** (chain 11155111):
+
+| Contract | ADI Chain | Sepolia |
+|---|---|---|
+| `InstiVaultAccessControl` | [`0x8e7d4e14…dd656d`](https://explorer.ab.testnet.adifoundation.ai/address/0x8e7d4e14583a37770c743d33092bbcc4e3dd656d) | [`0x6ccfbc2c…f05043`](https://sepolia.etherscan.io/address/0x6ccfbc2c0d3a794938258d760cba69adbef05043) |
+| `RWATokenFactory` | [`0x0ed29f8c…5d7d65`](https://explorer.ab.testnet.adifoundation.ai/address/0x0ed29f8c992bb10515296a301b27cd8f0a5d7d65) | [`0xe6c7cccc…36921b`](https://sepolia.etherscan.io/address/0xe6c7ccccf0ea80816cd4e8fad70270cf5836921b) |
+| `VaultManager` | [`0x6b6449bd…c1534f`](https://explorer.ab.testnet.adifoundation.ai/address/0x6b6449bdec04dd8717ac71565c7c065680c1534f) | [`0xa162023b…6b8044`](https://sepolia.etherscan.io/address/0xa162023bd4267a5649025f616016a6ea4f6b8044) |
+| `InstitutionRegistry` | [`0xab3cbc56…3b1daf`](https://explorer.ab.testnet.adifoundation.ai/address/0xab3cbc56d958245a2688b2171417679e743b1daf) | [`0x442ec1e3…031002`](https://sepolia.etherscan.io/address/0x442ec1e3079e6db66c24af692b43e7b756031002) |
+| `InstitutionDeployer` | [`0x6804fc93…66179b`](https://explorer.ab.testnet.adifoundation.ai/address/0x6804fc931cc3db9543b07581c3aedcf1fa66179b) | [`0x531d24ca…1bb274`](https://sepolia.etherscan.io/address/0x531d24caee73fcabe1486036821d85b3111bb274) |
+
+**Hedera Testnet:**
+
+| Contract | Hedera ID | EVM address |
+|---|---|---|
+| `CouponScheduler` | [`0.0.7996912`](https://hashscan.io/testnet/contract/0.0.7996912) | `0x…007a05f0` |
+| `YieldDistributor` | [`0.0.7996914`](https://hashscan.io/testnet/contract/0.0.7996914) | `0x…007a05f2` |
+
+The twelve contracts were still deployed on 16 September 2026. The Daml package runs on a local Canton
+sandbox, set up as described in [`packages/contracts-canton`](packages/contracts-canton/README.md).
+
+## What's live vs. simulated
+
+- **On chain:** the ADI contracts on ADI Chain testnet and Sepolia, and `CouponScheduler` and
+  `YieldDistributor` on Hedera Testnet, where `CouponScheduler` holds five registered bonds with their
+  coupon dates computed on chain.
+- **Canton:** the Daml contracts pass 28 Daml Script tests and run on a local sandbox. The deployment
+  on Canton's Devnet L1 asked for by the bounty was not done.
+- **0G:** the engine calls 0G Compute when a provider is configured, and otherwise returns a
+  deterministic mock report (`ZG_USE_MOCK=true` in `.env.example`).
+- **Dashboard:** the aggregated API reads the contracts and falls back to demo data when a network is
+  unreachable or empty, so parts of the dashboard can show demo figures.
+- **No hosted deployment:** the product is shown in the [video demo](https://youtu.be/Dr8bLcU3o6A) and
+  runs locally with the steps below.
+
+## Getting started
+
+Prerequisites: Node 20+, pnpm 9+ and Foundry. The Canton package also needs Java 17+ and DPM with the
+Daml SDK 3.4.11, see [`packages/contracts-canton`](packages/contracts-canton/README.md).
+
+```bash
+git clone --recurse-submodules https://github.com/DVB-ANS/Metaphor.git
+cd Metaphor
+pnpm install
+
+cp .env.example .env          # RPC endpoints, keys and deployed addresses, for every package
+set -a && source .env && set +a
+
+pnpm dev:backend              # Express API on http://localhost:3001
+pnpm dev:frontend             # Next.js on http://localhost:3000
+```
+
+With `DEV_MODE=true`, `POST /api/auth/dev-login` returns a JWT holding the four roles, the quickest way
+to open every page locally.
+
+To deploy your own contracts, from the same shell:
+
+```bash
+# ADI Chain, or Sepolia with ADI_RPC_URL pointing at a Sepolia RPC
+cd packages/contracts-adi
+forge script script/Deploy.s.sol --rpc-url "$ADI_RPC_URL" --broadcast    # signs with ADI_PRIVATE_KEY
+cd ../..
+
+# Hedera Testnet, with HEDERA_OPERATOR_ID and HEDERA_OPERATOR_KEY
+pnpm --filter contracts-hedera run deploy
+pnpm --filter contracts-hedera run register-bond
+pnpm --filter contracts-hedera run schedule
+
+# Canton, on a local sandbox (ledger API on 6865, JSON API on 7575)
+pnpm build:canton
+pnpm --filter contracts-canton run sandbox
+```
+
+## Tests
+
+| Package | Framework | Tests |
+|---|---|---|
+| `contracts-adi` | Forge | 111 |
+| `contracts-hedera` | Forge | 74 |
+| `contracts-canton` | Daml Script | 28 |
+| `ai-engine` | Vitest | 21 |
+
+```bash
+pnpm test          # the four suites
+pnpm test:adi      # or one at a time: test:hedera, test:canton, test:ai
+```
+
+The Forge and Vitest suites were run again on 16 September 2026, 206 tests passing; the Daml suite
+needs DPM.
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| ADI contracts | Solidity 0.8.24, Foundry, OpenZeppelin 5.5 |
+| Hedera contracts | Solidity 0.8.24, Foundry, the Schedule Service system contract (`IHRC755`, `IHRC1215`), Hedera SDK |
+| Canton contracts | Daml, SDK 3.4.11, DPM |
+| AI engine | 0G Compute (`@0glabs/0g-serving-broker`), OpenAI-compatible client, Zod |
+| Backend | Express 4, ethers 6, jsonwebtoken, TypeScript (ESM) |
+| Frontend | Next.js 16, React 19, Tailwind CSS 4, shadcn/ui, RainbowKit, wagmi, viem, Recharts, GSAP, Motion |
+| Tooling | pnpm workspaces, Forge, Vitest, Prettier |
+
+## Repository structure
 
 ```
 packages/
-├── contracts-adi/       # Foundry — 6 Solidity contracts (ADI chain)
-├── contracts-hedera/    # Solidity + Hedera SDK (coupon automation)
-├── contracts-canton/    # Daml templates (confidential vaults)
-├── ai-engine/           # TypeScript (0G Compute risk analysis)
-├── backend/             # Express API (bridges all 4 chains)
-└── frontend/            # Next.js dashboard (10 pages)
+  contracts-adi/          Foundry: roles, RWA tokens, vaults, white-label registry (ADI Chain, Sepolia)
+  contracts-hedera/       Foundry and Hedera SDK: coupon scheduling, yield distribution, deploy scripts
+  contracts-canton/       Daml: confidential vaults, private trades, audit rights, sandbox scripts
+  ai-engine/              0G Compute client, risk analyzer, strategy simulator, prompts, mock
+  backend/                Express API: wallet sign-in, RBAC, per-chain routes, aggregated v1 API
+  frontend/               Next.js dashboard, 10 pages
+docs/
+  SPEC.md                 specification: features, data flows, API endpoints, constraints
+  BOUNTY_COMPLIANCE.md    every bounty requirement, with its evidence
+  DEMO_GUIDE.md           the demo walkthrough, with the commands that check each step on chain
 ```
-
-## Deployed Contracts
-
-### ADI Chain (Chain ID: 99999)
-
-| Contract | Address | Explorer |
-|----------|---------|---------|
-| InstiVaultAccessControl | `0x8E7D...656d` | [View](https://explorer.ab.testnet.adifoundation.ai/address/0x8E7D4E14583a37770C743D33092bbCC4E3Dd656d) |
-| RWATokenFactory | `0x0eD2...7d65` | [View](https://explorer.ab.testnet.adifoundation.ai/address/0x0eD29f8c992bB10515296A301B27cd8F0a5d7d65) |
-| VaultManager | `0x6b64...534f` | [View](https://explorer.ab.testnet.adifoundation.ai/address/0x6b6449bDEC04dd8717AC71565C7c065680C1534f) |
-| InstitutionRegistry | `0xAB3C...1daF` | [View](https://explorer.ab.testnet.adifoundation.ai/address/0xAB3Cbc56D958245a2688b2171417679e743B1daF) |
-
-### Hedera Testnet
-
-| Contract | Account ID | Explorer |
-|----------|------------|---------|
-| CouponScheduler | `0.0.7996912` | [View](https://hashscan.io/testnet/contract/0.0.7996912) |
-| YieldDistributor | `0.0.7996914` | [View](https://hashscan.io/testnet/contract/0.0.7996914) |
-
-### Canton (Daml)
-
-| Module | Templates |
-|--------|-----------|
-| ConfidentialVault | ConfidentialVault, VaultInvitation, VaultAccessRight, TradeRequest, TradeSettlement |
-| PrivateTrade | TradeProposal, TradeAgreement |
-| AuditRight | AuditInvitation, AuditRight |
-
-## Setup
-
-### Prerequisites
-
-- Node.js 20+
-- pnpm 9+
-- Foundry (`curl -L https://foundry.paradigm.xyz | bash && foundryup`)
-- A Hedera Testnet account ([portal.hedera.com](https://portal.hedera.com))
-
-### Installation
-
-```bash
-# Clone and install
-git clone https://github.com/DVB-ANS/ETH-DENVER.git
-cd ETH-DENVER
-pnpm install
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your keys (see .env.example for all variables)
-```
-
-### Run Locally
-
-```bash
-# Terminal 1 — Backend API
-pnpm dev:backend    # Express on http://localhost:3001
-
-# Terminal 2 — Frontend
-pnpm dev:frontend   # Next.js on http://localhost:3000
-```
-
-Open [http://localhost:3000](http://localhost:3000) to see the app.
-
-### Run Tests
-
-```bash
-pnpm test           # All tests (ADI + Hedera + Canton + AI)
-
-# Or individually:
-pnpm test:adi       # 111 Solidity tests (Foundry)
-pnpm test:hedera    # 74 Solidity tests (Foundry)
-pnpm test:canton    # 28 Daml tests
-pnpm test:ai        # AI engine tests (Vitest)
-```
-
-## Test Results
-
-| Package | Framework | Tests | Status |
-|---------|-----------|-------|--------|
-| contracts-adi | Forge | 111 | All passing |
-| contracts-hedera | Forge | 74 | All passing |
-| contracts-canton | Daml | 28 | All passing |
-| ai-engine | Vitest | ~20 | All passing |
-| **Total** | | **213+** | **All passing** |
-
-## Bounties
-
-| Sponsor | What We Built | Key Proof |
-|---------|---------------|-----------|
-| **ADI Foundation** | Multi-tenant tokenization platform with RBAC, 2-of-N multisig, and white-label support. 6 contracts deployed on ADI chain (99999) + Sepolia. | Live tokenization tx + vault creation tx + whitelist tx on chain 99999. InstitutionRegistry with isolated contracts per institution. |
-| **Canton Network** | Native Daml confidential vaults with 9 templates across 3 modules. Party-scoped visibility enforced at the ledger protocol level. | 3-panel demo: same vault returns different data per role. Auditor's transaction tree doesn't contain counterparty data — it doesn't exist. |
-| **Hedera** | On-chain coupon scheduling via Schedule Service precompile (`0x16b`). CouponScheduler + YieldDistributor deployed on Hedera Testnet. | `scheduleCoupon()` calls IHRC755 + IHRC1215 directly from Solidity. 2 bonds registered with automated payment dates. |
-| **0G Labs** | Structured risk analysis via 0G Compute with Zod-validated reports, stress tests, and human-in-the-loop approval. | AI returns scored positions + macro stress scenarios. Every recommendation requires explicit user approval — AI never signs transactions. |
 
 ## Team
 
-| Dev | Scope |
-|-----|-------|
-| Dev A | Solidity contracts (ADI + Hedera) |
-| Dev B | Daml contracts (Canton) + AI engine (0G Labs) |
-| Dev C | Frontend (Next.js) + Backend (Express) |
+Three students from **DeVinci Blockchain**, Paris, at ETHDenver 2026.
 
-## Documentation
+| | Role | |
+|---|---|---|
+| **Sofiane Ben Taleb** | frontend and backend | [GitHub](https://github.com/gamween) · [LinkedIn](https://www.linkedin.com/in/sofiane-ben-taleb/) |
+| **Noé Wales** | Solidity contracts on ADI Chain and Hedera, backend integration | [GitHub](https://github.com/CHAAIISE) · [LinkedIn](https://www.linkedin.com/in/no%C3%A9-w/) |
+| **Armand Séchon** | Daml contracts on Canton, AI engine on 0G | [GitHub](https://github.com/STOOOKEEE) · [LinkedIn](https://www.linkedin.com/in/armand-sechon/) |
 
-- **[SPEC.md](./markdown/SPEC.md)** — Full project specification (features, architecture, data flows, edge cases)
-- **[DEPLOY.md](./markdown/DEPLOY.md)** — Step-by-step deployment guide
-- **[DEMO_GUIDE.md](./markdown/DEMO_GUIDE.md)** — 20-minute demo walkthrough with terminal commands
-- **[BOUNTY_COMPLIANCE.md](./markdown/BOUNTY_COMPLIANCE.md)** — Bounty requirement checklist with evidence
-- **[PROJECT_OVERVIEW.md](./markdown/PROJECT_OVERVIEW.md)** — Detailed product overview
-- **[DEPLOYED_CONTRACTS.md](./markdown/DEPLOYED_CONTRACTS.md)** — All contract addresses across chains
-- **[TIMELINE.md](./markdown/TIMELINE.md)** — Development roadmap and phases
+## License
+
+[MIT](LICENSE) © 2026 Sofiane Ben Taleb, Noé Wales and Armand Séchon. The Hedera system-contract
+interfaces vendored in `packages/contracts-hedera/contracts/hedera-deps/` keep their Apache-2.0
+license.
+
+<div align="center">
+<sub>Built for ETHDenver 2026 · New France Village track · ADI Foundation, Canton Network, Hedera and 0G Labs bounties</sub>
+</div>
