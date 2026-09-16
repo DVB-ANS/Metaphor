@@ -1,4 +1,4 @@
-# Outward — Bounty Compliance
+# Metaphor — Bounty Compliance
 
 ## ADI Foundation
 
@@ -6,7 +6,7 @@
 
 | Requirement | Status | Evidence |
 |---|---|---|
-| MVP deployed on ADI chain | Done | Chain 99999 — 5 contracts deployed ([addresses](./DEPLOYED_CONTRACTS.md)) |
+| MVP deployed on ADI chain | Done | Chain 99999 — 5 contracts deployed ([addresses](../README.md#deployed-contracts)) |
 | Also deployed on Sepolia | Done | Chain 11155111 — same 5 contracts |
 | Real economic utility | Done | Tokenization + vault management + fractional ownership + coupon lifecycle |
 | White-label ready | Done | `InstitutionRegistry` — multi-tenant, each institution gets isolated contracts |
