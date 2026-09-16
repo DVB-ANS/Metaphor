@@ -11,7 +11,7 @@
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.24%20%C2%B7%20Foundry-363636?style=flat-square)](packages/contracts-adi)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 
-🏅 **Finalist — ADI Foundation, Open Project Submission ($300) · ETHDenver 2026**
+🏅 **Finalist — ADI Foundation, Open Project Submission ($287) · ETHDenver 2026**
 
 **[Video demo](https://youtu.be/Dr8bLcU3o6A)** · **[Specification](./docs/SPEC.md)** · **[Bounty compliance](./docs/BOUNTY_COMPLIANCE.md)** · **[Demo guide](./docs/DEMO_GUIDE.md)**
 
