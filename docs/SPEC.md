@@ -143,7 +143,7 @@ A unified platform where institutions can:
                     BACKEND (Express :3001)
                     /      |       |       \
               ADI Chain   Hedera   Canton   0G Labs
-             (Testnet)   (Testnet) (Devnet)  (Compute)
+             (Testnet)   (Testnet) (sandbox) (Compute)
 ```
 
 ### Monorepo Structure
@@ -185,7 +185,7 @@ packages/
 | Layer | Technology | Language |
 |-------|-----------|----------|
 | ADI contracts | Foundry + OpenZeppelin v5.5 | Solidity 0.8.24 |
-| Canton contracts | Daml SDK 2.10.3 | Daml |
+| Canton contracts | Daml SDK 3.4.11 (DPM) | Daml |
 | Hedera contracts | Hedera Smart Contract Service + SDK | Solidity 0.8.24 + TypeScript |
 | AI engine | 0G Compute + OpenAI SDK | TypeScript |
 | Frontend | Next.js 16.1 + TailwindCSS 4 + RainbowKit | TypeScript (React 19) |
@@ -369,10 +369,10 @@ packages/
 | contracts-adi | Forge | 111 | All passing |
 | contracts-hedera | Forge | 74 | All passing |
 | contracts-canton | Daml sandbox | 28 | All passing |
-| ai-engine | Vitest | ~20 | All passing |
+| ai-engine | Vitest | 21 | All passing |
 | backend | — | 0 | No tests |
 | frontend | — | 0 | No tests |
-| **Total** | | **213+** | |
+| **Total** | | **234** | |
 
 ---
 
@@ -402,15 +402,14 @@ packages/
 - **Fonts**: Space Grotesk (display), Geist Sans (body), Geist Mono (code)
 - **SSR-safe wallet**: RainbowKit configured for server-side rendering compatibility
 
-### Known Open Items
+### Limits at Submission
 
-- Canton contracts not yet deployed to Devnet L1 (code ready, sandbox tested)
-- 0G Compute endpoint not configured (running in mock mode)
-- Frontend pages built with demo/mock data integration — real API calls partially wired
+- Canton contracts run on a local sandbox; the Devnet L1 deployment was not done (code ready, 28 tests)
+- 0G Compute runs in mock mode unless a provider is configured (`ZG_USE_MOCK=true` by default)
+- Frontend pages fall back to demo data when a service is unreachable; real API calls are partially wired
 - No CI/CD pipeline
 - No backend or frontend tests
-- No live demo URL (Vercel deployment pending)
-- No demo video recorded
+- No hosted deployment: the demo is the [video](https://youtu.be/Dr8bLcU3o6A)
 
 ---
 
@@ -423,29 +422,3 @@ packages/
 - 9 dependency vulnerabilities (all transitive, from 0G SDK and Hedera SDK)
 - Open CORS policy (demo-only concern)
 - AI never has signing authority — human-in-the-loop enforced at API level
-
----
-
-## 10. Audit Summary
-
-### Health Score: 58/100 (FAIR)
-
-| Category | Score | Weight | Notes |
-|----------|-------|--------|-------|
-| Security | 7/10 | x4 | No secrets in code, proper env handling; open CORS, 9 transitive vulns |
-| Code Quality | 5/10 | x3 | 213+ contract tests, but no backend/frontend tests; 111 console.log calls; no linting |
-| Architecture | 8/10 | x2 | Clean monorepo, clear separation, proper fallbacks, good documentation |
-| Dependencies | 6/10 | x2 | Single lockfile, 9 vulns (all transitive), reasonably current |
-| Git & DevOps | 4/10 | x2 | No CI/CD, no git hooks, inconsistent commit messages |
-| Claude Config | 6/10 | x3 | Good CLAUDE.md, but no hooks/agents/rules, no settings.json |
-
-### Key Gaps
-
-1. No CI/CD pipeline (GitHub Actions)
-2. No backend or frontend tests
-3. No ESLint configuration at root level
-4. Open CORS policy
-5. 111 console.log statements in source
-6. Canton deployment pending
-7. 0G Compute not configured (mock only)
-8. Missing root README.md (being created)

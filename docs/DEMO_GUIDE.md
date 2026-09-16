@@ -403,5 +403,5 @@ cd packages/contracts-canton && daml test
 | AI analysis slow | Set `ZG_USE_MOCK=true` in backend `.env` and restart |
 | Canton demo shows mock data | That's fine — the demo data shows the same privacy model. Canton sandbox is optional |
 | "Restricted Access" on a page | Wrong role — use dev-login for all roles |
-| Hedera tx reverts | Admin address must be ECDSA alias, not long-zero format (see CLAUDE.md) |
+| Hedera tx reverts | Admin address must be ECDSA alias, not long-zero format (see [SPEC.md §8](./SPEC.md#8-edge-cases-and-constraints)) |
 | Backend crashes on start | Check `pnpm install` was run, check `.env` exists |

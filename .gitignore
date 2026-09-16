@@ -46,4 +46,6 @@ lcov.info
 *.tgz
 .turbo/
 
-devA.md
+# Local tooling
+.claude/
+.yarn/
